@@ -9,9 +9,9 @@ traversal, no absolute escapes).
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
-
+from typing import Any
 
 # Cap how much file content we read back into the context.
 MAX_READ_CHARS = 10_000
@@ -91,11 +91,17 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "write_file",
-            "description": "Create or overwrite a file in the workspace. Parent folders are created automatically.",
+            "description": (
+                "Create or overwrite a file in the workspace. "
+                "Parent folders are created automatically."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path relative to the workspace, e.g. notes/todo.md"},
+                    "path": {
+                        "type": "string",
+                        "description": "Path relative to the workspace, e.g. notes/todo.md",
+                    },
                     "content": {"type": "string", "description": "Full text content to write"},
                 },
                 "required": ["path", "content"],
@@ -124,7 +130,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Directory path relative to the workspace"},
+                    "path": {
+                        "type": "string",
+                        "description": "Directory path relative to the workspace",
+                    },
                 },
                 "required": ["path"],
             },
@@ -138,7 +147,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Directory path relative to the workspace (default '.')"},
+                    "path": {
+                        "type": "string",
+                        "description": "Directory path relative to the workspace (default '.')",
+                    },
                 },
                 "required": [],
             },

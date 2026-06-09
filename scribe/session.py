@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -149,14 +148,14 @@ class SessionManager:
         if not last_session_path.exists():
             return None
 
-        with open(last_session_path, "r") as f:
+        with open(last_session_path) as f:
             session_id = f.read().strip()
 
         checkpoint_path = self.STATE_DIR / session_id / self.CHECKPOINT_FILE
         if not checkpoint_path.exists():
             return None
 
-        with open(checkpoint_path, "r") as f:
+        with open(checkpoint_path) as f:
             data = json.load(f)
             return SessionCheckpoint.from_dict(data)
 
@@ -211,7 +210,7 @@ class SessionManager:
         if not path.exists():
             return None
 
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
             return SessionCheckpoint.from_dict(data)
 

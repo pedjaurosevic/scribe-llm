@@ -7,7 +7,7 @@ Provides persistent semantic memory using LanceDB embeddings.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,7 +15,6 @@ from typing import Any
 import lancedb
 import pyarrow as pa
 from sentence_transformers import SentenceTransformer
-
 
 DEFAULT_SME_PATH = Path.home() / ".scribe" / "sme"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"

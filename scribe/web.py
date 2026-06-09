@@ -4,27 +4,24 @@ Scribe Web - FastAPI web server with streaming chat UI.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 from pathlib import Path
-from typing import AsyncIterator
 
+import uvicorn
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import uvicorn
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
-from scribe.session import SessionManager
 from scribe.memory.sme import get_sme_service, recall_previous_session
-from scribe.skills_executor import SkillsExecutor
 from scribe.prompts import get_system_prompt
+from scribe.session import SessionManager
+from scribe.skills_executor import SkillsExecutor
 from scribe.tools import fs
-
 
 app = FastAPI(title="Scribe", description="Autonomous Research & Writing Agent")
 
@@ -195,7 +192,7 @@ async def websocket_chat(websocket: WebSocket):
         ),
     }]
 
-    session = session_manager.start_session(topic="web_chat")
+    session_manager.start_session(topic="web_chat")
 
     try:
         while True:
@@ -294,7 +291,7 @@ async def websocket_chat(websocket: WebSocket):
             elif event.get("type") == "clear":
                 messages = [messages[0]]
                 session_manager.end_session()
-                session = session_manager.start_session(topic="web_chat")
+                session_manager.start_session(topic="web_chat")
                 await websocket.send_json({"type": "cleared"})
 
     except WebSocketDisconnect:

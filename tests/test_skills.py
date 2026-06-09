@@ -1,10 +1,9 @@
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scribe.skills_executor import SkillsRegistry, SkillsExecutor, Skill, SkillResult
+from scribe.skills_executor import Skill, SkillResult, SkillsExecutor, SkillsRegistry
 
 
 class TestSkillsRegistry:
@@ -49,7 +48,9 @@ class TestSkillsExecutor:
 
 class TestSkill:
     def test_skill_from_builtin_path(self):
-        skill = Skill.from_path(Path(__file__).parent.parent / "scribe" / "skills" / "deep-research")
+        skill = Skill.from_path(
+            Path(__file__).parent.parent / "scribe" / "skills" / "deep-research"
+        )
         assert skill is not None
         assert skill.name == "deep-research"
         assert skill.description is not None

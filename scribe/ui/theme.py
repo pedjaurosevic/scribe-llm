@@ -5,7 +5,6 @@ Theme definitions for Scribe TUI.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -48,7 +47,7 @@ class Theme:
 
     name: str
     colors: ThemeColors
-    font_style: Optional[str] = None
+    font_style: str | None = None
 
     @classmethod
     def gruvbox_dark(cls) -> Theme:

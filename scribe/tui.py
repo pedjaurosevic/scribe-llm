@@ -13,7 +13,6 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Iterator
 
 # Enables GNU readline line editing for input() (arrow keys, and correct
 # backspace/cursor across wrapped lines once the prompt's color codes are
@@ -23,27 +22,22 @@ try:
 except ImportError:
     readline = None
 
-import click
-from rich.console import Console
-from rich.layout import Layout
-from rich.live import Live
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.syntax import Syntax
 from rich.box import ROUNDED
 from rich.cells import cell_len
+from rich.live import Live
 from rich.markdown import Markdown
 from rich.padding import Padding
-from rich.rule import Rule
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
+from scribe.memory.sme import get_sme_service, recall_previous_session
+from scribe.prompts import get_code_system_prompt, get_system_prompt
 from scribe.session import SessionManager, session_tag
-from scribe.memory.sme import SMEService, get_sme_service, recall_previous_session
 from scribe.skills_executor import SkillsExecutor
-from scribe.prompts import get_system_prompt, get_code_system_prompt
 from scribe.ui.console import get_console, list_themes, theme_accent
 from scribe.ui.logo import logo_lines
 
@@ -190,13 +184,13 @@ class ScribeTUI:
             model_name = self.adapter.get_model_name()
             self.console.print(f"[success]✓[/success] Connected to [green]{model_name}[/green]")
         else:
-            self.console.print(f"[error]✗[/error] LLM server not reachable")
+            self.console.print("[error]✗[/error] LLM server not reachable")
 
         if self.sme:
             count = self.sme.count()
             self.console.print(f"[info]ℹ[/info] Memory: [dim]{count} entries[/dim]")
         else:
-            self.console.print(f"[warning]⚠[/warning] Memory: not available")
+            self.console.print("[warning]⚠[/warning] Memory: not available")
 
         self.console.print()
 
@@ -371,7 +365,6 @@ class ScribeTUI:
 
         Returns (thinking_text, answer_text, tool_calls, gen_tokens).
         """
-        from rich.live import Live
 
         thinking_text = ""
         answer_text = ""
@@ -966,7 +959,11 @@ class ScribeTUI:
         table.add_column("Component", style="cyan")
         table.add_column("Status", style="white")
 
-        server_status = "[success]✓ Connected[/success]" if self.adapter.is_healthy() else "[error]✗ Disconnected[/error]"
+        server_status = (
+            "[success]✓ Connected[/success]"
+            if self.adapter.is_healthy()
+            else "[error]✗ Disconnected[/error]"
+        )
         table.add_row("LLM Server", server_status)
         table.add_row("Model", self.adapter.get_model_name())
         table.add_row("Base URL", self.config.base_url)
@@ -1010,11 +1007,13 @@ class ScribeTUI:
             # Small logo + the exact command to resume this very session.
             self._print_logo(small=True)
             self.console.print(
-                f"  [dim]Session saved as[/dim] [accent]#{tag}[/accent][dim]. Continue it with:[/dim]"
+                f"  [dim]Session saved as[/dim] [accent]#{tag}[/accent]"
+                f"[dim]. Continue it with:[/dim]"
             )
             self.console.print(f"  [command]scribe chat resume {tag}[/command]")
             self.console.print(
-                "  [dim]or just[/dim] [command]scribe chat resume[/command] [dim]for the most recent.[/dim]"
+                "  [dim]or just[/dim] [command]scribe chat resume[/command] "
+                "[dim]for the most recent.[/dim]"
             )
             self.console.print()
 

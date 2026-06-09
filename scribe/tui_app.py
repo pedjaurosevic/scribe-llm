@@ -18,7 +18,6 @@ from pathlib import Path
 
 from rich.cells import cell_len
 from rich.text import Text
-
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, VerticalScroll
@@ -26,10 +25,10 @@ from textual.widgets import Input, Markdown, Static
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
-from scribe.prompts import get_system_prompt, get_code_system_prompt
-from scribe.session import SessionManager
 from scribe.memory.sme import get_sme_service
-from scribe.ui.console import PALETTES, DEFAULT_THEME, list_themes
+from scribe.prompts import get_code_system_prompt, get_system_prompt
+from scribe.session import SessionManager
+from scribe.ui.console import DEFAULT_THEME, PALETTES, list_themes
 
 
 def build_status_line(
@@ -372,7 +371,7 @@ class ScribeApp(App):
     async def _cmd_theme(self, name: str) -> None:
         if not name:
             await self._note("Themes: " + ", ".join(
-                ("[%s]" % t if t == self.theme_name else t) for t in list_themes()
+                (f"[{t}]" if t == self.theme_name else t) for t in list_themes()
             ))
             return
         if name not in list_themes():

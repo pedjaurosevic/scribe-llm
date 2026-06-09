@@ -11,9 +11,10 @@ Loads config from:
 from __future__ import annotations
 
 import os
-import toml
 from pathlib import Path
 from typing import Any
+
+import toml
 
 
 class ScribeConfig:
@@ -85,7 +86,7 @@ class ScribeConfig:
         config_file = self._find_config_file()
 
         if config_file and config_file.exists():
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 user_config = toml.load(f)
                 self._merge_config(user_config)
 

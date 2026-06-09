@@ -28,7 +28,6 @@ from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
 
-
 # How much of a command result we put in the reply body (keep emails sane).
 MAX_REPLY_CHARS = 8_000
 
