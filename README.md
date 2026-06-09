@@ -9,6 +9,7 @@
 - **Cross-Session Memory** — SME (Semantic Memory Engine) for seamless session continuity
 - **RAG Integration** — Semantic search over your document library
 - **Modular Skills** — Extend capabilities with skill modules
+- **Email Bridge** — Get results by email and send commands from one approved address (stdlib only)
 - **Wittgenstein + Peirce** — Philosophy-inspired harness design for stable LLM behavior
 
 ## Installation
@@ -75,7 +76,44 @@ scribe session list            # List all sessions
 scribe config show             # Show current config
 scribe status                  # Check system status
 scribe evolve eval             # Run the held-out fitness suite (Phase 0)
+
+scribe mail send "Subj" "Body" # Email yourself a notification
+scribe mail watch              # Accept commands by email (see below)
 ```
+
+## Email bridge
+
+Scribe can email you results and accept commands by email — using only the
+Python standard library (no extra dependencies).
+
+```toml
+[scribe.email]
+enabled = true
+address = "you@gmail.com"
+approved_sender = "you@gmail.com"   # the ONLY address allowed to command Scribe
+secret = "pick-a-token"             # must appear in command subjects
+```
+
+```bash
+export SCRIBE_EMAIL_PASSWORD="your-gmail-app-password"   # never in the config file
+
+scribe mail send "Done" "The report is ready."   # send a notification
+scribe mail watch                                 # poll inbox, run commands, reply
+```
+
+To run a command, email yourself with the secret in the subject:
+
+> **Subject:** `[scribe:pick-a-token] summarize the notes in research/`
+
+Scribe runs it with the **sandboxed workspace tools** (read/write/list files,
+no shell) and replies with the answer.
+
+**Security:** commands are accepted only when both the sender matches
+`approved_sender` **and** the subject carries `[scribe:secret]`. Since `From:`
+headers can be spoofed, the secret is the real gate — leave it empty to keep
+command intake off (sending still works). Gmail requires an
+[App Password](https://myaccount.google.com/apppasswords) (with 2-Step
+Verification enabled).
 
 ## Architecture
 

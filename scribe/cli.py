@@ -324,6 +324,90 @@ def evolve_eval(ctx, limit, no_ledger):
                  write_ledger=not no_ledger)
 
 
+@main.group()
+def mail():
+    """Email bridge — send notifications and accept commands by email."""
+    pass
+
+
+@mail.command("send")
+@click.argument("subject")
+@click.argument("body", default="")
+@click.option("--to", default=None, help="Recipient (default: approved sender)")
+@click.pass_context
+def mail_send(ctx, subject, body, to):
+    """Send an email. BODY is optional; reads stdin if a single '-' is given."""
+    from scribe.mail import build_bridge
+
+    console = ctx.obj["console"]
+    config = ctx.obj["config"]
+
+    if body == "-":
+        body = sys.stdin.read()
+
+    try:
+        bridge = build_bridge(config)
+        bridge.send(subject, body, to=to)
+        console.print(f"[success]✓[/success] Sent: {subject}")
+    except Exception as e:
+        console.print(f"[error]✗ Send failed:[/error] {e}")
+        sys.exit(1)
+
+
+@mail.command("watch")
+@click.option("--once", is_flag=True, default=False,
+              help="Poll a single time and exit (for testing)")
+@click.pass_context
+def mail_watch(ctx, once):
+    """Poll the inbox and run approved commands, replying with the result."""
+    import time
+
+    from scribe.mail import build_bridge, execute_instruction
+
+    console = ctx.obj["console"]
+    config = ctx.obj["config"]
+    cfg = config.email_config()
+
+    if not cfg["secret"]:
+        console.print("[error]No secret set.[/error] Command intake is disabled "
+                      "until you set [scribe.email].secret.")
+        sys.exit(1)
+
+    try:
+        bridge = build_bridge(config)
+    except Exception as e:
+        console.print(f"[error]✗ Email not configured:[/error] {e}")
+        sys.exit(1)
+
+    interval = cfg["poll_interval"]
+    console.print(f"[info]Watching inbox[/info] for commands from "
+                  f"[path]{bridge.approved_sender}[/path] (every {interval}s). "
+                  "Ctrl-C to stop.")
+
+    while True:
+        try:
+            for cmd in bridge.poll_commands():
+                console.print(f"[info]→ Command:[/info] {cmd.subject}")
+                instruction = cmd.instruction(cfg["secret"])
+                answer = execute_instruction(config, instruction)
+                bridge.send(
+                    f"Re: {cmd.subject}",
+                    answer,
+                    to=cmd.sender,
+                    in_reply_to=cmd.message_id,
+                )
+                console.print(f"[success]✓[/success] Replied to {cmd.sender}")
+        except KeyboardInterrupt:
+            console.print("\n[info]Stopped.[/info]")
+            break
+        except Exception as e:
+            console.print(f"[warning]Poll error:[/warning] {e}")
+
+        if once:
+            break
+        time.sleep(interval)
+
+
 @main.command()
 @click.pass_context
 def status(ctx):
@@ -359,6 +443,13 @@ def status(ctx):
         console.print(f"[info]RAG:[/info] {rag.count()} chunks from {len(rag.list_sources())} sources")
     else:
         console.print(f"[warning]RAG:[/warning] not available")
+
+    ecfg = config.email_config()
+    if ecfg["enabled"] and ecfg["address"] and ecfg["password"]:
+        intake = "commands ON" if ecfg["secret"] else "send-only (no secret)"
+        console.print(f"[info]Email:[/info] {ecfg['address']} ({intake})")
+    else:
+        console.print(f"[warning]Email:[/warning] disabled")
 
 
 if __name__ == "__main__":
