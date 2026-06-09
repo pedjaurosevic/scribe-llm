@@ -18,12 +18,15 @@
 git clone https://github.com/pedjaurosevic/scribe-ai.git
 cd scribe-ai
 
-# Run install script
+# Run the install script: installs the package (editable), creates the
+# config, and scaffolds ~/scribe-workspace.
 ./scripts/install.sh
 
-# Or install via pip
+# Or do it by hand:
 pip install -e .
 ```
+
+> Requires Python 3.10+. The install is editable, so `git pull` updates Scribe in place.
 
 ## Quick Start
 
@@ -59,15 +62,19 @@ export SCRIBE_MODEL=my-model.gguf
 ## CLI Commands
 
 ```bash
-scribe chat                    # Interactive chat
-scribe chat --stream           # Streaming mode (default)
+scribe chat                    # Interactive TUI chat (streaming by default)
+scribe chat --textual          # Full-screen Textual UI (experimental)
+scribe chat --resume TAG       # Resume a past session (no TAG = last one)
+scribe web                     # Web UI at http://localhost:8765
 
 scribe memory recall "query"  # Recall from semantic memory
-scribe session last           # Show last session
-scribe session list           # List all sessions
+scribe rag search "query"     # Semantic search over ingested documents
+scribe session last            # Show last session
+scribe session list            # List all sessions
 
-scribe config show            # Show current config
-scribe status                 # Check system status
+scribe config show             # Show current config
+scribe status                  # Check system status
+scribe evolve eval             # Run the held-out fitness suite (Phase 0)
 ```
 
 ## Architecture

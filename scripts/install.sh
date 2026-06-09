@@ -14,15 +14,20 @@ if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1
     exit 1
 fi
 
+# Install the Python package (editable) from the repo root.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+echo "Installing the 'scribe' package..."
+pip install -e "$REPO_ROOT"
+
 # Create config directory
 CONFIG_DIR="$HOME/.config/scribe"
 mkdir -p "$CONFIG_DIR"
 
 # Copy example config if none exists
 if [ ! -f "$CONFIG_DIR/config.toml" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "$SCRIPT_DIR/../config/config.example.toml" ]; then
-        cp "$SCRIPT_DIR/../config/config.example.toml" "$CONFIG_DIR/config.toml"
+    if [ -f "$REPO_ROOT/config/config.example.toml" ]; then
+        cp "$REPO_ROOT/config/config.example.toml" "$CONFIG_DIR/config.toml"
         echo "Created config at $CONFIG_DIR/config.toml"
     fi
 fi
