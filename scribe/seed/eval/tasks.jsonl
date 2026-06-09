@@ -1,0 +1,20 @@
+{"id": "math-mul-sr", "lang": "sr", "prompt": "Koliko je 7 puta 8?", "max_words": 12, "rubric": "Tačan odgovor je 56."}
+{"id": "geo-capital-en", "lang": "en", "prompt": "What is the capital of Japan?", "max_words": 12, "rubric": "Tokyo."}
+{"id": "colors-sr", "lang": "sr", "prompt": "Navedi tri primarne boje.", "max_words": 25, "rubric": "Crvena, žuta, plava (ili crvena, zelena, plava)."}
+{"id": "photosynthesis-en", "lang": "en", "prompt": "In one sentence, what is photosynthesis?", "max_words": 45, "rubric": "Plants convert light, water and CO2 into glucose and oxygen."}
+{"id": "prime-sr", "lang": "sr", "prompt": "Da li je broj 13 prost? Kratko obrazloži.", "max_words": 35, "rubric": "Da, 13 je prost jer je deljiv samo sa 1 i samim sobom."}
+{"id": "langs-en", "lang": "en", "prompt": "Name two programming languages.", "max_words": 15, "rubric": "Any two real languages, e.g. Python and JavaScript."}
+{"id": "water-formula-sr", "lang": "sr", "prompt": "Koja je hemijska formula vode?", "max_words": 10, "rubric": "H2O."}
+{"id": "div-en", "lang": "en", "prompt": "What is 144 divided by 12?", "max_words": 10, "rubric": "12."}
+{"id": "translate-en-sr", "lang": "en", "prompt": "Translate to English: 'Dobar dan'.", "max_words": 12, "rubric": "Good day / Good afternoon / Hello."}
+{"id": "translate-sr-en", "lang": "sr", "prompt": "Prevedi na srpski: 'Thank you'.", "max_words": 10, "rubric": "Hvala."}
+{"id": "ram-sr", "lang": "sr", "prompt": "U jednoj rečenici objasni šta je RAM.", "max_words": 45, "rubric": "Brza privremena radna memorija računara za podatke u trenutnoj upotrebi."}
+{"id": "ww2-en", "lang": "en", "prompt": "In what year did World War II end?", "max_words": 10, "rubric": "1945."}
+{"id": "continents-sr", "lang": "sr", "prompt": "Koliko kontinenata ima na Zemlji?", "max_words": 10, "rubric": "Sedam."}
+{"id": "boiling-en", "lang": "en", "prompt": "What is the boiling point of water in Celsius at sea level?", "max_words": 15, "rubric": "100 degrees Celsius."}
+{"id": "andric-sr", "lang": "sr", "prompt": "Ko je napisao roman 'Na Drini ćuprija'?", "max_words": 12, "rubric": "Ivo Andrić."}
+{"id": "planet-en", "lang": "en", "prompt": "What is the largest planet in the Solar System?", "max_words": 10, "rubric": "Jupiter."}
+{"id": "add-sr", "lang": "sr", "prompt": "Saberi 25 i 17.", "max_words": 10, "rubric": "42."}
+{"id": "reverse-en", "lang": "en", "prompt": "Spell the word 'banana' backwards.", "max_words": 10, "rubric": "ananab."}
+{"id": "weekday-sr", "lang": "sr", "prompt": "Navedi jedan dan u nedelji koji počinje na slovo P.", "max_words": 12, "rubric": "Ponedeljak ili Petak."}
+{"id": "opposite-en", "lang": "en", "prompt": "What is the opposite of the word 'hot'?", "max_words": 10, "rubric": "Cold."}
