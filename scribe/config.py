@@ -50,6 +50,17 @@ class ScribeConfig:
         "scribe.web": {
             "pin": "2020",
         },
+        "scribe.email": {
+            "enabled": False,
+            "address": "",
+            "approved_sender": "",
+            "secret": "",
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+            "imap_host": "imap.gmail.com",
+            "imap_port": 993,
+            "poll_interval": 30,
+        },
         "scribe.limits": {
             "max_context_tokens": 131072,
             "max_response_tokens": 8192,
@@ -251,6 +262,33 @@ class ScribeConfig:
     def max_thinking_words(self) -> int:
         """Upper bound (in words) for the <think> block. Keeps reasoning minimal."""
         return self.get("scribe.limits", "max_thinking_words", default=30)
+
+    @property
+    def email_enabled(self) -> bool:
+        """Whether the email bridge (send + command intake) is turned on."""
+        return bool(self.get("scribe.email", "enabled", default=False))
+
+    def email_config(self) -> dict:
+        """
+        Assemble email settings. The app password is read from the
+        SCRIBE_EMAIL_PASSWORD env var first (preferred), falling back to
+        `app_password` in config.toml. Never store it in the repo.
+        """
+        password = os.environ.get("SCRIBE_EMAIL_PASSWORD") or self.get(
+            "scribe.email", "app_password", default=""
+        )
+        return {
+            "enabled": bool(self.get("scribe.email", "enabled", default=False)),
+            "address": self.get("scribe.email", "address", default=""),
+            "password": password,
+            "approved_sender": self.get("scribe.email", "approved_sender", default=""),
+            "secret": str(self.get("scribe.email", "secret", default="")),
+            "smtp_host": self.get("scribe.email", "smtp_host", default="smtp.gmail.com"),
+            "smtp_port": int(self.get("scribe.email", "smtp_port", default=587)),
+            "imap_host": self.get("scribe.email", "imap_host", default="imap.gmail.com"),
+            "imap_port": int(self.get("scribe.email", "imap_port", default=993)),
+            "poll_interval": int(self.get("scribe.email", "poll_interval", default=30)),
+        }
 
     def __repr__(self) -> str:
         return f"ScribeConfig(base_url={self.base_url}, model={self.model})"

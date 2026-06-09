@@ -49,6 +49,35 @@ theme = "gruvbox-dark"
 show_progress = true
 streaming = true
 
+[scribe.email]
+# Email bridge: Scribe can send you mail and accept commands by mail.
+# Works with any IMAP/SMTP provider; defaults target Gmail.
+#
+# Gmail needs an App Password (not your normal password): enable 2-Step
+# Verification, then create one at https://myaccount.google.com/apppasswords
+# Put it in the SCRIBE_EMAIL_PASSWORD env var (preferred) — never in this file.
+enabled = false
+
+# Your mailbox Scribe logs into (send-from and poll-from).
+address = ""
+
+# The ONE address allowed to send commands. Replies also go here. Usually you.
+approved_sender = ""
+
+# Shared secret that MUST appear in a command subject as [scribe:SECRET].
+# From: headers can be spoofed, so this token is the real gate. Empty = command
+# intake stays OFF (sending still works).
+secret = ""
+
+# Poll cadence for `scribe mail watch`, in seconds.
+poll_interval = 30
+
+# Provider servers (Gmail defaults shown).
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+imap_host = "imap.gmail.com"
+imap_port = 993
+
 [scribe.limits]
 # Operational limits
 max_context_tokens = 131072
