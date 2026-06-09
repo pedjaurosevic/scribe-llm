@@ -1,7 +1,5 @@
 """Session tagging + resume-by-tag lookup."""
 
-import tempfile
-from pathlib import Path
 
 from scribe.session import SessionManager, session_tag
 

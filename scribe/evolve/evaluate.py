@@ -14,10 +14,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 SEED_DIR = Path(__file__).resolve().parent.parent / "seed"
 EVAL_DIR = SEED_DIR / "eval"

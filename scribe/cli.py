@@ -35,8 +35,8 @@ for _stream in (sys.stdin, sys.stdout, sys.stderr):
 from scribe import __version__
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
+from scribe.memory import get_rag_service, get_sme_service, recall_previous_session
 from scribe.session import SessionManager
-from scribe.memory import get_sme_service, get_rag_service, recall_previous_session
 from scribe.ui import get_default_console
 
 
@@ -91,7 +91,7 @@ def web(ctx, host, port):
     from scribe.web import run
 
     console = ctx.obj["console"]
-    console.print(f"[bold cyan]Starting Scribe Web UI[/bold cyan]")
+    console.print("[bold cyan]Starting Scribe Web UI[/bold cyan]")
     console.print(f"  Host: {host}")
     console.print(f"  Port: {port}")
     console.print(f"  URL:  http://localhost:{port}")
@@ -147,7 +147,7 @@ def memory_stats(ctx):
     count = sme.count()
     recent = sme.get_recent(limit=3)
 
-    console.print(f"[bold]Memory Statistics[/bold]")
+    console.print("[bold]Memory Statistics[/bold]")
     console.print(f"  Total entries: {count}")
     console.print()
 
@@ -245,7 +245,7 @@ def rag_stats(ctx):
     count = rag.count()
     sources = rag.list_sources()
 
-    console.print(f"[bold]RAG Statistics[/bold]")
+    console.print("[bold]RAG Statistics[/bold]")
     console.print(f"  Total chunks: {count}")
     console.print(f"  Sources: {len(sources)}")
 
@@ -426,7 +426,7 @@ def status(ctx):
         model_name = adapter.get_model_name()
         console.print(f"[success]✓[/success] LLM Server: Connected ({model_name})")
     else:
-        console.print(f"[error]✗[/error] LLM Server: Not reachable")
+        console.print("[error]✗[/error] LLM Server: Not reachable")
 
     session_mgr = SessionManager(config)
     sessions = session_mgr.list_sessions()
@@ -436,20 +436,23 @@ def status(ctx):
     if sme:
         console.print(f"[info]Memory:[/info] {sme.count()} entries")
     else:
-        console.print(f"[warning]Memory:[/warning] not available")
+        console.print("[warning]Memory:[/warning] not available")
 
     rag = get_rag_service()
     if rag:
-        console.print(f"[info]RAG:[/info] {rag.count()} chunks from {len(rag.list_sources())} sources")
+        console.print(
+            f"[info]RAG:[/info] {rag.count()} chunks "
+            f"from {len(rag.list_sources())} sources"
+        )
     else:
-        console.print(f"[warning]RAG:[/warning] not available")
+        console.print("[warning]RAG:[/warning] not available")
 
     ecfg = config.email_config()
     if ecfg["enabled"] and ecfg["address"] and ecfg["password"]:
         intake = "commands ON" if ecfg["secret"] else "send-only (no secret)"
         console.print(f"[info]Email:[/info] {ecfg['address']} ({intake})")
     else:
-        console.print(f"[warning]Email:[/warning] disabled")
+        console.print("[warning]Email:[/warning] disabled")
 
 
 if __name__ == "__main__":

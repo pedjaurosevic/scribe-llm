@@ -4,17 +4,15 @@ Rich Progress bars and spinners for Scribe TUI.
 
 from __future__ import annotations
 
-from typing import Iterator
+from rich.console import Console
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
-    TimeRemainingColumn,
     TaskID,
-    Text,
+    TextColumn,
+    TimeRemainingColumn,
 )
-from rich.console import Console
 
 
 def create_default_progress() -> Progress:

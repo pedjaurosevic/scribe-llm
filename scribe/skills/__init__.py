@@ -5,8 +5,8 @@ Skills - Built-in skills for Scribe.
 from scribe.skills import (
     Skill,
     SkillResult,
-    SkillsRegistry,
     SkillsExecutor,
+    SkillsRegistry,
     get_executor,
     get_registry,
 )

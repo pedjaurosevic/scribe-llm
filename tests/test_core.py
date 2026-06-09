@@ -1,11 +1,10 @@
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scribe.llm_adapter import LLMAdapter
 from scribe.config import ScribeConfig
+from scribe.llm_adapter import LLMAdapter
 
 
 class TestLLMAdapter:

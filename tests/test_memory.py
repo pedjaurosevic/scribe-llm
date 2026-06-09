@@ -1,11 +1,12 @@
-import pytest
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scribe.memory import SMEService, RAGService, get_sme_service, get_rag_service
+from scribe.memory import RAGService, SMEService, get_rag_service, get_sme_service
 
 
 class TestSMEService:

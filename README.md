@@ -1,5 +1,9 @@
 # Scribe
 
+[![CI](https://github.com/pedjaurosevic/scribe-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/pedjaurosevic/scribe-ai/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 > Universal TUI agent that connects to **any** llama.cpp server and uses RAG + semantic memory to research, write, and remember — across sessions.
 
 ## Features
@@ -22,8 +26,11 @@ cd scribe-ai
 # Run the install script: installs the package (editable), creates the
 # config, and scaffolds ~/scribe-workspace.
 ./scripts/install.sh
+```
 
-# Or do it by hand:
+Or install by hand (skip the script):
+
+```bash
 pip install -e .
 ```
 

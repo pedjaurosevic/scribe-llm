@@ -11,13 +11,13 @@ Supports:
 from __future__ import annotations
 
 import os
-from typing import Any, AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 from openai import OpenAI
 from openai._streaming import Stream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-
 
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"

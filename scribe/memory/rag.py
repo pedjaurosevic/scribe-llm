@@ -8,8 +8,7 @@ Integrates with existing Kon RAG system or creates new Scribe RAG.
 from __future__ import annotations
 
 import json
-import os
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -17,7 +16,6 @@ from typing import Any
 import lancedb
 import pyarrow as pa
 from sentence_transformers import SentenceTransformer
-
 
 DEFAULT_RAG_PATH = Path.home() / ".scribe" / "rag"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
