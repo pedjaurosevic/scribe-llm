@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
     "openai>=1.0.0",
     "rich>=13.0.0",
+    "textual>=0.40.0",
     "click>=8.0.0",
     "toml>=0.10.0",
     "lancedb>=0.4.0",
