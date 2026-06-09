@@ -1,0 +1,61 @@
+# Scribe Configuration Example
+#
+# Copy this to ~/.config/scribe/config.toml or ~/.scribe/config.toml
+
+[scribe]
+# LLM Endpoint — any llama-server, Ollama, LM Studio
+base_url = "http://127.0.0.1:18083/v1"
+
+# Model name (any string the server accepts)
+model = "gemma-4-12B-it-Q4_K_M.gguf"
+
+# API key (llama.cpp doesn't need this, use "not-needed")
+api_key = "not-needed"
+
+# System prompt shown to the model
+system_prompt = "You are Scribe, an autonomous research and writing agent..."
+
+# Enable memory systems
+sme_enabled = true
+rag_enabled = true
+
+# Reasoning mode (Peirce chain runs as hidden thinking, answer stays short).
+#   true  = native server reasoning via enable_thinking (llama.cpp gemma).
+#   false = prompt-driven: the model emits the <think> block itself. Use this
+#           for servers without chat_template_kwargs (Ollama, LM Studio, ...).
+reasoning = true
+
+# Local working directory Scribe operates in (created on start). The model is
+# told it runs locally here, so it stops claiming it is a cloud/isolated AI.
+workspace_dir = "~/scribe-workspace"
+
+# Give the model sandboxed file tools (write/read/list/mkdir) scoped strictly to
+# workspace_dir. The reply streams token by token either way.
+tools_enabled = true
+
+[scribe.rag]
+# RAG configuration
+embedding_model = "intfloat/multilingual-e5-small"
+index_dir = "~/.scribe/rag"
+
+[scribe.sme]
+# SME configuration
+db_path = "~/.scribe/sme"
+
+[scribe.ui]
+# TUI color theme. Switch live in chat with /theme NAME. Options:
+#   gruvbox-dark · dracula · tokyo-night · nord · catppuccin · solarized-dark
+theme = "gruvbox-dark"
+show_progress = true
+streaming = true
+
+[scribe.limits]
+# Operational limits
+max_context_tokens = 131072
+max_response_tokens = 8192
+request_timeout_seconds = 600
+
+# Hard cap (in words) for the hidden <think> block. Lower = shorter reasoning.
+#   ~30 = kratko (default)   ~15 = vrlo kratko   ~8 = minimalno (1 rečenica)
+# To turn thinking off entirely, set reasoning = false above.
+max_thinking_words = 30

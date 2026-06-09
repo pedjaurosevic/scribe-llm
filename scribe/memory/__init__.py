@@ -1,0 +1,29 @@
+"""
+Memory layer - SME and RAG integrations.
+"""
+
+from scribe.memory.sme import (
+    SMEService,
+    MemoryEntry,
+    get_sme_service,
+    recall_previous_session,
+    DEFAULT_SME_PATH,
+)
+from scribe.memory.rag import (
+    RAGService,
+    DocumentChunk,
+    get_rag_service,
+    DEFAULT_RAG_PATH,
+)
+
+__all__ = [
+    "SMEService",
+    "MemoryEntry",
+    "get_sme_service",
+    "recall_previous_session",
+    "DEFAULT_SME_PATH",
+    "RAGService",
+    "DocumentChunk",
+    "get_rag_service",
+    "DEFAULT_RAG_PATH",
+]
