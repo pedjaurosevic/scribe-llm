@@ -22,8 +22,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - Cleaned up the codebase so `ruff` passes on the full lint rule set
   (import order, unused imports, f-strings, modern type hints) — no behavior change.
-- Declared `textual` as a runtime dependency (it was imported by the Textual UI
-  but missing from `pyproject.toml`, so a clean install couldn't import the package).
+- Declared previously-undeclared runtime dependencies that a clean install was
+  missing: `textual` (Textual UI import), and `pandas` + `pylance` (required by
+  the LanceDB-backed memory layer — without them `list_sources`/search silently
+  returned empty results).
 
 ## [0.2.0] - 2026-06-08
 
