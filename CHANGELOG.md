@@ -9,8 +9,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.2.1] - 2026-06-09
 
 ### Added
-- GitHub Actions CI: runs `ruff` lint and the `pytest` suite on Python
-  3.10 / 3.11 / 3.12 for every push and pull request.
+- GitHub Actions CI: runs `ruff` lint and the unit `pytest` subset
+  (`-m "not integration"`) on Python 3.10 / 3.11 / 3.12 for every push and PR.
+- `integration` pytest marker for tests that need a live llama-server or model
+  downloads, so the unit suite stays fast and runnable anywhere.
 - `CONTRIBUTING.md` with the local dev / test workflow.
 - Status badges in the README.
 

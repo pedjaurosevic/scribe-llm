@@ -30,4 +30,6 @@ jobs:
         run: ruff check scribe tests
 
       - name: Run tests
-        run: pytest -q
+        # Integration tests need a live llama-server / model downloads, which
+        # aren't available on CI runners — they run locally instead.
+        run: pytest -q -m "not integration"
