@@ -17,14 +17,19 @@ This installs Scribe in editable mode together with the dev tools
 ## Running the checks
 
 ```bash
-ruff check scribe tests     # lint
-pytest -q                   # test suite (no live LLM server required)
+ruff check scribe tests          # lint
+pytest -q                        # full suite (incl. integration tests)
+pytest -q -m "not integration"   # unit subset — what CI runs
 ```
 
-The test suite is self-contained: tests that need the Semantic Memory Engine
-or RAG skip themselves when those optional components aren't available, and
-nothing reaches out to a running llama-server. CI runs the same two commands
-on Python 3.10, 3.11 and 3.12.
+Tests are split into two groups:
+
+- **Unit tests** — fast, self-contained, no network. CI runs these
+  (`pytest -m "not integration"`) on Python 3.10, 3.11 and 3.12.
+- **Integration tests** (`@pytest.mark.integration`) — exercise the real
+  stack: the LLM adapter against a running llama-server, and the LanceDB
+  memory layer (which downloads an embedding model). Run them locally with a
+  server up; they're excluded from CI because runners have neither.
 
 ## Pull requests
 

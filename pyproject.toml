@@ -56,6 +56,11 @@ scribe = "scribe.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["scribe"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: needs external services (a running llama-server or model downloads); excluded from CI",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

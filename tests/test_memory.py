@@ -14,6 +14,7 @@ class TestSMEService:
         sme = get_sme_service()
         assert sme is None or isinstance(sme, SMEService)
 
+    @pytest.mark.integration
     def test_sme_service_operations(self):
         sme = get_sme_service()
         if sme is None:
@@ -47,6 +48,7 @@ class TestRAGService:
         rag = get_rag_service()
         assert rag is None or isinstance(rag, RAGService)
 
+    @pytest.mark.integration
     def test_rag_service_operations(self):
         rag = get_rag_service()
         if rag is None:
