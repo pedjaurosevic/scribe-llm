@@ -191,16 +191,55 @@ class LLMAdapter:
         self.base_url = base_url or os.environ.get(
             "SCRIBE_BASE_URL", "http://127.0.0.1:18083/v1"
         )
-        self.api_key = api_key
+        self.api_key = api_key or "not-needed"
         self.model = model or os.environ.get("SCRIBE_MODEL", "default")
         self.timeout = timeout
         self.enable_thinking = enable_thinking
+        self._resolved_model: str | None = None
 
         self.client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
             timeout=timeout,
         )
+
+    @classmethod
+    def from_config(cls, config) -> "LLMAdapter":
+        """
+        Build an adapter from a ScribeConfig, wiring ALL connection settings
+        (base_url, api_key, model, timeout, reasoning). Every entry point
+        should use this so cloud endpoints with API keys work everywhere.
+        """
+        return cls(
+            base_url=config.base_url,
+            api_key=config.api_key,
+            model=config.model,
+            timeout=config.request_timeout,
+            enable_thinking=config.reasoning,
+        )
+
+    def _request_model(self) -> str:
+        """
+        The model name sent with each request.
+
+        llama.cpp ignores the field, so its conventional placeholder "default"
+        is fine there — but Ollama and LM Studio reject unknown model names.
+        When the configured model is the placeholder, resolve it once to the
+        first model the server reports and cache it (only on success, so a
+        temporarily unreachable server is retried next request).
+        """
+        if self.model and self.model != "default":
+            return self.model
+        if self._resolved_model:
+            return self._resolved_model
+        try:
+            models = self.client.models.list()
+            if models.data:
+                self._resolved_model = models.data[0].id
+                return self._resolved_model
+        except Exception:
+            pass
+        return self.model
 
     def _with_thinking(self, kwargs: dict) -> dict:
         """
@@ -241,7 +280,7 @@ class LLMAdapter:
         """
         kwargs = self._with_thinking(kwargs)
         response: ChatCompletion = self.client.chat.completions.create(
-            model=self.model,
+            model=self._request_model(),
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -278,7 +317,7 @@ class LLMAdapter:
         if tools:
             kwargs["tools"] = tools
         response: ChatCompletion = self.client.chat.completions.create(
-            model=self.model,
+            model=self._request_model(),
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -311,7 +350,7 @@ class LLMAdapter:
         """
         kwargs = self._with_thinking(kwargs)
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-            model=self.model,
+            model=self._request_model(),
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -357,7 +396,7 @@ class LLMAdapter:
         """
         kwargs = self._with_thinking(kwargs)
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-            model=self.model,
+            model=self._request_model(),
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -417,7 +456,7 @@ class LLMAdapter:
             kwargs["tools"] = tools
 
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-            model=self.model,
+            model=self._request_model(),
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -563,7 +602,7 @@ class LLMAdapter:
 
         def sync_stream():
             stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-                model=self.model,
+                model=self._request_model(),
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
