@@ -14,11 +14,22 @@ if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1
     exit 1
 fi
 
+# Check if pip is available
+if ! command -v pip &> /dev/null && ! command -v pip3 &> /dev/null; then
+    echo "Error: 'pip' or 'pip3' is not installed. Please install Python package manager first."
+    echo "On Debian/Ubuntu (WSL), you can install it using: sudo apt update && sudo apt install python3-pip"
+    exit 1
+fi
+
 # Install the Python package (editable) from the repo root.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 echo "Installing the 'scribe' package..."
-pip install -e "$REPO_ROOT"
+if command -v pip &> /dev/null; then
+    pip install -e "$REPO_ROOT"
+else
+    pip3 install -e "$REPO_ROOT"
+fi
 
 # Create config directory
 CONFIG_DIR="$HOME/.config/scribe"
