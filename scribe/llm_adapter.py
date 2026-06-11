@@ -11,6 +11,8 @@ Supports:
 from __future__ import annotations
 
 import os
+import re
+import json
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -82,6 +84,77 @@ class _ThinkSplitter:
         events = [(kind, self.buf)]
         self.buf = ""
         return events
+
+
+def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
+    """
+    Parse text-based tool calls (e.g. JSON blocks or ReAct style) from LLM output.
+    """
+    text_clean = text.strip()
+    
+    # 1. Try JSON parsing
+    # Look for the first '{' and last '}'
+    start_idx = text_clean.find("{")
+    end_idx = text_clean.rfind("}")
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        json_str = text_clean[start_idx:end_idx + 1]
+        try:
+            data = json.loads(json_str)
+            if isinstance(data, dict):
+                # Format: {"action": "...", "action_input": ...}
+                if "action" in data:
+                    name = data["action"]
+                    args = data.get("action_input", {})
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            pass
+                    return [{
+                        "id": "call_text_fallback",
+                        "name": name,
+                        "arguments": json.dumps(args) if isinstance(args, (dict, list)) else str(args)
+                    }]
+                # Format: {"name": "...", "arguments": ...}
+                elif "name" in data and ("arguments" in data or "parameters" in data):
+                    name = data["name"]
+                    args = data.get("arguments") or data.get("parameters", {})
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            pass
+                    return [{
+                        "id": "call_text_fallback",
+                        "name": name,
+                        "arguments": json.dumps(args) if isinstance(args, (dict, list)) else str(args)
+                    }]
+        except Exception:
+            pass
+
+    # 2. Try ReAct format parsing (e.g. Action: list_dir / Action Input: ...)
+    action_match = re.search(r"(?:Action|Call):\s*([a-zA-Z0-9_-]+)", text_clean, re.IGNORECASE)
+    if action_match:
+        name = action_match.group(1).strip()
+        # Find action input
+        input_match = re.search(r"(?:Action Input|Arguments|Args|Input):\s*(.*)", text_clean, re.DOTALL | re.IGNORECASE)
+        arguments = "{}"
+        if input_match:
+            args_str = input_match.group(1).strip()
+            # Clean up wrap markdown
+            if args_str.startswith("```"):
+                # strip code fences
+                lines = args_str.splitlines()
+                if len(lines) >= 2:
+                    args_str = "\n".join(lines[1:-1]).strip()
+            arguments = args_str
+        return [{
+            "id": "call_text_fallback",
+            "name": name,
+            "arguments": arguments
+        }]
+
+    return []
 
 
 class LLMAdapter:
@@ -354,6 +427,8 @@ class LLMAdapter:
 
         splitter = _ThinkSplitter()
         tool_acc: dict[int, dict[str, str]] = {}
+        buffered_answer: list[str] = []
+        is_json_candidate: bool | None = None # None = undecided, True = yes, False = no
 
         for chunk in stream:
             if not chunk.choices:
@@ -365,7 +440,24 @@ class LLMAdapter:
                 yield ("thinking", reasoning)
 
             if delta.content:
-                yield from splitter.feed(delta.content)
+                for kind, payload in splitter.feed(delta.content):
+                    if kind == "answer":
+                        if is_json_candidate is False:
+                            yield (kind, payload)
+                        else:
+                            buffered_answer.append(payload)
+                            if is_json_candidate is None:
+                                full_buf = "".join(buffered_answer)
+                                temp = full_buf.lstrip()
+                                if temp:
+                                    if temp.startswith("{") or temp.startswith("`"):
+                                        is_json_candidate = True
+                                    else:
+                                        is_json_candidate = False
+                                        yield (kind, full_buf)
+                                        buffered_answer = []
+                    else:
+                        yield (kind, payload)
 
             for tc in (delta.tool_calls or []):
                 slot = tool_acc.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
@@ -377,7 +469,37 @@ class LLMAdapter:
                     if tc.function.arguments:
                         slot["arguments"] += tc.function.arguments
 
-        yield from splitter.flush()
+        for kind, payload in splitter.flush():
+            if kind == "answer":
+                if is_json_candidate is False:
+                    yield (kind, payload)
+                else:
+                    buffered_answer.append(payload)
+                    if is_json_candidate is None:
+                        full_buf = "".join(buffered_answer)
+                        temp = full_buf.lstrip()
+                        if temp:
+                            if temp.startswith("{") or temp.startswith("`"):
+                                is_json_candidate = True
+                            else:
+                                is_json_candidate = False
+                                yield (kind, full_buf)
+                                buffered_answer = []
+            else:
+                yield (kind, payload)
+
+        if is_json_candidate is None and buffered_answer:
+            yield ("answer", "".join(buffered_answer))
+            buffered_answer = []
+
+        if is_json_candidate is True and buffered_answer:
+            full_text = "".join(buffered_answer)
+            parsed_calls = parse_text_tool_calls(full_text)
+            if parsed_calls:
+                for idx, call in enumerate(parsed_calls):
+                    tool_acc[idx] = call
+            else:
+                yield ("answer", full_text)
 
         if tool_acc:
             calls = [tool_acc[i] for i in sorted(tool_acc)]
