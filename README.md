@@ -18,6 +18,7 @@
 
 ## Installation
 
+### 🐧 Linux
 ```bash
 # Clone the repository
 git clone https://github.com/pedjaurosevic/scribe-ai.git
@@ -27,6 +28,14 @@ cd scribe-ai
 # config, and scaffolds ~/scribe-workspace.
 ./scripts/install.sh
 ```
+
+### 🪟 Windows (WSL)
+Scribe runs seamlessly on Windows via **WSL (Windows Subsystem for Linux)**.
+1. Open your WSL terminal (e.g., Ubuntu).
+2. Run the Linux installation commands shown above.
+3. To configure Scribe to work with **Ollama** (either running natively on Windows or inside WSL), check out the [WSL & Ollama Integration Guide](docs/wsl_ollama_guide.md).
+
+---
 
 Or install by hand (skip the script):
 
