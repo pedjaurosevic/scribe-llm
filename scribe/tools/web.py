@@ -1,5 +1,9 @@
 """
-Web tools for Scribe — search the web using Brave Search and fetch page content.
+Web tools for Scribe — search the web and fetch page content.
+
+Search uses the Brave Search API when a key is configured, and falls back to
+DuckDuckGo's HTML endpoint (no API key needed) otherwise, so research works
+out of the box.
 """
 
 from __future__ import annotations
@@ -51,17 +55,120 @@ def load_brave_api_key() -> str | None:
     return None
 
 
+class _DuckDuckGoParser(HTMLParser):
+    """
+    Extract results from the DuckDuckGo HTML endpoint (html.duckduckgo.com).
+
+    Each result is an <a class="result__a" href="...">Title</a> followed by an
+    element with class "result__snippet". Hrefs are DDG redirect links carrying
+    the real URL in the `uddg` query parameter.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.results: list[dict[str, str]] = []
+        self._in_title = False
+        self._in_snippet = False
+
+    @staticmethod
+    def _real_url(href: str) -> str:
+        if "uddg=" in href:
+            qs = urllib.parse.urlparse(href).query
+            target = urllib.parse.parse_qs(qs).get("uddg", [""])[0]
+            if target:
+                return target
+        return href
+
+    def handle_starttag(self, tag, attrs):
+        cls = dict(attrs).get("class", "")
+        if tag == "a" and "result__a" in cls:
+            self._in_title = True
+            self.results.append({
+                "title": "",
+                "url": self._real_url(dict(attrs).get("href", "")),
+                "snippet": "",
+            })
+        elif "result__snippet" in cls and self.results:
+            self._in_snippet = True
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._in_title:
+            self._in_title = False
+        elif self._in_snippet and tag in ("a", "td", "div", "span"):
+            self._in_snippet = False
+
+    def handle_data(self, data):
+        if not self.results:
+            return
+        if self._in_title:
+            self.results[-1]["title"] += data
+        elif self._in_snippet:
+            self.results[-1]["snippet"] += data
+
+
+def _format_results(results: list[dict[str, str]], engine: str) -> str:
+    lines = []
+    for i, r in enumerate(results, 1):
+        title = r.get("title") or "(no title)"
+        lines.append(f"{i}. **{title.strip()}**")
+        lines.append(f"   URL: {r.get('url', '')}")
+        snippet = (r.get("snippet") or "").strip()
+        if snippet:
+            lines.append(f"   Snippet: {snippet}")
+        lines.append("")
+    lines.append(f"[search engine: {engine}]")
+    return "\n".join(lines).strip()
+
+
+def duckduckgo_search(query: str, count: int = 5) -> str:
+    """
+    Search the web with DuckDuckGo's HTML endpoint — no API key required.
+
+    Used as the default engine when no Brave Search API key is configured, so
+    research works out of the box.
+    """
+    params = urllib.parse.urlencode({"q": query.strip()})
+    request = urllib.request.Request(
+        f"https://html.duckduckgo.com/html/?{params}",
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ),
+            "Accept": "text/html",
+            "Accept-Encoding": "gzip",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            raw_data = response.read()
+            if "gzip" in (response.headers.get("Content-Encoding") or "").lower():
+                raw_data = gzip.decompress(raw_data)
+            html = raw_data.decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"Error querying DuckDuckGo: {e}"
+
+    parser = _DuckDuckGoParser()
+    try:
+        parser.feed(html)
+    except Exception as e:
+        return f"Error parsing DuckDuckGo results: {e}"
+
+    results = parser.results[: min(max(1, count), 10)]
+    if not results:
+        return "No results found."
+    return _format_results(results, "DuckDuckGo")
+
+
 def web_search(query: str, count: int = 5) -> str:
     """
-    Search the web using the Brave Search API.
+    Search the web. Uses the Brave Search API when a key is configured,
+    otherwise falls back to DuckDuckGo (no key needed).
     """
     api_key = load_brave_api_key()
     if not api_key:
-        return (
-            "Error: Brave Search API key is not configured.\n"
-            "Please add it to ~/.config/scribe/config.toml under [scribe] as brave_api_key=...\n"
-            "or set the BRAVE_API_KEY environment variable."
-        )
+        return duckduckgo_search(query, count)
 
     params = urllib.parse.urlencode({
         "q": query.strip(),
@@ -86,25 +193,23 @@ def web_search(query: str, count: int = 5) -> str:
             if "gzip" in encoding.lower():
                 raw_data = gzip.decompress(raw_data)
             data = json.loads(raw_data.decode("utf-8"))
-    except Exception as e:
-        return f"Error querying Brave Search API: {e}"
+    except Exception:
+        # Brave is down or the key is bad — research should still work.
+        return duckduckgo_search(query, count)
 
     results = data.get("web", {}).get("results", [])
     if not results:
         return "No results found."
 
-    lines = []
-    for i, r in enumerate(results, 1):
-        title = r.get("title", "(no title)")
-        link = r.get("url", "")
-        snippet = r.get("description", "")
-        lines.append(f"{i}. **{title}**")
-        lines.append(f"   URL: {link}")
-        if snippet:
-            lines.append(f"   Snippet: {snippet}")
-        lines.append("")
-
-    return "\n".join(lines).strip()
+    normalized = [
+        {
+            "title": r.get("title", ""),
+            "url": r.get("url", ""),
+            "snippet": r.get("description", ""),
+        }
+        for r in results
+    ]
+    return _format_results(normalized, "Brave Search")
 
 
 class TextExtractor(HTMLParser):
@@ -182,7 +287,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "web_search",
             "description": (
-                "Search the web using Brave Search. Returns titles, URLs, and text snippets."
+                "Search the web (Brave Search when an API key is configured, "
+                "DuckDuckGo otherwise). Returns titles, URLs, and text snippets."
             ),
             "parameters": {
                 "type": "object",

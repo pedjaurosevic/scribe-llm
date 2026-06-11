@@ -226,12 +226,7 @@ def run_eval_cli(config, console, limit=None, write_ledger=True) -> dict:
     if limit:
         tasks = tasks[:limit]
 
-    adapter = LLMAdapter(
-        base_url=config.base_url,
-        model=config.model,
-        timeout=config.request_timeout,
-        enable_thinking=config.reasoning,
-    )
+    adapter = LLMAdapter.from_config(config)
     answerer = make_answerer(adapter, config)
     judge = make_judge(adapter)
 

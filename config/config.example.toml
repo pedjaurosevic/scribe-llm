@@ -6,11 +6,17 @@
 # LLM Endpoint — any llama-server, Ollama, LM Studio
 base_url = "http://127.0.0.1:18083/v1"
 
-# Model name (any string the server accepts)
-model = "gemma-4-12B-it-Q4_K_M.gguf"
+# Model name. "default" auto-detects the server's loaded model (works for
+# llama.cpp, Ollama and LM Studio). Set explicitly for cloud providers.
+model = "default"
 
-# API key (llama.cpp doesn't need this, use "not-needed")
+# API key (llama.cpp doesn't need this, use "not-needed"; cloud providers do).
+# Prefer the SCRIBE_API_KEY env var over storing a real key here.
 api_key = "not-needed"
+
+# Optional: Brave Search API key for the web_search tool. Without it, search
+# falls back to DuckDuckGo (no key needed).
+# brave_api_key = "BSA..."
 
 # System prompt shown to the model
 system_prompt = "You are Scribe, an autonomous research and writing agent..."

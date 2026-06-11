@@ -49,3 +49,63 @@ class TestScribeConfig:
         config = ScribeConfig()
         assert isinstance(config.sme_enabled, bool)
         assert isinstance(config.rag_enabled, bool)
+
+
+class TestAdapterModelResolution:
+    def test_explicit_model_is_used_as_is(self):
+        from scribe.llm_adapter import LLMAdapter
+        adapter = LLMAdapter(base_url="http://127.0.0.1:9/v1", model="gemma4:12b")
+        assert adapter._request_model() == "gemma4:12b"
+
+    def test_default_resolves_to_first_server_model(self):
+        from unittest.mock import MagicMock
+        from scribe.llm_adapter import LLMAdapter
+
+        adapter = LLMAdapter(base_url="http://127.0.0.1:9/v1", model="default")
+        listing = MagicMock()
+        listing.data = [MagicMock(id="served-model")]
+        adapter.client = MagicMock()
+        adapter.client.models.list.return_value = listing
+
+        assert adapter._request_model() == "served-model"
+        # Cached: a second call must not hit the server again.
+        adapter.client.models.list.side_effect = AssertionError("re-queried")
+        assert adapter._request_model() == "served-model"
+
+    def test_default_kept_when_server_unreachable(self):
+        from unittest.mock import MagicMock
+        from scribe.llm_adapter import LLMAdapter
+
+        adapter = LLMAdapter(base_url="http://127.0.0.1:9/v1", model="default")
+        adapter.client = MagicMock()
+        adapter.client.models.list.side_effect = OSError("down")
+
+        # Falls back to the placeholder (llama.cpp ignores it anyway) ...
+        assert adapter._request_model() == "default"
+
+        # ... and is retried, not cached, once the server comes back.
+        listing = MagicMock()
+        listing.data = [MagicMock(id="served-model")]
+        adapter.client.models.list.side_effect = None
+        adapter.client.models.list.return_value = listing
+        assert adapter._request_model() == "served-model"
+
+
+class TestAdapterFromConfig:
+    def test_from_config_wires_all_connection_settings(self):
+        from types import SimpleNamespace
+        from scribe.llm_adapter import LLMAdapter
+
+        cfg = SimpleNamespace(
+            base_url="https://openrouter.ai/api/v1",
+            api_key="sk-or-test",
+            model="google/gemma-4-26b-it",
+            request_timeout=123,
+            reasoning=False,
+        )
+        adapter = LLMAdapter.from_config(cfg)
+        assert adapter.base_url == "https://openrouter.ai/api/v1"
+        assert adapter.api_key == "sk-or-test"
+        assert adapter.model == "google/gemma-4-26b-it"
+        assert adapter.timeout == 123
+        assert adapter.enable_thinking is False

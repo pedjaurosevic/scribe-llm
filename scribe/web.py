@@ -35,7 +35,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 config = ScribeConfig()
-adapter = LLMAdapter(base_url=config.base_url, model=config.model, enable_thinking=config.reasoning)
+adapter = LLMAdapter.from_config(config)
 session_manager = SessionManager(config)
 sme_service = get_sme_service()
 skills_executor = SkillsExecutor()

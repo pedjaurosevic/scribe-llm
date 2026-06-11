@@ -163,12 +163,7 @@ class ScribeApp(App):
         if self.theme_name not in list_themes():
             self.theme_name = DEFAULT_THEME
 
-        self.adapter = LLMAdapter(
-            base_url=self.config.base_url,
-            model=self.config.model,
-            timeout=self.config.request_timeout,
-            enable_thinking=self.config.reasoning,
-        )
+        self.adapter = LLMAdapter.from_config(self.config)
         self.session = SessionManager(self.config)
         self.sme = get_sme_service()
 

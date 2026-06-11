@@ -145,3 +145,64 @@ def test_parse_text_tool_calls():
     assert "path" in res[0]["arguments"]
 
 
+
+
+DDG_HTML = b"""
+<html><body>
+<div class="result">
+  <a rel="nofollow" class="result__a"
+     href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage&amp;rut=abc">
+     Example Title</a>
+  <a class="result__snippet" href="#">A short snippet about the page.</a>
+</div>
+<div class="result">
+  <a rel="nofollow" class="result__a" href="https://plain.example.org/">Plain Link</a>
+  <a class="result__snippet" href="#">Second snippet.</a>
+</div>
+</body></html>
+"""
+
+
+class TestDuckDuckGoFallback:
+    @pytest.fixture
+    def mock_urlopen(self):
+        from unittest.mock import patch
+        with patch("urllib.request.urlopen") as mock:
+            yield mock
+
+    def test_search_without_key_uses_duckduckgo(self, mock_urlopen, monkeypatch):
+        from unittest.mock import MagicMock
+        monkeypatch.setattr(web, "load_brave_api_key", lambda: None)
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = DDG_HTML
+        mock_response.headers = {}
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        res = web.web_search("anything", 5)
+        assert "Example Title" in res
+        assert "https://example.com/page" in res  # uddg redirect decoded
+        assert "A short snippet about the page." in res
+        assert "Plain Link" in res
+        assert "DuckDuckGo" in res
+
+    def test_brave_failure_falls_back_to_duckduckgo(self, mock_urlopen, monkeypatch):
+        monkeypatch.setattr(web, "load_brave_api_key", lambda: "some-key")
+        mock_urlopen.side_effect = OSError("network down")
+
+        res = web.web_search("anything", 5)
+        # Brave errored, so the DDG path was attempted (and errored too).
+        assert "DuckDuckGo" in res
+
+    def test_count_caps_results(self, mock_urlopen, monkeypatch):
+        from unittest.mock import MagicMock
+        monkeypatch.setattr(web, "load_brave_api_key", lambda: None)
+
+        mock_response = MagicMock()
+        mock_response.read.return_value = DDG_HTML
+        mock_response.headers = {}
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        res = web.web_search("anything", 1)
+        assert "Example Title" in res
+        assert "Plain Link" not in res

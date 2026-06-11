@@ -66,12 +66,7 @@ class ScribeTUI:
             force_terminal=True,
             markup=True,
         )
-        self.adapter = LLMAdapter(
-            base_url=self.config.base_url,
-            model=self.config.model,
-            timeout=self.config.request_timeout,
-            enable_thinking=self.config.reasoning,
-        )
+        self.adapter = LLMAdapter.from_config(self.config)
         self.session = SessionManager(self.config)
         self.sme = get_sme_service()
         self.skills = SkillsExecutor()

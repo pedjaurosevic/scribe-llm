@@ -415,10 +415,7 @@ def status(ctx):
     console = ctx.obj["console"]
     config = ctx.obj["config"]
 
-    adapter = LLMAdapter(
-        base_url=config.base_url,
-        model=config.model,
-    )
+    adapter = LLMAdapter.from_config(config)
 
     console.print("[bold]System Status[/bold]\n")
 

@@ -213,12 +213,7 @@ def execute_instruction(config: Any, instruction: str, max_iters: int = 6) -> st
     workspace = Path(config.workspace_dir)
     workspace.mkdir(parents=True, exist_ok=True)
 
-    adapter = LLMAdapter(
-        base_url=config.base_url,
-        model=config.model,
-        timeout=config.request_timeout,
-        enable_thinking=config.reasoning,
-    )
+    adapter = LLMAdapter.from_config(config)
 
     messages: list[dict[str, Any]] = [
         {

@@ -143,7 +143,7 @@ You have sandboxed file tools that operate inside this directory:
 - list_dir(path) — list a folder
 
 You also have web tools to search and retrieve page contents:
-- web_search(query, count) — search the web using Brave Search
+- web_search(query, count) — search the web (Brave Search or DuckDuckGo)
 - web_fetch(url) — fetch and extract readable text from a URL
 
 Use them to actually create and edit files or research topics when asked — do not just describe what

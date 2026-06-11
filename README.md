@@ -4,12 +4,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> Universal TUI agent that connects to **any** llama.cpp server and uses RAG + semantic memory to research, write, and remember — across sessions.
+> Local-first chat + research + coding agent. Connects to **any** OpenAI-compatible server (llama.cpp, Ollama, LM Studio, or a cloud API key) and uses web search, RAG and semantic memory to research, write, and remember — across sessions. Runs comfortably on a 12 GB VRAM machine with Gemma 4 12B at 128k context.
 
 ## Features
 
-- **Universal LLM Adapter** — Connect to any llama-server endpoint (local or remote)
-- **Rich TUI** — Beautiful terminal interface with progress bars, spinners, and Gruvbox theme
+- **Universal LLM Adapter** — llama.cpp, Ollama, LM Studio, or any OpenAI-compatible cloud API (OpenRouter, Groq, ...) — see [docs/providers.md](docs/providers.md)
+- **Internet Research** — `web_search` + `web_fetch` tools; works out of the box via DuckDuckGo (no API key), upgrades to Brave Search with a key
+- **Writing Agent** — deep-research and writer skills for books, papers and reports on any topic, with sandboxed workspace file tools
+- **Coding Mode** — `/code` turns Scribe into a terminal expert with full (per-command confirmed) bash access
+- **Rich TUI** — Beautiful terminal interface with streaming, themes, and live reasoning marquee
 - **Cross-Session Memory** — SME (Semantic Memory Engine) for seamless session continuity
 - **RAG Integration** — Semantic search over your document library
 - **Modular Skills** — Extend capabilities with skill modules
@@ -65,16 +68,25 @@ Edit `~/.config/scribe/config.toml`:
 
 ```toml
 [scribe]
-base_url = "http://127.0.0.1:18083/v1"
-model = "your-model.gguf"
+base_url = "http://127.0.0.1:18083/v1"   # llama.cpp / Ollama / LM Studio / cloud
+model = "default"                         # auto-detects the loaded model
+api_key = "not-needed"                    # set a real key for cloud providers
 ```
 
 Or use environment variables:
 
 ```bash
-export SCRIBE_BASE_URL=http://localhost:18083/v1
-export SCRIBE_MODEL=my-model.gguf
+export SCRIBE_BASE_URL=http://localhost:11434/v1   # e.g. Ollama
+export SCRIBE_MODEL=gemma4:12b
+export SCRIBE_API_KEY=sk-...                       # cloud providers only
 ```
+
+**Full provider guide** — llama.cpp, Ollama, LM Studio, OpenRouter/Groq, plus
+a recipe for **Gemma 4 12B with 128k context on a 12 GB GPU**:
+[docs/providers.md](docs/providers.md).
+
+**Web search** needs no setup (DuckDuckGo). For Brave Search, set
+`BRAVE_API_KEY` or `brave_api_key` under `[scribe]`.
 
 ## CLI Commands
 
