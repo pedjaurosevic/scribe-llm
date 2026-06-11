@@ -1,5 +1,7 @@
 # Connecting Scribe to a model
 
+🌐 English · [简体中文](providers.zh-CN.md)
+
 Scribe talks to **any OpenAI-compatible endpoint**. That covers local servers
 (llama.cpp, Ollama, LM Studio) and cloud providers (OpenRouter, Groq, OpenAI,
 Mistral, ...). You configure three values:
