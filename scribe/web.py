@@ -21,7 +21,7 @@ from scribe.memory.sme import get_sme_service, recall_previous_session
 from scribe.prompts import get_system_prompt
 from scribe.session import SessionManager
 from scribe.skills_executor import SkillsExecutor
-from scribe.tools import fs
+from scribe.tools import fs, web
 
 app = FastAPI(title="Scribe", description="Autonomous Research & Writing Agent")
 
@@ -211,7 +211,7 @@ async def websocket_chat(websocket: WebSocket):
                     "content": "Generating..."
                 })
 
-                tools = fs.TOOL_SCHEMAS if config.tools_enabled else None
+                tools = fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS if config.tools_enabled else None
                 final_answer = ""
 
                 for _ in range(6):
@@ -265,7 +265,10 @@ async def websocket_chat(websocket: WebSocket):
 
                     # Execute each call inside the workspace and feed results back.
                     for c in tool_calls:
-                        result = fs.dispatch(WORKSPACE_DIR, c["name"], c["arguments"])
+                        if c["name"] in ("web_search", "web_fetch"):
+                            result = web.dispatch(c["name"], c["arguments"])
+                        else:
+                            result = fs.dispatch(WORKSPACE_DIR, c["name"], c["arguments"])
                         await websocket.send_json({
                             "type": "tool",
                             "name": c["name"],

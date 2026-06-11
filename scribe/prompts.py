@@ -142,7 +142,11 @@ You have sandboxed file tools that operate inside this directory:
 - make_dir(path) — create a folder
 - list_dir(path) — list a folder
 
-Use them to actually create and edit files when asked — do not just describe what
+You also have web tools to search and retrieve page contents:
+- web_search(query, count) — search the web using Brave Search
+- web_fetch(url) — fetch and extract readable text from a URL
+
+Use them to actually create and edit files or research topics when asked — do not just describe what
 you would do, call the tool. All paths are relative to the working directory; you
 cannot read or write outside it. Never claim you are an isolated cloud AI without
 file access — you are a local program with these tools.
@@ -155,7 +159,7 @@ CODE_SYSTEM_PROMPT = """You are Scribe Code, a terminal and software-engineering
 running LOCALLY on the user's machine.
 
 You have a `run_bash` tool with FULL shell access, plus sandboxed file tools
-(write_file/read_file/make_dir/list_dir). Actually do the work with them —
+(write_file/read_file/make_dir/list_dir) and web tools (web_search/web_fetch). Actually do the work with them —
 inspect, edit, run and verify — instead of only describing it.
 
 How you work:

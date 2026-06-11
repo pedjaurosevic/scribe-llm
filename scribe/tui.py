@@ -490,7 +490,7 @@ class ScribeTUI:
         max_iters). Returns the final answer text; intermediate tool turns are
         appended to self.messages directly.
         """
-        from scribe.tools import fs, shell
+        from scribe.tools import fs, shell, web
 
         gen_tokens = 0
         t0 = time.perf_counter()
@@ -543,6 +543,11 @@ class ScribeTUI:
                     else:
                         result = "User declined to run this command."
                         self.console.print("[info]→[/info] Skipped.")
+                elif tc["name"] in ("web_search", "web_fetch"):
+                    result = web.dispatch(tc["name"], tc["arguments"])
+                    self.console.print(
+                        f"[cyan]🌐[/cyan] [bold]{tc['name']}[/bold] [dim]{tc['arguments']}[/dim]"
+                    )
                 else:
                     result = fs.dispatch(
                         self.workspace, tc["name"], tc["arguments"],
@@ -877,11 +882,11 @@ class ScribeTUI:
 
     def _active_tools(self) -> list[dict]:
         """Tool schemas advertised to the model for the current mode."""
-        from scribe.tools import fs, shell
+        from scribe.tools import fs, shell, web
 
         if self.code_mode:
-            return fs.TOOL_SCHEMAS + shell.TOOL_SCHEMAS
-        return fs.TOOL_SCHEMAS
+            return fs.TOOL_SCHEMAS + shell.TOOL_SCHEMAS + web.TOOL_SCHEMAS
+        return fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS
 
     def _show_help(self):
         """Show help message."""
