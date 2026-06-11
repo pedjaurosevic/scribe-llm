@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scribe — Universal local-LLM research & writing agent</title>
-<meta name="description" content="Scribe is a universal TUI/web agent that connects to any llama.cpp server and uses RAG + semantic memory to research, write, and remember across sessions.">
+<title>Scribe — 通用本地 LLM 研究与写作智能体</title>
+<meta name="description" content="Scribe 是一个通用 TUI/Web 智能体，可连接任意 llama.cpp 服务器，借助 RAG 与语义记忆进行跨会话的研究、写作与记忆。">
 <style>
   :root{
     --bg:#1d2021; --bg2:#282828; --fg:#ebdbb2; --dim:#a89984;
@@ -47,54 +47,54 @@
 <header>
   <div class="wrap">
     <h1>Scribe<span class="dot">.</span></h1>
-    <p class="tag">A universal TUI &amp; web agent that connects to <strong>any</strong> llama.cpp server
-      and uses RAG + semantic memory to research, write, and remember — across sessions.</p>
+    <p class="tag">通用 TUI 与 Web 智能体，可连接<strong>任意</strong> llama.cpp 服务器，
+      借助 RAG 与语义记忆进行跨会话的研究、写作与记忆。</p>
     <div class="cta">
-      <a class="btn" href="https://github.com/pedjaurosevic/scribe-ai">View on GitHub</a>
-      <a class="btn ghost" href="#quickstart">Quick start</a>
+      <a class="btn" href="https://github.com/pedjaurosevic/scribe-ai">在 GitHub 上查看</a>
+      <a class="btn ghost" href="#quickstart">快速开始</a>
     </div>
-    <p class="lang">🌐 English · <a href="index.zh.html">简体中文</a></p>
+    <p class="lang">🌐 <a href="index.html">English</a> · 简体中文</p>
   </div>
 </header>
 
 <section>
   <div class="wrap">
-    <h2>What it does</h2>
+    <h2>功能一览</h2>
     <div class="grid">
-      <div class="card"><h3>Universal LLM adapter</h3><p>Point it at any OpenAI-compatible endpoint — local llama.cpp, Ollama, LM Studio, or remote.</p></div>
-      <div class="card"><h3>Rich TUI &amp; web UI</h3><p>A terminal interface (Rich + Textual) and a streaming FastAPI web chat with login.</p></div>
-      <div class="card"><h3>Cross-session memory</h3><p>SME (Semantic Memory Engine) recalls your last session so context survives restarts.</p></div>
-      <div class="card"><h3>RAG over your docs</h3><p>Local embeddings (multilingual-e5) + LanceDB for semantic search across your library.</p></div>
-      <div class="card"><h3>Sandboxed file tools</h3><p>The model gets write/read/list tools scoped strictly to a per-user workspace.</p></div>
-      <div class="card"><h3>Modular skills</h3><p>Deep-research, writer, and wiki-memory skills — drop in more as SKILL.md modules.</p></div>
+      <div class="card"><h3>通用 LLM 适配器</h3><p>指向任意 OpenAI 兼容端点 — 本地 llama.cpp、Ollama、LM Studio 或远程服务。</p></div>
+      <div class="card"><h3>精美 TUI 与 Web UI</h3><p>终端界面（Rich + Textual）以及带登录的流式 FastAPI 网页聊天。</p></div>
+      <div class="card"><h3>跨会话记忆</h3><p>SME（语义记忆引擎）会回忆你的上一次会话，让上下文在重启后依然延续。</p></div>
+      <div class="card"><h3>文档 RAG</h3><p>本地嵌入（multilingual-e5）+ LanceDB，对你的文档库进行语义搜索。</p></div>
+      <div class="card"><h3>沙箱化文件工具</h3><p>模型获得的写/读/列出工具被严格限制在每个用户的工作区内。</p></div>
+      <div class="card"><h3>模块化技能</h3><p>deep-research、writer、wiki-memory 等技能 — 以 SKILL.md 模块形式随插随用。</p></div>
     </div>
   </div>
 </section>
 
 <section id="quickstart">
   <div class="wrap">
-    <h2>Quick start</h2>
-<pre><code># 1. Clone &amp; install
+    <h2>快速开始</h2>
+<pre><code># 1. 克隆并安装
 git clone https://github.com/pedjaurosevic/scribe-ai.git
 cd scribe-ai
-./scripts/install.sh        # installs the package + config + ~/scribe-workspace
+./scripts/install.sh        # 安装软件包 + 配置 + ~/scribe-workspace
 
-# 2. Start your llama-server (or use any OpenAI-compatible endpoint)
+# 2. 启动你的 llama-server（或使用任意 OpenAI 兼容端点）
 ./scripts/start-server.sh
 
-# 3. Chat in the terminal …
+# 3. 在终端中聊天……
 scribe chat
 
-# … or launch the web UI
+# ……或启动 Web UI
 scribe web                  # http://localhost:8765</code></pre>
-    <p style="color:var(--dim)">Configure the endpoint in <code>~/.config/scribe/config.toml</code> or via
-      <code>SCRIBE_BASE_URL</code> / <code>SCRIBE_MODEL</code> env vars.</p>
+    <p style="color:var(--dim)">在 <code>~/.config/scribe/config.toml</code> 中配置端点，或使用
+      <code>SCRIBE_BASE_URL</code> / <code>SCRIBE_MODEL</code> 环境变量。</p>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <h2>Architecture</h2>
+    <h2>架构</h2>
     <div class="arch">┌─────────────────────────────────────────┐
 │              SCRIBE TUI / WEB            │
 │        Rich · Textual · FastAPI          │
@@ -116,18 +116,18 @@ scribe web                  # http://localhost:8765</code></pre>
 
 <section>
   <div class="wrap">
-    <h2>Philosophy</h2>
+    <h2>设计哲学</h2>
     <ul class="checks">
-      <li><strong>Wittgenstein</strong> — explicit command vocabularies so the model knows exactly what each action means.</li>
-      <li><strong>Peirce</strong> — semiotic continuity: every response becomes the next sign in the interpretation chain, run as hidden reasoning.</li>
+      <li><strong>维特根斯坦（Wittgenstein）</strong> — 显式的命令词汇表，让模型确切知道每个动作的含义。</li>
+      <li><strong>皮尔士（Peirce）</strong> — 符号学的连续性：每个回应都成为解释链中的下一个符号，以隐藏推理的方式运行。</li>
     </ul>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    Scribe — MIT licensed · built by <a href="https://github.com/pedjaurosevic">Pedja Urosevic</a> ·
-    <a href="https://github.com/pedjaurosevic/scribe-ai">source</a>
+    Scribe — MIT 许可证 · 作者 <a href="https://github.com/pedjaurosevic">Pedja Urosevic</a> ·
+    <a href="https://github.com/pedjaurosevic/scribe-ai">源代码</a>
   </div>
 </footer>
 </body>

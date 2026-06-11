@@ -1,12 +1,17 @@
-# Vodič za pokretanje Scribe-a na Windows-u preko WSL-a sa Ollama-om
+# Running Scribe on Windows via WSL with Ollama
 
-Ovaj vodič objašnjava kako da uspešno instalirate Scribe unutar **WSL-a (Windows Subsystem for Linux)** i povežete ga sa **Ollama** modelima na lokalnoj mašini.
+🌐 English · [简体中文](wsl_ollama_guide.zh-CN.md)
+
+This guide explains how to install Scribe inside **WSL (Windows Subsystem for
+Linux)** and connect it to **Ollama** models on your local machine.
 
 ---
 
-## 🛠️ Preduslovi za WSL
+## 🛠️ WSL prerequisites
 
-Sveže instaliran WSL (npr. Ubuntu) obično ne dolazi sa preinstaliranim Python paket menadžerom (`pip`) i modulom za virtuelna okruženja. Pre pokretanja instalacije Scribe-a, pokrenite sledeću komandu u svom WSL terminalu:
+A fresh WSL install (e.g. Ubuntu) usually does not ship with the Python
+package manager (`pip`) or the virtual-environment module preinstalled.
+Before installing Scribe, run this in your WSL terminal:
 
 ```bash
 sudo apt update && sudo apt install -y python3-pip python3-venv
@@ -14,68 +19,77 @@ sudo apt update && sudo apt install -y python3-pip python3-venv
 
 ---
 
-## Scenario A: Instalacija Ollama-e direktno unutar WSL-a (Preporučeno i najlakše)
+## Scenario A: Install Ollama directly inside WSL (recommended and easiest)
 
-Pokretanje Ollama-e unutar WSL-a je najjednostavniji način jer omogućava korišćenje `127.0.0.1` (localhost) za komunikaciju i automatski koristi grafičku karticu (GPU) ako imate instalirane drajvere na Windows-u.
+Running Ollama inside WSL is the simplest setup because everything talks over
+`127.0.0.1` (localhost), and Ollama automatically uses your GPU if the
+drivers are installed on Windows.
 
-### 1. Instalacija Ollama-e u WSL-u
-Otvorite vaš WSL terminal (npr. Ubuntu) i pokrenite zvaničnu instalacionu skriptu:
+### 1. Install Ollama in WSL
+Open your WSL terminal (e.g. Ubuntu) and run the official install script:
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-### 2. Pokretanje modela
-Učitajte željeni model u Ollama-u:
+### 2. Run a model
+Load the model you want into Ollama:
 ```bash
 ollama run gemma2
 ```
 
-### 3. Konfigurisanje Scribe-a
-U WSL-u kreirajte ili uredite konfiguracioni fajl `~/.config/scribe/config.toml`:
+### 3. Configure Scribe
+In WSL, create or edit the config file `~/.config/scribe/config.toml`:
 ```toml
 [scribe]
 base_url = "http://127.0.0.1:11434/v1"
 model = "gemma2"
 ```
-Nakon toga pokrenite Scribe sa:
+Then start Scribe with:
 ```bash
 scribe chat
 ```
 
 ---
 
-## Scenario B: Ollama radi na Windows-u (Host), a Scribe u WSL-u
+## Scenario B: Ollama runs on Windows (host), Scribe in WSL
 
-Ako imate instaliranu Ollama aplikaciju direktno na Windows-u, WSL ne može podrazumevano da pristupi adresi `127.0.0.1` jer WSL ima sopstvenu virtuelnu mrežu. Primenite sledeće korake:
+If you have the Ollama app installed directly on Windows, WSL cannot reach it
+at `127.0.0.1` by default because WSL has its own virtual network. Apply the
+following steps:
 
-### 1. Konfigurisanje Ollama-e na Windows-u
-Morate naterati Ollama-u da sluša na svim mrežnim interfejsima (ne samo na localhost-u):
-1. Pritisnite **Win + R**, ukucajte `sysdm.cpl` i pritisnite Enter.
-2. Idite na karticu **Advanced** i kliknite na **Environment Variables**.
-3. Pod *User variables* ili *System variables* kliknite na **New...** i dodajte:
+### 1. Configure Ollama on Windows
+You must make Ollama listen on all network interfaces (not just localhost):
+1. Press **Win + R**, type `sysdm.cpl` and press Enter.
+2. Go to the **Advanced** tab and click **Environment Variables**.
+3. Under *User variables* or *System variables* click **New...** and add:
    * **Variable name:** `OLLAMA_HOST`
    * **Variable value:** `0.0.0.0`
-4. Kliknite na OK, sačuvajte i **potpuno ugasite pa ponovo pokrenite Ollama aplikaciju** na Windows-u (iz system tray-a).
+4. Click OK, save, and **fully quit and restart the Ollama app** on Windows
+   (from the system tray).
 
-### 2. Pronalaženje IP adrese Windows-a iz WSL-a
-Iz vašeg WSL terminala saznajte IP adresu Windows domaćina pokretanjem:
+### 2. Find the Windows IP address from WSL
+From your WSL terminal, get the Windows host's IP address by running:
 ```bash
 cat /etc/resolv.conf | grep nameserver | awk '{print $2}'
 ```
-*(Primer ispisa: `172.25.80.1`)*
+*(Example output: `172.25.80.1`)*
 
-### 3. Konfigurisanje Scribe-a u WSL-u
-Uredite `~/.config/scribe/config.toml` u WSL-u i zamenite `<WINDOWS_IP>` adresom koju ste dobili u prethodnom koraku:
+### 3. Configure Scribe in WSL
+Edit `~/.config/scribe/config.toml` in WSL and replace `<WINDOWS_IP>` with the
+address you got in the previous step:
 ```toml
 [scribe]
-base_url = "http://172.25.80.1:11434/v1"  # Unesite vaš Windows IP ovde
+base_url = "http://172.25.80.1:11434/v1"  # put your Windows IP here
 model = "gemma2"
 ```
 
-### 4. Alternativa za Windows 11 (Mirrored Networking)
-Ako koristite Windows 11, možete uključiti deljeni mrežni režim. Kreirajte fajl `C:\Users\VašeIme\.wslconfig` sa sledećim sadržajem:
+### 4. Windows 11 alternative (mirrored networking)
+On Windows 11 you can enable mirrored networking mode instead. Create the
+file `C:\Users\YourName\.wslconfig` with the following content:
 ```ini
 [wsl2]
 networkingMode=mirrored
 ```
-Nakon restarta WSL-a (`wsl --shutdown` iz PowerShell-a), Scribe u WSL-u će moći da pristupi Ollama-i na Windows-u preko jednostavnog `http://127.0.0.1:11434/v1` bez traženja IP adrese!
+After restarting WSL (`wsl --shutdown` from PowerShell), Scribe inside WSL
+can reach Ollama on Windows via plain `http://127.0.0.1:11434/v1` — no IP
+hunting needed!
