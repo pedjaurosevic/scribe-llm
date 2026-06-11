@@ -4,6 +4,16 @@ Ovaj vodič objašnjava kako da uspešno instalirate Scribe unutar **WSL-a (Wind
 
 ---
 
+## 🛠️ Preduslovi za WSL
+
+Sveže instaliran WSL (npr. Ubuntu) obično ne dolazi sa preinstaliranim Python paket menadžerom (`pip`) i modulom za virtuelna okruženja. Pre pokretanja instalacije Scribe-a, pokrenite sledeću komandu u svom WSL terminalu:
+
+```bash
+sudo apt update && sudo apt install -y python3-pip python3-venv
+```
+
+---
+
 ## Scenario A: Instalacija Ollama-e direktno unutar WSL-a (Preporučeno i najlakše)
 
 Pokretanje Ollama-e unutar WSL-a je najjednostavniji način jer omogućava korišćenje `127.0.0.1` (localhost) za komunikaciju i automatski koristi grafičku karticu (GPU) ako imate instalirane drajvere na Windows-u.
