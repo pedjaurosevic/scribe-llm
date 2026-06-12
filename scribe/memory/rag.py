@@ -19,6 +19,8 @@ import lancedb
 import pyarrow as pa
 from sentence_transformers import SentenceTransformer
 
+from scribe.memory.hybrid import FTSIndex, rrf_fuse
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_RAG_PATH = Path.home() / ".scribe" / "rag"
@@ -82,6 +84,8 @@ class RAGService:
         self._model: SentenceTransformer | None = None
         self._db: lancedb.LanceDB | None = None
         self._table: Any | None = None
+        # Lexical branch of hybrid search, one SQLite file next to LanceDB.
+        self.fts = FTSIndex(self.db_path / "fts.db")
 
     @property
     def model(self) -> SentenceTransformer:
@@ -195,6 +199,7 @@ class RAGService:
 
         if rows:
             self.table.add(rows)
+            self.fts.add(rows)
 
         return len(chunks)
 
@@ -264,6 +269,70 @@ class RAGService:
             print(f"[RAG] Search error: {e}")
             return []
 
+    def _chunks_by_ids(self, ids: list[str]) -> list[DocumentChunk]:
+        """Fetch chunks from the vector table preserving the given id order."""
+        if not ids:
+            return []
+        try:
+            df = self.table.to_pandas()
+        except Exception:
+            return []
+        by_id = {row["id"]: row for _, row in df.iterrows()}
+        chunks = []
+        for chunk_id in ids:
+            row = by_id.get(chunk_id)
+            if row is None:
+                continue
+            chunks.append(
+                DocumentChunk(
+                    id=row["id"],
+                    content=row["content"],
+                    source_file=row.get("source_file", ""),
+                    chunk_index=row.get("chunk_index", 0),
+                    page=row.get("page"),
+                    section=row.get("section"),
+                    created_at=row["created_at"],
+                    metadata=json.loads(row["metadata"]) if row.get("metadata") else {},
+                )
+            )
+        return chunks
+
+    def hybrid_search(self, query: str, limit: int = 5) -> list[DocumentChunk]:
+        """
+        RRF-fused retrieval: semantic ranking (vectors) + lexical ranking
+        (FTS5), each over-fetched, fused by reciprocal rank.
+
+        When the FTS index is empty (an index built before hybrid search
+        existed), this degrades to pure semantic search; run reindex_fts()
+        once to enable the lexical branch.
+        """
+        fetch = max(limit * 3, 10)
+        semantic_ids = [c.id for c in self.search(query, limit=fetch)]
+        lexical_ids = self.fts.search(query, limit=fetch)
+        if not lexical_ids:
+            return self._chunks_by_ids(semantic_ids[:limit])
+        fused = rrf_fuse([semantic_ids, lexical_ids])
+        return self._chunks_by_ids([doc_id for doc_id, _ in fused[:limit]])
+
+    def reindex_fts(self) -> int:
+        """Rebuild the lexical index from the vector table. Returns row count."""
+        try:
+            df = self.table.to_pandas()
+        except Exception:
+            return 0
+        self.fts.clear()
+        rows = [
+            {
+                "id": row["id"],
+                "source_file": row.get("source_file", ""),
+                "content": row["content"],
+            }
+            for _, row in df.iterrows()
+        ]
+        if rows:
+            self.fts.add(rows)
+        return len(rows)
+
     def list_sources(self) -> list[dict[str, Any]]:
         """
         List all indexed sources.
@@ -290,9 +359,10 @@ class RAGService:
             return 0
 
     def delete_source(self, source_file: str) -> bool:
-        """Delete all chunks from a source file."""
+        """Delete all chunks from a source file (both branches)."""
         try:
             self.table.delete(f"source_file = '{source_file}'")
+            self.fts.delete_source(source_file)
             return True
         except Exception:
             return False
