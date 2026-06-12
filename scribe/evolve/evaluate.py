@@ -21,6 +21,7 @@ from pathlib import Path
 SEED_DIR = Path(__file__).resolve().parent.parent / "seed"
 EVAL_DIR = SEED_DIR / "eval"
 TASKS_FILE = EVAL_DIR / "tasks.jsonl"
+GROUNDED_FILE = EVAL_DIR / "grounded.jsonl"
 MANIFEST_FILE = EVAL_DIR / "MANIFEST.sha256"
 LEDGER_FILE = Path.home() / ".scribe" / "evolve" / "ledger.jsonl"
 
@@ -55,27 +56,48 @@ def verify_manifest(
     tasks_path: Path = TASKS_FILE, manifest_path: Path = MANIFEST_FILE
 ) -> tuple[bool, str]:
     """
-    Check the eval suite against its checksum manifest.
+    Check every suite file listed in the checksum manifest.
 
-    Returns (ok, detail). ok is False if the manifest is missing or the tasks
-    file no longer matches it — a signal that the held-out suite was touched.
+    Returns (ok, detail). ok is False if the manifest is missing or any listed
+    file no longer matches — a signal that a held-out suite was touched.
+    The single-file `tasks_path` argument is kept for backward compatibility:
+    files in the manifest are resolved relative to its directory.
     """
     manifest_path = Path(manifest_path)
     if not manifest_path.exists():
         return False, "manifest missing"
-    expected = manifest_path.read_text(encoding="utf-8").split()[0].strip()
-    got = file_sha256(tasks_path)
-    if expected != got:
-        return False, f"expected {expected[:12]}…, got {got[:12]}…"
-    return True, got
+    base = manifest_path.parent
+    last_digest = ""
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        expected, name = parts
+        target = base / name
+        if not target.exists():
+            return False, f"{name} missing"
+        got = file_sha256(target)
+        if expected != got:
+            return False, f"{name}: expected {expected[:12]}…, got {got[:12]}…"
+        last_digest = got
+    return True, last_digest
 
 
 def write_manifest(
     tasks_path: Path = TASKS_FILE, manifest_path: Path = MANIFEST_FILE
 ) -> str:
-    """(Re)write the checksum manifest for the tasks file. Returns the digest."""
+    """
+    (Re)write the checksum manifest covering every eval suite file present.
+    Returns the tasks digest (kept for backward compatibility).
+    """
+    manifest_path = Path(manifest_path)
+    lines = []
     digest = file_sha256(tasks_path)
-    Path(manifest_path).write_text(f"{digest}  tasks.jsonl\n", encoding="utf-8")
+    lines.append(f"{digest}  {Path(tasks_path).name}")
+    grounded = manifest_path.parent / GROUNDED_FILE.name
+    if grounded.exists():
+        lines.append(f"{file_sha256(grounded)}  {grounded.name}")
+    manifest_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return digest
 
 
@@ -187,6 +209,33 @@ def make_judge(adapter) -> Callable[[dict, str], tuple[int, bool]]:
         return parse_judge(_complete(adapter, messages))
 
     return judge
+
+
+def make_grounded_answerer(adapter) -> Callable[[dict], str]:
+    """
+    An answerer for the grounded suite: the task's raw source strings are
+    wrapped as chunks and served through the real grounded prompt, so the
+    bench measures exactly what `rag ask` does in production.
+    """
+    from scribe.prompts import get_grounded_prompt
+
+    class _SourceChunk:
+        def __init__(self, content: str, index: int):
+            self.content = content
+            self.source_file = f"source-{index}"
+            self.section = ""
+
+    def answerer(task: dict) -> str:
+        chunks = [
+            _SourceChunk(text, i + 1) for i, text in enumerate(task.get("sources") or [])
+        ]
+        messages = [
+            {"role": "system", "content": get_grounded_prompt(chunks)},
+            {"role": "user", "content": task["prompt"]},
+        ]
+        return _complete(adapter, messages)
+
+    return answerer
 
 
 def append_ledger(result: dict, model: str, extra: dict | None = None) -> Path:

@@ -480,6 +480,30 @@ def evolve_eval(ctx, limit, no_ledger):
                  write_ledger=not no_ledger)
 
 
+@main.command()
+@click.option("--fitness", is_flag=True, help="Run only the fitness suite (judge-scored)")
+@click.option("--spi", "spi_only", is_flag=True, help="Run only the SPI grounding suite")
+@click.option("--limit", "-n", default=None, type=int,
+              help="Only run the first N tasks of each suite")
+@click.pass_context
+def bench(ctx, fitness, spi_only, limit):
+    """
+    Quality gate: fitness (held-out tasks, oracle judge) + SPI (source
+    grounding, deterministic). Run before shipping any harness change.
+    """
+    from scribe.evolve.evaluate import run_eval_cli
+    from scribe.evolve.spi import run_spi_cli
+
+    console = ctx.obj["console"]
+    run_both = not (fitness or spi_only)
+    if fitness or run_both:
+        run_eval_cli(ctx.obj["config"], console, limit=limit, write_ledger=False)
+    if spi_only or run_both:
+        if run_both:
+            console.print()
+        run_spi_cli(ctx.obj["config"], console, limit=limit)
+
+
 @main.group()
 def mail():
     """Email bridge — send notifications and accept commands by email."""
