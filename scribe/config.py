@@ -35,6 +35,7 @@ class ScribeConfig:
             "rag_enabled": True,
             "reasoning": False,
             "reasoning_mode": "native",
+            "tool_grammar": "auto",
             "workspace_dir": "~/scribe-workspace",
             "tools_enabled": True,
         },
@@ -231,12 +232,22 @@ class ScribeConfig:
         return self.get("scribe", "rag_enabled", default=True)
 
     @property
-    def reasoning(self) -> bool:
+    def reasoning(self) -> bool | str:
         """
         Whether the model thinks before answering (Peirce chain as thinking).
-        Off by default; toggle live with /reasoning in the TUI and web chat.
+        true / false / "auto" — "auto" runs the per-request reasoning gate
+        (think only when the prompt benefits from it). Off by default; toggle
+        live with /reasoning in the TUI and web chat.
         """
         return self.get("scribe", "reasoning", default=False)
+
+    @property
+    def tool_grammar(self) -> str:
+        """
+        GBNF tool-call enforcement mode: "auto" (repair broken calls with a
+        grammar-constrained retry, llama.cpp only), "force", or "off".
+        """
+        return str(self.get("scribe", "tool_grammar", default="auto"))
 
     @property
     def reasoning_mode(self) -> str:

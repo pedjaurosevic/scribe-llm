@@ -18,10 +18,14 @@ import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
+import httpx
 from openai import OpenAI
 from openai._streaming import Stream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+
+from scribe.grammar import looks_like_tool_call, tool_call_grammar, validate_tool_call
+from scribe.reasoning_gate import last_user_text, should_think
 
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
@@ -237,6 +241,8 @@ class LLMAdapter:
         model: str | None = None,
         timeout: int = 600,
         enable_thinking: bool = False,
+        thinking_mode: str | None = None,
+        tool_grammar: str = "auto",
     ):
         """
         Initialize the LLM adapter.
@@ -251,6 +257,12 @@ class LLMAdapter:
                 sends a `chat_template_kwargs.enable_thinking` flag). Reasoning
                 then arrives via the `reasoning_content` delta. Off by default so
                 non-llama.cpp servers are not sent an unknown field.
+            thinking_mode: "on" / "off" / "auto". "auto" runs the reasoning
+                gate on the latest user message per request. When None, falls
+                back to the boolean `enable_thinking`.
+            tool_grammar: GBNF tool-call enforcement: "auto" repairs broken
+                tool calls by re-asking with a grammar (llama.cpp only),
+                "force" constrains every forced call, "off" disables.
         """
         self.base_url = base_url or os.environ.get(
             "SCRIBE_BASE_URL", "http://127.0.0.1:18083/v1"
@@ -259,6 +271,12 @@ class LLMAdapter:
         self.model = model or os.environ.get("SCRIBE_MODEL", "default")
         self.timeout = timeout
         self.enable_thinking = enable_thinking
+        if thinking_mode is None:
+            thinking_mode = "on" if enable_thinking else "off"
+        self.thinking_mode = thinking_mode
+        self.tool_grammar = tool_grammar
+        self.last_tool_repair: str | None = None  # set when grammar repaired a call
+        self._grammar_supported: bool | None = None
         self._resolved_model: str | None = None
 
         self.client = OpenAI(
@@ -274,12 +292,19 @@ class LLMAdapter:
         (base_url, api_key, model, timeout, reasoning). Every entry point
         should use this so cloud endpoints with API keys work everywhere.
         """
+        reasoning = config.reasoning
+        if isinstance(reasoning, str):
+            mode = reasoning.lower() if reasoning.lower() in ("auto", "on", "off") else "off"
+        else:
+            mode = "on" if reasoning else "off"
         return cls(
             base_url=config.base_url,
             api_key=config.api_key,
             model=config.model,
             timeout=config.request_timeout,
-            enable_thinking=config.reasoning,
+            enable_thinking=(mode == "on"),
+            thinking_mode=mode,
+            tool_grammar=getattr(config, "tool_grammar", "auto"),
         )
 
     def _request_model(self) -> str:
@@ -305,21 +330,114 @@ class LLMAdapter:
             pass
         return self.model
 
-    def _with_thinking(self, kwargs: dict) -> dict:
+    def _with_thinking(self, kwargs: dict, messages: list[dict] | None = None) -> dict:
         """
         Inject the `enable_thinking` flag into the request body.
 
         The flag is sent both ways: True asks the server (llama.cpp/gemma) for
         native reasoning, False actively suppresses it (a real "no thinking"
-        mode). An explicit value passed by the caller is respected.
+        mode). In "auto" mode the reasoning gate decides per request from the
+        latest user message. An explicit value passed by the caller is
+        respected.
         """
+        if self.thinking_mode == "auto":
+            think = should_think(last_user_text(messages or []))
+        else:
+            think = self.thinking_mode == "on" or (
+                self.thinking_mode not in ("on", "off") and bool(self.enable_thinking)
+            )
         extra_body = dict(kwargs.get("extra_body") or {})
         template_kwargs = dict(extra_body.get("chat_template_kwargs") or {})
-        template_kwargs.setdefault("enable_thinking", bool(self.enable_thinking))
+        template_kwargs.setdefault("enable_thinking", think)
         extra_body["chat_template_kwargs"] = template_kwargs
         kwargs = dict(kwargs)
         kwargs["extra_body"] = extra_body
         return kwargs
+
+    def grammar_supported(self) -> bool:
+        """
+        Whether the server accepts a GBNF `grammar` request field.
+
+        Only llama.cpp does; it is fingerprinted by its native /props endpoint
+        (one cheap GET, cached for the adapter's lifetime).
+        """
+        if self._grammar_supported is None:
+            props_url = self.base_url.rstrip("/").removesuffix("/v1") + "/props"
+            try:
+                r = httpx.get(props_url, timeout=3)
+                self._grammar_supported = r.status_code == 200
+            except Exception:
+                self._grammar_supported = False
+        return self._grammar_supported
+
+    def forced_tool_call(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        temperature: float = 0.3,
+        max_tokens: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Ask for a tool call that *cannot* be malformed: the request carries a
+        GBNF grammar derived from the tool schemas, so the only strings the
+        model can produce are valid calls. Thinking is disabled for the
+        request (the grammar constrains the whole output).
+
+        Returns the parsed calls (one element). Raises if the server rejects
+        the grammar — callers should check grammar_supported() first.
+        """
+        grammar = tool_call_grammar(tools)
+        text = self.complete(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            extra_body={
+                "grammar": grammar,
+                "chat_template_kwargs": {"enable_thinking": False},
+            },
+        )
+        calls = parse_text_tool_calls(text)
+        if not calls:
+            raise ValueError(f"grammar-constrained output did not parse: {text[:200]!r}")
+        return calls
+
+    def _repair_tool_calls(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        calls: list[dict[str, Any]],
+        leftover: str,
+    ) -> list[dict[str, Any]] | None:
+        """
+        The grammar-retry path: when a turn produced a broken tool call (bad
+        JSON arguments, unknown tool, or an unparseable text blob that was
+        clearly *trying* to be a call), re-ask once with the grammar attached.
+
+        Returns repaired calls, or None when no repair is needed/possible.
+        Sets `last_tool_repair` with a short reason when a repair ran.
+        """
+        self.last_tool_repair = None
+        if self.tool_grammar == "off" or not tools:
+            return None
+
+        problem: str | None = None
+        if calls:
+            for call in calls:
+                err = validate_tool_call(call, tools)
+                if err:
+                    problem = err
+                    break
+        elif leftover and looks_like_tool_call(leftover, tools):
+            problem = "text tool call did not parse"
+
+        if not problem or not self.grammar_supported():
+            return None
+        try:
+            repaired = self.forced_tool_call(messages, tools)
+        except Exception:
+            return None
+        self.last_tool_repair = problem
+        return repaired
 
     def complete(
         self,
@@ -342,7 +460,7 @@ class LLMAdapter:
         Returns:
             The generated text response
         """
-        kwargs = self._with_thinking(kwargs)
+        kwargs = self._with_thinking(kwargs, messages)
         response: ChatCompletion = self.client.chat.completions.create(
             model=self._request_model(),
             messages=messages,
@@ -377,7 +495,7 @@ class LLMAdapter:
         Returns:
             The assistant ChatCompletionMessage.
         """
-        kwargs = self._with_thinking(kwargs)
+        kwargs = self._with_thinking(kwargs, messages)
         if tools:
             kwargs["tools"] = tools
         response: ChatCompletion = self.client.chat.completions.create(
@@ -412,7 +530,7 @@ class LLMAdapter:
         Yields:
             Text chunks as they arrive
         """
-        kwargs = self._with_thinking(kwargs)
+        kwargs = self._with_thinking(kwargs, messages)
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self._request_model(),
             messages=messages,
@@ -458,7 +576,7 @@ class LLMAdapter:
         Yields:
             (kind, text) tuples
         """
-        kwargs = self._with_thinking(kwargs)
+        kwargs = self._with_thinking(kwargs, messages)
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self._request_model(),
             messages=messages,
@@ -515,7 +633,7 @@ class LLMAdapter:
         Yields:
             (kind, payload) tuples
         """
-        kwargs = self._with_thinking(kwargs)
+        kwargs = self._with_thinking(kwargs, messages)
         if tools:
             kwargs["tools"] = tools
 
@@ -569,6 +687,7 @@ class LLMAdapter:
         # Anything still held by the gate is either a text-encoded tool call or
         # prose we could not rule out mid-stream — parse, else release as answer.
         leftover = gate.flush()
+        unparsed = ""
         if leftover.strip():
             parsed_calls = parse_text_tool_calls(leftover)
             if parsed_calls:
@@ -576,10 +695,21 @@ class LLMAdapter:
                 for idx, call in enumerate(parsed_calls):
                     tool_acc[base + idx] = call
             else:
-                yield ("answer", leftover)
+                unparsed = leftover
 
-        if tool_acc:
-            calls = [tool_acc[i] for i in sorted(tool_acc)]
+        calls = [tool_acc[i] for i in sorted(tool_acc)]
+
+        # Grammar-retry: a broken call (bad arguments JSON, unknown tool, or a
+        # text blob that tried to be a call) is re-asked once with the GBNF
+        # grammar attached, making a second malformed answer impossible.
+        repaired = self._repair_tool_calls(messages, tools or [], calls, unparsed)
+        if repaired is not None:
+            calls = repaired
+            unparsed = ""
+
+        if unparsed:
+            yield ("answer", unparsed)
+        if calls:
             yield ("tool_calls", calls)
 
     def is_healthy(self) -> bool:
