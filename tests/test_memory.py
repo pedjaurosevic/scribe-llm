@@ -75,3 +75,76 @@ class TestRAGService:
             assert len(results) > 0
         finally:
             Path(temp_path).unlink(missing_ok=True)
+
+
+class TestIntegrationPaths:
+    """The DB locations must come from config, never from hardcoded paths."""
+
+    def test_sme_uses_own_path_by_default(self, tmp_path):
+        from scribe.config import ScribeConfig
+
+        cfg = ScribeConfig(config_path=tmp_path / "missing.toml")
+        cfg.set("scribe.sme", "db_path", str(tmp_path / "own-sme"))
+
+        sme = get_sme_service(cfg)
+        assert sme is not None
+        assert sme.db_path == tmp_path / "own-sme"
+
+    def test_sme_integration_path_wins_when_set(self, tmp_path):
+        from scribe.config import ScribeConfig
+
+        cfg = ScribeConfig(config_path=tmp_path / "missing.toml")
+        cfg.set("scribe.sme", "db_path", str(tmp_path / "own-sme"))
+        cfg.set("scribe.integrations", "sme_path", str(tmp_path / "shared-sme"))
+
+        sme = get_sme_service(cfg)
+        assert sme is not None
+        assert sme.db_path == tmp_path / "shared-sme"
+
+    def test_rag_integration_path_wins_when_set(self, tmp_path):
+        from scribe.config import ScribeConfig
+
+        cfg = ScribeConfig(config_path=tmp_path / "missing.toml")
+        cfg.set("scribe.integrations", "rag_path", str(tmp_path / "shared-rag"))
+
+        rag = get_rag_service(cfg)
+        assert rag is not None
+        assert rag.db_path == tmp_path / "shared-rag"
+
+    def test_rag_uses_own_path_by_default(self, tmp_path):
+        from scribe.config import ScribeConfig
+
+        cfg = ScribeConfig(config_path=tmp_path / "missing.toml")
+        cfg.set("scribe.rag", "index_dir", str(tmp_path / "own-rag"))
+
+        rag = get_rag_service(cfg)
+        assert rag is not None
+        assert rag.db_path == tmp_path / "own-rag"
+
+    def test_paths_are_expanded(self, tmp_path):
+        from scribe.config import ScribeConfig
+
+        cfg = ScribeConfig(config_path=tmp_path / "missing.toml")
+        cfg.set("scribe.integrations", "sme_path", "~/some-sme-dir")
+        assert cfg.sme_db_path == str(Path.home() / "some-sme-dir")
+        # Empty integration values fall back to the scribe.sme default.
+        cfg.set("scribe.integrations", "sme_path", "")
+        assert cfg.sme_db_path == str(Path.home() / ".scribe" / "sme")
+
+
+def test_brave_env_file_from_config(tmp_path, monkeypatch):
+    """load_brave_api_key reads the env file named in scribe.integrations."""
+    import scribe.config as config_mod
+    from scribe.tools import web
+
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
+
+    env_file = tmp_path / ".env.brave"
+    env_file.write_text("BRAVE_API_KEY=key-from-env-file\n")
+
+    cfg = config_mod.ScribeConfig(config_path=tmp_path / "missing.toml")
+    cfg.set("scribe.integrations", "brave_env_file", str(env_file))
+    monkeypatch.setattr(config_mod, "ScribeConfig", lambda: cfg)
+
+    assert web.load_brave_api_key() == "key-from-env-file"

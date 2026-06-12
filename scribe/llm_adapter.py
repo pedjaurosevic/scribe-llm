@@ -10,10 +10,12 @@ Supports:
 
 from __future__ import annotations
 
-import os
-import re
+import asyncio
 import json
-from collections.abc import AsyncIterator, Iterator
+import os
+import queue
+import re
+from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 from openai import OpenAI
@@ -86,12 +88,26 @@ class _ThinkSplitter:
         return events
 
 
+def _fallback_call(name: str, args: Any) -> dict[str, Any]:
+    """Build a text-fallback tool call dict, normalizing arguments to a string."""
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            pass
+    return {
+        "id": "call_text_fallback",
+        "name": name,
+        "arguments": json.dumps(args) if isinstance(args, (dict, list)) else str(args),
+    }
+
+
 def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
     """
     Parse text-based tool calls (e.g. JSON blocks or ReAct style) from LLM output.
     """
     text_clean = text.strip()
-    
+
     # 1. Try JSON parsing
     # Look for the first '{' and last '}'
     start_idx = text_clean.find("{")
@@ -103,32 +119,11 @@ def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
             if isinstance(data, dict):
                 # Format: {"action": "...", "action_input": ...}
                 if "action" in data:
-                    name = data["action"]
-                    args = data.get("action_input", {})
-                    if isinstance(args, str):
-                        try:
-                            args = json.loads(args)
-                        except json.JSONDecodeError:
-                            pass
-                    return [{
-                        "id": "call_text_fallback",
-                        "name": name,
-                        "arguments": json.dumps(args) if isinstance(args, (dict, list)) else str(args)
-                    }]
+                    return [_fallback_call(data["action"], data.get("action_input", {}))]
                 # Format: {"name": "...", "arguments": ...}
                 elif "name" in data and ("arguments" in data or "parameters" in data):
-                    name = data["name"]
                     args = data.get("arguments") or data.get("parameters", {})
-                    if isinstance(args, str):
-                        try:
-                            args = json.loads(args)
-                        except json.JSONDecodeError:
-                            pass
-                    return [{
-                        "id": "call_text_fallback",
-                        "name": name,
-                        "arguments": json.dumps(args) if isinstance(args, (dict, list)) else str(args)
-                    }]
+                    return [_fallback_call(data["name"], args)]
         except Exception:
             pass
 
@@ -137,7 +132,11 @@ def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
     if action_match:
         name = action_match.group(1).strip()
         # Find action input
-        input_match = re.search(r"(?:Action Input|Arguments|Args|Input):\s*(.*)", text_clean, re.DOTALL | re.IGNORECASE)
+        input_match = re.search(
+            r"(?:Action Input|Arguments|Args|Input):\s*(.*)",
+            text_clean,
+            re.DOTALL | re.IGNORECASE,
+        )
         arguments = "{}"
         if input_match:
             args_str = input_match.group(1).strip()
@@ -155,6 +154,71 @@ def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
         }]
 
     return []
+
+
+class _AnswerGate:
+    """
+    Decides, while streaming, whether the answer channel carries prose (stream
+    it through as it arrives) or a text-encoded tool call (capture it whole for
+    parsing at end of stream).
+
+    Models without native tool calling emit the call as a bare JSON object,
+    sometimes wrapped in a markdown code fence. Only those two shapes are
+    captured: a leading "{", or a fence whose first inner character is "{".
+    Anything else — including answers that legitimately start with a code
+    block — is released as soon as the gate can rule a tool call out, so prose
+    is not held back for the whole turn.
+    """
+
+    def __init__(self) -> None:
+        self._buf: list[str] = []
+        self._streaming = False  # decided: prose, pass through
+        self._capturing = False  # decided: JSON candidate, hold to the end
+
+    def feed(self, text: str) -> list[str]:
+        """Feed an answer chunk; return any text that is ready to stream out."""
+        if self._streaming:
+            return [text]
+        self._buf.append(text)
+        if self._capturing:
+            return []
+
+        verdict = self._sniff("".join(self._buf))
+        if verdict is None:
+            return []
+        if verdict:
+            self._capturing = True
+            return []
+        self._streaming = True
+        out = "".join(self._buf)
+        self._buf = []
+        return [out]
+
+    @staticmethod
+    def _sniff(buf: str) -> bool | None:
+        """True = JSON tool-call candidate, False = prose, None = need more."""
+        head = buf.lstrip()
+        if not head:
+            return None
+        if head.startswith("{"):
+            return True
+        if head.startswith("`"):
+            # Possibly a fenced tool call (```json\n{...}). Look past the
+            # fence's opening line to see what it actually contains.
+            newline = head.find("\n")
+            if newline == -1:
+                return None
+            inner = head[newline + 1:].lstrip()
+            if not inner:
+                return None
+            return inner.startswith("{")
+        return False
+
+    def flush(self) -> str:
+        """Whatever is still buffered at end of stream."""
+        out = "".join(self._buf)
+        self._buf = []
+        return out
 
 
 class LLMAdapter:
@@ -204,7 +268,7 @@ class LLMAdapter:
         )
 
     @classmethod
-    def from_config(cls, config) -> "LLMAdapter":
+    def from_config(cls, config) -> LLMAdapter:
         """
         Build an adapter from a ScribeConfig, wiring ALL connection settings
         (base_url, api_key, model, timeout, reasoning). Every entry point
@@ -465,9 +529,8 @@ class LLMAdapter:
         )
 
         splitter = _ThinkSplitter()
+        gate = _AnswerGate()
         tool_acc: dict[int, dict[str, str]] = {}
-        buffered_answer: list[str] = []
-        is_json_candidate: bool | None = None # None = undecided, True = yes, False = no
 
         for chunk in stream:
             if not chunk.choices:
@@ -481,20 +544,8 @@ class LLMAdapter:
             if delta.content:
                 for kind, payload in splitter.feed(delta.content):
                     if kind == "answer":
-                        if is_json_candidate is False:
-                            yield (kind, payload)
-                        else:
-                            buffered_answer.append(payload)
-                            if is_json_candidate is None:
-                                full_buf = "".join(buffered_answer)
-                                temp = full_buf.lstrip()
-                                if temp:
-                                    if temp.startswith("{") or temp.startswith("`"):
-                                        is_json_candidate = True
-                                    else:
-                                        is_json_candidate = False
-                                        yield (kind, full_buf)
-                                        buffered_answer = []
+                        for text in gate.feed(payload):
+                            yield ("answer", text)
                     else:
                         yield (kind, payload)
 
@@ -510,35 +561,22 @@ class LLMAdapter:
 
         for kind, payload in splitter.flush():
             if kind == "answer":
-                if is_json_candidate is False:
-                    yield (kind, payload)
-                else:
-                    buffered_answer.append(payload)
-                    if is_json_candidate is None:
-                        full_buf = "".join(buffered_answer)
-                        temp = full_buf.lstrip()
-                        if temp:
-                            if temp.startswith("{") or temp.startswith("`"):
-                                is_json_candidate = True
-                            else:
-                                is_json_candidate = False
-                                yield (kind, full_buf)
-                                buffered_answer = []
+                for text in gate.feed(payload):
+                    yield ("answer", text)
             else:
                 yield (kind, payload)
 
-        if is_json_candidate is None and buffered_answer:
-            yield ("answer", "".join(buffered_answer))
-            buffered_answer = []
-
-        if is_json_candidate is True and buffered_answer:
-            full_text = "".join(buffered_answer)
-            parsed_calls = parse_text_tool_calls(full_text)
+        # Anything still held by the gate is either a text-encoded tool call or
+        # prose we could not rule out mid-stream — parse, else release as answer.
+        leftover = gate.flush()
+        if leftover.strip():
+            parsed_calls = parse_text_tool_calls(leftover)
             if parsed_calls:
+                base = max(tool_acc) + 1 if tool_acc else 0
                 for idx, call in enumerate(parsed_calls):
-                    tool_acc[idx] = call
+                    tool_acc[base + idx] = call
             else:
-                yield ("answer", full_text)
+                yield ("answer", leftover)
 
         if tool_acc:
             calls = [tool_acc[i] for i in sorted(tool_acc)]
@@ -572,6 +610,40 @@ class LLMAdapter:
             pass
         return self.model
 
+    async def _aiter_from_thread(
+        self, make_iter: Callable[[], Iterator[Any]]
+    ) -> AsyncIterator[Any]:
+        """
+        Run a sync streaming generator in a worker thread and yield its items
+        as they are produced, so async callers (FastAPI WebSocket) get true
+        incremental streaming instead of collect-then-replay.
+
+        Producer errors are re-raised in the consumer. If the consumer stops
+        early, the worker thread finishes draining the HTTP stream on its own
+        (the OpenAI client closes it at end of iteration).
+        """
+        loop = asyncio.get_running_loop()
+        items: queue.SimpleQueue[tuple[str, Any]] = queue.SimpleQueue()
+
+        def produce() -> None:
+            try:
+                for item in make_iter():
+                    items.put(("item", item))
+            except BaseException as exc:  # noqa: BLE001 - re-raised in consumer
+                items.put(("error", exc))
+            else:
+                items.put(("end", None))
+
+        loop.run_in_executor(None, produce)
+        while True:
+            kind, payload = await loop.run_in_executor(None, items.get)
+            if kind == "item":
+                yield payload
+            elif kind == "error":
+                raise payload
+            else:
+                return
+
     async def streaming_complete_async(
         self,
         messages: list[dict[str, str]],
@@ -593,32 +665,15 @@ class LLMAdapter:
         Yields:
             Text chunks as they arrive
         """
-        import asyncio
-        from concurrent.futures import ThreadPoolExecutor
-
-        loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor()
-        kwargs = self._with_thinking(kwargs)
-
-        def sync_stream():
-            stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-                model=self._request_model(),
-                messages=messages,
+        async for chunk in self._aiter_from_thread(
+            lambda: self.streaming_complete(
+                messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 stop=stop,
-                stream=True,
                 **kwargs,
             )
-            for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-
-        def run_sync():
-            return list(sync_stream())
-
-        chunks = await loop.run_in_executor(executor, run_sync)
-        for chunk in chunks:
+        ):
             yield chunk
 
     async def streaming_events_async(
@@ -632,7 +687,8 @@ class LLMAdapter:
         """
         Async variant of streaming_events for FastAPI WebSocket.
 
-        Yields (kind, text) tuples where kind is "thinking" or "answer".
+        Yields (kind, text) tuples where kind is "thinking" or "answer",
+        as they arrive.
 
         Args:
             messages: List of message dicts
@@ -644,25 +700,15 @@ class LLMAdapter:
         Yields:
             (kind, text) tuples
         """
-        import asyncio
-        from concurrent.futures import ThreadPoolExecutor
-
-        loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor()
-
-        def run_sync():
-            return list(
-                self.streaming_events(
-                    messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    stop=stop,
-                    **kwargs,
-                )
+        async for event in self._aiter_from_thread(
+            lambda: self.streaming_events(
+                messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stop=stop,
+                **kwargs,
             )
-
-        events = await loop.run_in_executor(executor, run_sync)
-        for event in events:
+        ):
             yield event
 
     async def streaming_turn_async(
@@ -676,8 +722,8 @@ class LLMAdapter:
         """
         Async variant of streaming_turn for FastAPI WebSocket.
 
-        Yields (kind, payload) tuples: "thinking"/"answer" text chunks and a
-        final "tool_calls" list when the model requested tool calls.
+        Yields (kind, payload) tuples as they arrive: "thinking"/"answer" text
+        chunks and a final "tool_calls" list when the model requested tool calls.
 
         Args:
             messages: Conversation so far
@@ -689,23 +735,13 @@ class LLMAdapter:
         Yields:
             (kind, payload) tuples
         """
-        import asyncio
-        from concurrent.futures import ThreadPoolExecutor
-
-        loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor()
-
-        def run_sync():
-            return list(
-                self.streaming_turn(
-                    messages,
-                    tools=tools,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    **kwargs,
-                )
+        async for event in self._aiter_from_thread(
+            lambda: self.streaming_turn(
+                messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **kwargs,
             )
-
-        events = await loop.run_in_executor(executor, run_sync)
-        for event in events:
+        ):
             yield event

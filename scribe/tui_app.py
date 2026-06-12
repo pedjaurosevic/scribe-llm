@@ -178,6 +178,7 @@ class ScribeApp(App):
                 self.config.reasoning,
                 workspace=str(self.workspace),
                 max_thinking_words=self.config.max_thinking_words,
+                mode=self.config.reasoning_mode,
             ),
         }]
 

@@ -55,6 +55,7 @@ mkdir -p "$WORKSPACE_DIR/research"
 mkdir -p "$WORKSPACE_DIR/drafts"
 mkdir -p "$WORKSPACE_DIR/wiki"
 mkdir -p "$WORKSPACE_DIR/notes"
+mkdir -p "$WORKSPACE_DIR/sessions"
 if [ ! -f "$WORKSPACE_DIR/README.md" ]; then
     cat > "$WORKSPACE_DIR/README.md" <<'EOF'
 # Scribe Workspace
@@ -66,6 +67,8 @@ This is your personal Scribe workspace. The agent reads and writes files here
 - `drafts/`   — work-in-progress writing
 - `wiki/`     — durable notes Scribe maintains across sessions
 - `notes/`    — scratch space
+- `sessions/` — full Markdown transcript of every chat session (auto-written,
+  searchable with `scribe session search "query"`)
 
 Nothing here is committed to the Scribe source repo.
 EOF

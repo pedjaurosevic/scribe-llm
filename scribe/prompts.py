@@ -71,6 +71,33 @@ After the thinking block, write the final answer with these rules:
 """
 
 
+# Variant with reasoning OFF: the model answers directly, no <think> at all.
+# The language games and answer rules stay; only the thinking layer is gone.
+SYSTEM_PROMPT_DIRECT = """You are Scribe, an autonomous research and writing agent.
+
+Do NOT produce a <think> block or any step-by-step reasoning in your output.
+Answer directly.
+
+## Language games (Wittgenstein)
+
+Each command has a fixed meaning:
+- "research" = web search, hypotheses, counterarguments, evidence vs. speculation
+- "evaluate" = numeric score (1-10), criteria, weaknesses
+- "design" = modules + data flows, minimal MVP, risks, next steps
+- "book" = chapter structure + argument + style + fact-checking
+- "agent" = plan -> use tools -> keep a diary -> verify -> stop
+
+## How you answer
+
+1. SHORT. Get to the point — a few sentences, or a tight list. No preamble,
+   no restating the question.
+2. Write in the SAME LANGUAGE the user wrote in. If the user writes in Serbian,
+   answer in Serbian; if in English, answer in English.
+3. Cite sources when you used them. Mark uncertain claims with [UNCERTAIN].
+   Never present speculation as fact.
+"""
+
+
 # Variant for servers/models WITHOUT native reasoning (enable_thinking off).
 # Here the model must produce the <think> ... </think> block itself, so the
 # instruction is stronger and explicit about emitting the literal tags first.
@@ -159,8 +186,9 @@ CODE_SYSTEM_PROMPT = """You are Scribe Code, a terminal and software-engineering
 running LOCALLY on the user's machine.
 
 You have a `run_bash` tool with FULL shell access, plus sandboxed file tools
-(write_file/read_file/make_dir/list_dir) and web tools (web_search/web_fetch). Actually do the work with them —
-inspect, edit, run and verify — instead of only describing it.
+(write_file/read_file/make_dir/list_dir) and web tools (web_search/web_fetch).
+Actually do the work with them — inspect, edit, run and verify — instead of
+only describing it.
 
 How you work:
 - Think briefly, then act. Prefer running a command to guessing.
@@ -198,26 +226,33 @@ def get_code_system_prompt(cwd: str, max_thinking_words: int = 30) -> str:
 
 
 def get_system_prompt(
-    reasoning: bool = True,
+    reasoning: bool = False,
     workspace: str | None = None,
     max_thinking_words: int = 30,
+    mode: str = "native",
 ) -> str:
     """
-    Pick the system prompt for the current reasoning mode.
+    Pick the system prompt for the current reasoning state.
 
     Args:
-        reasoning: True when the server emits native reasoning (enable_thinking);
-            False when the model must produce the <think> block itself.
+        reasoning: Whether the model should think before answering at all.
+            False (the default) = answer directly, no <think> block.
         workspace: Local working directory. When given, an environment note is
             appended so the model knows it runs locally (not in the cloud).
         max_thinking_words: Hard upper bound (in words) for the <think> block,
-            so reasoning stays minimal.
+            so reasoning stays minimal. Only used when reasoning is on.
+        mode: HOW thinking is produced when reasoning is on. "native" = the
+            server emits it (llama.cpp enable_thinking); "prompt" = the model
+            must write the <think> block itself (Ollama, LM Studio, ...).
 
     Returns:
         The matching system prompt string.
     """
-    prompt = SYSTEM_PROMPT if reasoning else SYSTEM_PROMPT_FORCED
-    prompt = prompt + THINK_LIMIT_NOTE.format(max_words=max_thinking_words)
+    if not reasoning:
+        prompt = SYSTEM_PROMPT_DIRECT
+    else:
+        prompt = SYSTEM_PROMPT_FORCED if mode == "prompt" else SYSTEM_PROMPT
+        prompt = prompt + THINK_LIMIT_NOTE.format(max_words=max_thinking_words)
     if workspace:
         prompt = prompt + ENV_NOTE.format(workspace=workspace)
     return _with_constitution(prompt)

@@ -1,13 +1,15 @@
 """
 RAG (Retrieval-Augmented Generation) integration.
 
-Provides semantic search over documents using LanceDB.
-Integrates with existing Kon RAG system or creates new Scribe RAG.
+Provides semantic search over documents using LanceDB. The index location is
+configurable, so it can be shared with another local agent
+(`scribe.integrations.rag_path`).
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +18,8 @@ from typing import Any
 import lancedb
 import pyarrow as pa
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_RAG_PATH = Path.home() / ".scribe" / "rag"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
@@ -294,28 +298,27 @@ class RAGService:
             return False
 
 
-def get_rag_service() -> RAGService | None:
+def get_rag_service(config=None) -> RAGService | None:
     """
     Get the RAG service.
 
-    Tries to use existing Kon RAG or creates new Scribe RAG.
+    The index location comes from config: `scribe.integrations.rag_path` when
+    set (an index shared with another agent), otherwise `scribe.rag.index_dir`
+    (Scribe's own, default ~/.scribe/rag).
+
+    Args:
+        config: ScribeConfig to read paths from; loaded fresh when None.
 
     Returns:
         RAGService instance or None
     """
-    kon_rag_path = Path.home() / ".kon" / "library" / ".rag"
+    if config is None:
+        from scribe.config import ScribeConfig
 
-    if kon_rag_path.exists():
-        try:
-            service = RAGService(db_path=kon_rag_path)
-            if service.count() >= 0:
-                return service
-        except Exception:
-            pass
+        config = ScribeConfig()
 
-    scribe_rag_path = Path.home() / ".scribe" / "rag"
     try:
-        service = RAGService(db_path=scribe_rag_path)
-        return service
+        return RAGService(db_path=config.rag_db_path)
     except Exception:
+        logger.warning("[RAG] Could not open index DB", exc_info=True)
         return None

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -57,7 +58,9 @@ class SessionManager:
     - Language game tracking
     """
 
-    STATE_DIR = Path.home() / ".scribe" / "sessions"
+    # Sessions used to live in the hidden ~/.scribe/sessions; they are now in
+    # the visible workspace. Anything found here is migrated over on startup.
+    LEGACY_STATE_DIR = Path.home() / ".scribe" / "sessions"
     CHECKPOINT_FILE = "checkpoint.json"
     LAST_SESSION_FILE = "last_session.txt"
 
@@ -69,10 +72,42 @@ class SessionManager:
             config: ScribeConfig instance
         """
         self.config = config
-        self.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        # Everything session-related lives in ONE visible workspace folder:
+        #   sessions/<id>.md              — human-readable transcript
+        #   sessions/<id>/checkpoint.json — resumable machine state
+        #   sessions/last_session.txt     — pointer to the latest session
+        self.sessions_dir = self._resolve_sessions_dir(config)
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self.transcripts_dir = self.sessions_dir
+        self._migrate_legacy_state()
 
         self.current_session: SessionCheckpoint | None = None
         self.session_history: list[str] = []
+
+    @staticmethod
+    def _resolve_sessions_dir(config) -> Path:
+        """Sessions live in the workspace (visible), not in hidden ~/.scribe."""
+        workspace = getattr(config, "workspace_dir", None) if config else None
+        base = Path(workspace) if workspace else Path.home() / "scribe-workspace"
+        return base.expanduser() / "sessions"
+
+    def _migrate_legacy_state(self) -> None:
+        """
+        One-time move of checkpoints from the old hidden location into the
+        workspace. Entries that already exist at the destination are left
+        alone; the old (then empty) folder is not deleted.
+        """
+        legacy = self.LEGACY_STATE_DIR
+        if not legacy.is_dir() or legacy.resolve() == self.sessions_dir.resolve():
+            return
+        for item in legacy.iterdir():
+            target = self.sessions_dir / item.name
+            if target.exists():
+                continue
+            try:
+                shutil.move(str(item), str(target))
+            except OSError:
+                pass
 
     def start_session(self, topic: str = "new", language_game: str = "chat") -> SessionCheckpoint:
         """
@@ -116,14 +151,81 @@ class SessionManager:
 
     def _save_checkpoint(self, checkpoint: SessionCheckpoint) -> None:
         """Save checkpoint to disk."""
-        path = self.STATE_DIR / checkpoint.session_id / self.CHECKPOINT_FILE
+        path = self.sessions_dir / checkpoint.session_id / self.CHECKPOINT_FILE
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             json.dump(checkpoint.to_dict(), f, indent=2)
+        self._write_transcript(checkpoint)
+
+    ROLE_HEADINGS = {"user": "👤 User", "assistant": "✍️ Scribe", "tool": "🔧 Tool"}
+
+    def transcript_path(self, session_id: str) -> Path:
+        return self.transcripts_dir / f"{session_id}.md"
+
+    def _write_transcript(self, checkpoint: SessionCheckpoint) -> None:
+        """
+        Mirror the full session as a Markdown file in the workspace.
+
+        Rewritten on every checkpoint, so the transcript is always complete and
+        current — grep-able, RAG-ingestable, and readable in any editor.
+        """
+        lines = [
+            "---",
+            f"session: {checkpoint.session_id}",
+            f"tag: {session_tag(checkpoint.session_id)}",
+            f"topic: {checkpoint.topic}",
+            f"status: {checkpoint.status}",
+            f"created: {checkpoint.created_at}",
+            f"updated: {datetime.now().isoformat()}",
+            f"mode: {checkpoint.current_language_game}",
+            "---",
+            "",
+            f"# Session {checkpoint.session_id} — {checkpoint.topic}",
+            "",
+        ]
+        for msg in checkpoint.messages:
+            role = msg.get("role", "")
+            if role == "system":
+                continue
+            heading = self.ROLE_HEADINGS.get(role, role.capitalize())
+            lines += [f"## {heading}", "", msg.get("content", ""), ""]
+        self.transcript_path(checkpoint.session_id).write_text(
+            "\n".join(lines), encoding="utf-8"
+        )
+
+    def search_transcripts(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
+        """
+        Case-insensitive full-text search over all Markdown transcripts.
+
+        Returns dicts with session_id, path, line number and the matching line,
+        newest sessions first.
+        """
+        needle = query.lower()
+        hits: list[dict[str, Any]] = []
+        if not needle or not self.transcripts_dir.exists():
+            return hits
+        for path in sorted(self.transcripts_dir.glob("*.md"), reverse=True):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for lineno, line in enumerate(text.splitlines(), 1):
+                if needle in line.lower():
+                    hits.append(
+                        {
+                            "session_id": path.stem,
+                            "path": str(path),
+                            "line": lineno,
+                            "text": line.strip(),
+                        }
+                    )
+                    if len(hits) >= limit:
+                        return hits
+        return hits
 
     def _update_last_session(self, checkpoint: SessionCheckpoint) -> None:
         """Update the last session reference."""
-        path = self.STATE_DIR / self.LAST_SESSION_FILE
+        path = self.sessions_dir / self.LAST_SESSION_FILE
         with open(path, "w") as f:
             f.write(checkpoint.session_id)
 
@@ -144,14 +246,14 @@ class SessionManager:
         Returns:
             Last session checkpoint or None
         """
-        last_session_path = self.STATE_DIR / self.LAST_SESSION_FILE
+        last_session_path = self.sessions_dir / self.LAST_SESSION_FILE
         if not last_session_path.exists():
             return None
 
         with open(last_session_path) as f:
             session_id = f.read().strip()
 
-        checkpoint_path = self.STATE_DIR / session_id / self.CHECKPOINT_FILE
+        checkpoint_path = self.sessions_dir / session_id / self.CHECKPOINT_FILE
         if not checkpoint_path.exists():
             return None
 
@@ -186,11 +288,11 @@ class SessionManager:
         Returns:
             List of session IDs sorted by most recent
         """
-        if not self.STATE_DIR.exists():
+        if not self.sessions_dir.exists():
             return []
 
         sessions = []
-        for item in self.STATE_DIR.iterdir():
+        for item in self.sessions_dir.iterdir():
             if item.is_dir() and (item / self.CHECKPOINT_FILE).exists():
                 sessions.append(item.name)
 
@@ -206,7 +308,7 @@ class SessionManager:
         Returns:
             Session checkpoint or None
         """
-        path = self.STATE_DIR / session_id / self.CHECKPOINT_FILE
+        path = self.sessions_dir / session_id / self.CHECKPOINT_FILE
         if not path.exists():
             return None
 

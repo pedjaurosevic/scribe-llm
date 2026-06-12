@@ -10,6 +10,7 @@ Loads config from:
 
 from __future__ import annotations
 
+import copy
 import os
 from pathlib import Path
 from typing import Any
@@ -32,7 +33,8 @@ class ScribeConfig:
             "system_prompt": "You are Scribe, an autonomous research and writing agent.",
             "sme_enabled": True,
             "rag_enabled": True,
-            "reasoning": True,
+            "reasoning": False,
+            "reasoning_mode": "native",
             "workspace_dir": "~/scribe-workspace",
             "tools_enabled": True,
         },
@@ -42,6 +44,14 @@ class ScribeConfig:
         },
         "scribe.sme": {
             "db_path": "~/.scribe/sme",
+        },
+        # Optional bridges to other local agents/tools. All empty by default —
+        # Scribe then uses only its own paths. Point these at another agent's
+        # data to share it (e.g. a common semantic-memory DB for two agents).
+        "scribe.integrations": {
+            "sme_path": "",
+            "rag_path": "",
+            "brave_env_file": "",
         },
         "scribe.ui": {
             "theme": "gruvbox-dark",
@@ -78,7 +88,9 @@ class ScribeConfig:
             config_path: Path to config.toml. If None, uses default search paths.
         """
         self.config_path = config_path
-        self._config = self.DEFAULT_CONFIG.copy()
+        # Deep copy: a shallow one would share the section dicts, so set() or
+        # a loaded file would mutate DEFAULT_CONFIG for every later instance.
+        self._config = copy.deepcopy(self.DEFAULT_CONFIG)
         self._load()
 
     def _load(self) -> None:
@@ -220,8 +232,20 @@ class ScribeConfig:
 
     @property
     def reasoning(self) -> bool:
-        """Whether to request server-side reasoning (Peirce chain as thinking)."""
-        return self.get("scribe", "reasoning", default=True)
+        """
+        Whether the model thinks before answering (Peirce chain as thinking).
+        Off by default; toggle live with /reasoning in the TUI and web chat.
+        """
+        return self.get("scribe", "reasoning", default=False)
+
+    @property
+    def reasoning_mode(self) -> str:
+        """
+        How thinking is produced when reasoning is on: "native" (server-side
+        enable_thinking, llama.cpp) or "prompt" (the model writes the <think>
+        block itself — Ollama, LM Studio, ...).
+        """
+        return str(self.get("scribe", "reasoning_mode", default="native"))
 
     @property
     def workspace_dir(self) -> str:
@@ -233,6 +257,38 @@ class ScribeConfig:
     def tools_enabled(self) -> bool:
         """Whether the model can call sandboxed workspace file tools."""
         return self.get("scribe", "tools_enabled", default=True)
+
+    def _expanded_path(self, section: str, key: str, default: str = "") -> str:
+        """Read a path setting, expanded; empty string when unset."""
+        raw = str(self.get(section, key, default=default) or "").strip()
+        return os.path.expanduser(raw) if raw else ""
+
+    @property
+    def sme_db_path(self) -> str:
+        """
+        Directory of the semantic-memory (SME) LanceDB.
+
+        `scribe.integrations.sme_path` wins when set (shared DB with another
+        agent), otherwise `scribe.sme.db_path` (Scribe's own).
+        """
+        shared = self._expanded_path("scribe.integrations", "sme_path")
+        return shared or self._expanded_path("scribe.sme", "db_path", "~/.scribe/sme")
+
+    @property
+    def rag_db_path(self) -> str:
+        """
+        Directory of the RAG LanceDB index.
+
+        `scribe.integrations.rag_path` wins when set (shared library with
+        another agent), otherwise `scribe.rag.index_dir` (Scribe's own).
+        """
+        shared = self._expanded_path("scribe.integrations", "rag_path")
+        return shared or self._expanded_path("scribe.rag", "index_dir", "~/.scribe/rag")
+
+    @property
+    def brave_env_file(self) -> str:
+        """Optional extra env file to read a Brave Search API key from."""
+        return self._expanded_path("scribe.integrations", "brave_env_file")
 
     @property
     def theme(self) -> str:

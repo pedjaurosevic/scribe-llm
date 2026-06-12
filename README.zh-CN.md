@@ -105,6 +105,7 @@ scribe memory recall "query"  # 从语义记忆中回忆
 scribe rag search "query"     # 对已导入的文档进行语义搜索
 scribe session last            # 显示最近一次会话
 scribe session list            # 列出所有会话
+scribe session search "query" # 对所有会话转录进行全文搜索
 
 scribe config show             # 显示当前配置
 scribe status                  # 检查系统状态

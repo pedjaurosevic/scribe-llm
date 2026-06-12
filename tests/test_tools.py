@@ -81,17 +81,20 @@ class TestWebTools:
 
     @pytest.fixture
     def mock_urlopen(self):
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
         with patch("urllib.request.urlopen") as mock:
             yield mock
 
     def test_web_search_success(self, mock_urlopen, monkeypatch):
         from unittest.mock import MagicMock
         monkeypatch.setenv("BRAVE_API_KEY", "test_key_123")
-        
+
         # Mock response
         mock_response = MagicMock()
-        mock_response.read.return_value = b'{"web": {"results": [{"title": "Test Title", "url": "http://example.com", "description": "Test snippet"}]}}'
+        mock_response.read.return_value = (
+            b'{"web": {"results": [{"title": "Test Title", '
+            b'"url": "http://example.com", "description": "Test snippet"}]}}'
+        )
         mock_response.headers = {}
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
@@ -104,7 +107,10 @@ class TestWebTools:
         from unittest.mock import MagicMock
         # Mock HTML response
         mock_response = MagicMock()
-        mock_response.read.return_value = b"<html><head><title>Ignore</title></head><body><p>Hello World</p><script>ignore this</script></body></html>"
+        mock_response.read.return_value = (
+            b"<html><head><title>Ignore</title></head><body>"
+            b"<p>Hello World</p><script>ignore this</script></body></html>"
+        )
         mock_response.headers = {}
         mock_urlopen.return_value.__enter__.return_value = mock_response
 
@@ -115,7 +121,7 @@ class TestWebTools:
 
 def test_parse_text_tool_calls():
     from scribe.llm_adapter import parse_text_tool_calls
-    
+
     # Test JSON action format
     raw_json = '{"action": "list_dir", "action_input": {"path": "."}}'
     res = parse_text_tool_calls(raw_json)

@@ -99,6 +99,7 @@ class ScribeTUI:
                 self.config.reasoning,
                 workspace=str(self.workspace),
                 max_thinking_words=self.config.max_thinking_words,
+                mode=self.config.reasoning_mode,
             ),
         })
 
@@ -460,8 +461,8 @@ class ScribeTUI:
 
         line = Text(no_wrap=True, overflow="crop")
         line.append("  ")
-        if not self.reasoning:
-            line.append(" ✕think ", style="warning")
+        if self.reasoning:
+            line.append(" ✓think ", style="warning")
             line.append(" ")
         if self.code_mode:
             line.append(" ⌘ CODE ", style="pill.code")

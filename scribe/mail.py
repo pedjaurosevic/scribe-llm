@@ -222,6 +222,7 @@ def execute_instruction(config: Any, instruction: str, max_iters: int = 6) -> st
                 config.reasoning,
                 workspace=str(workspace),
                 max_thinking_words=config.max_thinking_words,
+                mode=config.reasoning_mode,
             ),
         },
         {"role": "user", "content": instruction},

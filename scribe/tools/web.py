@@ -23,7 +23,8 @@ MAX_FETCH_CHARS = 15000
 
 def load_brave_api_key() -> str | None:
     """
-    Search for Brave Search API Key in env vars, Scribe config, and Kon configs.
+    Search for a Brave Search API key in env vars, Scribe config, and env files
+    (the configured `scribe.integrations.brave_env_file`, then ~/.env).
     """
     # 1. Environment variables
     key = os.environ.get("BRAVE_API_KEY") or os.environ.get("BRAVE_SEARCH_API_KEY")
@@ -31,17 +32,20 @@ def load_brave_api_key() -> str | None:
         return key.strip()
 
     # 2. Scribe Config (via config.toml)
+    env_files = [Path.home() / ".env"]
     try:
         from scribe.config import ScribeConfig
         cfg = ScribeConfig()
         key = cfg.get("scribe", "brave_api_key") or cfg.get("scribe.search", "api_key")
         if key:
             return key.strip()
+        if cfg.brave_env_file:
+            env_files.insert(0, Path(cfg.brave_env_file))
     except Exception:
         pass
 
-    # 3. Kon environment files (standard location)
-    for p in [Path.home() / ".kon" / ".env.brave", Path.home() / ".env"]:
+    # 3. Env files (configured integration file first, then the generic ~/.env)
+    for p in env_files:
         try:
             if p.exists():
                 for line in p.read_text(encoding="utf-8").splitlines():
@@ -243,7 +247,10 @@ def web_fetch(url: str) -> str:
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            ),
             "Accept-Encoding": "gzip",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
@@ -255,7 +262,7 @@ def web_fetch(url: str) -> str:
             encoding = response.headers.get("Content-Encoding", "")
             if "gzip" in encoding.lower():
                 raw_data = gzip.decompress(raw_data)
-            
+
             try:
                 html = raw_data.decode("utf-8")
             except UnicodeDecodeError:
@@ -267,14 +274,15 @@ def web_fetch(url: str) -> str:
         extractor = TextExtractor()
         extractor.feed(html)
         text = "\n".join(extractor.text)
-        
+
         # Collapse multi-newlines
         while "\n\n\n" in text:
             text = text.replace("\n\n\n", "\n\n")
-            
+
         text = text.strip()
         if len(text) > MAX_FETCH_CHARS:
-            return text[:MAX_FETCH_CHARS] + f"\n\n... [Content truncated, {len(text)} characters total]"
+            truncated_note = f"\n\n... [Content truncated, {len(text)} characters total]"
+            return text[:MAX_FETCH_CHARS] + truncated_note
         return text
     except Exception as e:
         return f"Error parsing web page content: {e}"
