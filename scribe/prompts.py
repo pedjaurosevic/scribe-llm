@@ -256,3 +256,48 @@ def get_system_prompt(
     if workspace:
         prompt = prompt + ENV_NOTE.format(workspace=workspace)
     return _with_constitution(prompt)
+
+
+# ── Grounded Q&A (citation enforcement) ─────────────────────────────────────
+
+GROUNDING_RULES = """## Grounding rules (non-negotiable)
+
+You answer ONLY from the numbered sources below. For every factual claim, cite
+the source(s) it comes from as [1], [2], ... immediately after the claim.
+
+- A claim you cannot map to a source does not go in the answer.
+- If the sources do not contain the answer, say exactly that — "The sources
+  do not cover this" — and stop. Do not fill gaps from your own knowledge.
+- If two sources disagree, do not silently pick one: present both and mark
+  the spot with [CONTRADICTION: source X vs source Y] so a human can arbitrate.
+- Quote sparingly and precisely; never invent quotes.
+"""
+
+
+def grounded_context(chunks) -> str:
+    """
+    Build the numbered-source context block for grounded Q&A from retrieved
+    chunks (objects with .content and .source_file). Pairs with
+    GROUNDING_RULES in the system prompt; the [n] markers here are what the
+    model's citations must point at.
+    """
+    lines = ["## Sources", ""]
+    for n, chunk in enumerate(chunks, 1):
+        source = getattr(chunk, "source_file", "") or "unknown"
+        name = source.rsplit("/", 1)[-1]
+        section = getattr(chunk, "section", "") or ""
+        suffix = f", {section}" if section else ""
+        lines.append(f"[{n}] ({name}{suffix})")
+        lines.append(getattr(chunk, "content", str(chunk)).strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def get_grounded_prompt(chunks) -> str:
+    """System prompt for one grounded Q&A turn over the given chunks."""
+    return _with_constitution(
+        "You are Scribe, answering strictly from provided sources.\n\n"
+        + GROUNDING_RULES
+        + "\n"
+        + grounded_context(chunks)
+    )

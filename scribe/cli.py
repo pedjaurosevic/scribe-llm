@@ -238,9 +238,14 @@ def rag():
 @rag.command("search")
 @click.argument("query")
 @click.option("--limit", "-n", default=5, help="Number of results")
+@click.option(
+    "--semantic-only",
+    is_flag=True,
+    help="Skip the lexical FTS branch (pure vector search)",
+)
 @click.pass_context
-def rag_search(ctx, query, limit):
-    """Search documents semantically."""
+def rag_search(ctx, query, limit, semantic_only):
+    """Search documents (hybrid: vectors + FTS5, RRF-fused)."""
     console = ctx.obj["console"]
     rag = get_rag_service()
 
@@ -248,7 +253,11 @@ def rag_search(ctx, query, limit):
         console.print("[error]RAG not available[/error]")
         return
 
-    results = rag.search(query, limit=limit)
+    results = (
+        rag.search(query, limit=limit)
+        if semantic_only
+        else rag.hybrid_search(query, limit=limit)
+    )
 
     if not results:
         console.print("[dim]No results found[/dim]")
@@ -259,6 +268,59 @@ def rag_search(ctx, query, limit):
         console.print(f"[bold cyan]{source}[/bold cyan]")
         console.print(f"  {r.content[:200]}...")
         console.print()
+
+
+@rag.command("ask")
+@click.argument("question")
+@click.option("--limit", "-n", default=6, help="Number of source chunks to retrieve")
+@click.pass_context
+def rag_ask(ctx, question, limit):
+    """
+    Grounded Q&A: every claim cites a retrieved source, contradictions are
+    tagged, and an answer outside the sources is refused.
+    """
+    from scribe.llm_adapter import LLMAdapter
+    from scribe.prompts import get_grounded_prompt
+
+    console = ctx.obj["console"]
+    config = ScribeConfig()
+    rag = get_rag_service(config)
+
+    if not rag:
+        console.print("[error]RAG not available[/error]")
+        return
+    chunks = rag.hybrid_search(question, limit=limit)
+    if not chunks:
+        console.print("[dim]No sources found — ingest documents first[/dim]")
+        return
+
+    for n, c in enumerate(chunks, 1):
+        name = Path(c.source_file).name if c.source_file else "unknown"
+        console.print(f"[dim][{n}] {name}[/dim]")
+
+    adapter = LLMAdapter.from_config(config)
+    messages = [
+        {"role": "system", "content": get_grounded_prompt(chunks)},
+        {"role": "user", "content": question},
+    ]
+    console.print()
+    for chunk in adapter.streaming_complete(messages, temperature=0.3):
+        console.print(chunk, end="")
+    console.print()
+
+
+@rag.command("reindex")
+@click.pass_context
+def rag_reindex(ctx):
+    """Rebuild the lexical (FTS5) index from the vector table."""
+    console = ctx.obj["console"]
+    rag = get_rag_service()
+
+    if not rag:
+        console.print("[error]RAG not available[/error]")
+        return
+    count = rag.reindex_fts()
+    console.print(f"[success]✓[/success] Lexical index rebuilt: {count} chunks")
 
 
 @rag.command("ingest")
