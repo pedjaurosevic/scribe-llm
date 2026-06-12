@@ -189,8 +189,13 @@ async def websocket_chat(websocket: WebSocket):
             config.reasoning,
             workspace=str(WORKSPACE_DIR),
             max_thinking_words=config.max_thinking_words,
+            mode=config.reasoning_mode,
         ),
     }]
+
+    # Per-connection reasoning state, toggled live with the /reasoning command
+    # (same semantics as the TUI toggle).
+    reasoning = config.reasoning
 
     session_manager.start_session(topic="web_chat")
 
@@ -202,6 +207,38 @@ async def websocket_chat(websocket: WebSocket):
             if event.get("type") == "message":
                 user_content = event.get("content", "").strip()
                 if not user_content:
+                    continue
+
+                # /reasoning [on|off] — handled here, never sent to the model.
+                if user_content.lower().startswith("/reasoning"):
+                    arg = user_content[len("/reasoning"):].strip().lower()
+                    if arg in ("on", "true", "1"):
+                        reasoning = True
+                    elif arg in ("off", "false", "0"):
+                        reasoning = False
+                    else:
+                        reasoning = not reasoning
+
+                    adapter.enable_thinking = reasoning
+                    if reasoning:
+                        directive = (
+                            "Reasoning is now ON. Think step by step inside a "
+                            "<think> block, then give a SHORT final answer in "
+                            "the user's language."
+                        )
+                        note = "✓ Reasoning ON — model razmišlja pre odgovora."
+                    else:
+                        directive = (
+                            "Reasoning is now OFF. Do NOT produce a <think> "
+                            "block or any step-by-step reasoning. Answer "
+                            "directly and concisely in the user's language."
+                        )
+                        note = "→ Reasoning OFF — model odgovara direktno."
+                    messages.append({"role": "system", "content": directive})
+                    await websocket.send_json(
+                        {"type": "chunk", "content": note, "full": note}
+                    )
+                    await websocket.send_json({"type": "done", "content": note})
                     continue
 
                 messages.append({"role": "user", "content": user_content})

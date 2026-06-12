@@ -102,6 +102,7 @@ scribe memory recall "query"  # Recall from semantic memory
 scribe rag search "query"     # Semantic search over ingested documents
 scribe session last            # Show last session
 scribe session list            # List all sessions
+scribe session search "query" # Full-text search across all session transcripts
 
 scribe config show             # Show current config
 scribe status                  # Check system status

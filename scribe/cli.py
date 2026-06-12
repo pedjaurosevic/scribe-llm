@@ -158,6 +158,78 @@ def memory_stats(ctx):
 
 
 @main.group()
+def wiki():
+    """Wiki operations (distill sessions into durable knowledge)."""
+    pass
+
+
+@wiki.command("distill")
+@click.option("--since", default=None, help="Only sessions on/after this date (YYYYMMDD)")
+@click.option("--limit", "-n", type=int, default=None, help="Process at most N sessions")
+@click.option("--dry-run", is_flag=True, help="List pending sessions without processing")
+@click.option("--no-rag", is_flag=True, help="Skip re-ingesting changed pages into RAG")
+@click.pass_context
+def wiki_distill(ctx, since, limit, dry_run, no_rag):
+    """Distill saved sessions into WIKI pages (decisions, conclusions, facts)."""
+    from scribe import wiki as wiki_mod
+
+    console = ctx.obj["console"]
+    config = ctx.obj["config"]
+
+    wiki_path = wiki_mod.wiki_dir(config)
+    manager = SessionManager(config)
+    ledger = wiki_mod.load_ledger(wiki_path)
+    pending = wiki_mod.pending_sessions(manager, ledger, since=since)
+
+    if not pending:
+        console.print("[success]✓[/success] Nothing to distill — wiki is up to date.")
+        return
+
+    console.print(
+        f"[info]Pending:[/info] {len(pending)} session(s) → [file]{wiki_path}[/file]"
+    )
+    if dry_run:
+        for session_id, checkpoint in pending:
+            console.print(f"  • {session_id}  [dim]{checkpoint.topic}[/dim]")
+        return
+
+    adapter = LLMAdapter.from_config(config)
+    if not adapter.is_healthy():
+        console.print("[error]LLM server not reachable — start it first.[/error]")
+        return
+
+    def on_progress(session_id: str, summary: str) -> None:
+        console.print(f"  [success]✓[/success] {session_id}: {summary[:100]}")
+
+    results = wiki_mod.distill(
+        config, since=since, limit=limit, adapter=adapter, on_progress=on_progress
+    )
+
+    stored = sum(1 for r in results if r["status"] == "stored")
+    skipped = sum(1 for r in results if r["status"] == "skipped")
+    errors = [r for r in results if r["status"] == "error"]
+    console.print(
+        f"\n[bold]Done:[/bold] {stored} stored, {skipped} skipped"
+        + (f", [error]{len(errors)} failed[/error]" if errors else "")
+    )
+    for r in errors:
+        console.print(f"  [error]✗[/error] {r['session']}: {r['summary'][:100]}")
+
+    # Make the curated knowledge semantically searchable too.
+    if stored and not no_rag:
+        rag = get_rag_service(config)
+        if rag:
+            ingested = wiki_mod.sync_rag(wiki_path, rag)
+            if ingested:
+                console.print(
+                    f"[info]RAG:[/info] re-ingested {len(ingested)} page(s): "
+                    + ", ".join(ingested)
+                )
+        else:
+            console.print("[warning]RAG:[/warning] not available, pages not ingested")
+
+
+@main.group()
 def rag():
     """RAG operations (document semantic search)."""
     pass
@@ -279,8 +351,30 @@ def session_list(ctx):
         console.print("[bold]Sessions:[/bold]")
         for sid in sessions:
             console.print(f"  {sid}")
+        console.print(f"\nTranscripts (Markdown): {session_mgr.transcripts_dir}")
     else:
         console.print("No sessions found.")
+
+
+@session.command("search")
+@click.argument("query")
+@click.option("--limit", default=20, show_default=True, help="Max matches to show.")
+@click.pass_context
+def session_search(ctx, query, limit):
+    """Full-text search across all session transcripts."""
+    console = ctx.obj["console"]
+    session_mgr = SessionManager(ctx.obj["config"])
+
+    hits = session_mgr.search_transcripts(query, limit=limit)
+    if not hits:
+        console.print(f"No matches for '{query}' in {session_mgr.transcripts_dir}")
+        return
+    current = None
+    for hit in hits:
+        if hit["session_id"] != current:
+            current = hit["session_id"]
+            console.print(f"\n[bold]{current}[/bold]  ({hit['path']})")
+        console.print(f"  {hit['line']}: {hit['text']}")
 
 
 @main.group()
@@ -429,17 +523,23 @@ def status(ctx):
     sessions = session_mgr.list_sessions()
     console.print(f"[info]Sessions:[/info] {len(sessions)} total")
 
-    sme = get_sme_service()
+    shared_sme = bool(config.get("scribe.integrations", "sme_path"))
+    sme = get_sme_service(config)
     if sme:
-        console.print(f"[info]Memory:[/info] {sme.count()} entries")
+        origin = "shared" if shared_sme else "own"
+        console.print(
+            f"[info]Memory:[/info] {sme.count()} entries ({origin}: {sme.db_path})"
+        )
     else:
         console.print("[warning]Memory:[/warning] not available")
 
-    rag = get_rag_service()
+    shared_rag = bool(config.get("scribe.integrations", "rag_path"))
+    rag = get_rag_service(config)
     if rag:
+        origin = "shared" if shared_rag else "own"
         console.print(
             f"[info]RAG:[/info] {rag.count()} chunks "
-            f"from {len(rag.list_sources())} sources"
+            f"from {len(rag.list_sources())} sources ({origin}: {rag.db_path})"
         )
     else:
         console.print("[warning]RAG:[/warning] not available")

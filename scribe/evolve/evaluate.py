@@ -157,6 +157,7 @@ def make_answerer(adapter, config) -> Callable[[dict], str]:
         config.reasoning,
         workspace=str(Path(config.workspace_dir)),
         max_thinking_words=config.max_thinking_words,
+        mode=config.reasoning_mode,
     )
 
     def answerer(task: dict) -> str:

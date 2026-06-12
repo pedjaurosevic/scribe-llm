@@ -25,11 +25,17 @@ system_prompt = "You are Scribe, an autonomous research and writing agent..."
 sme_enabled = true
 rag_enabled = true
 
-# Reasoning mode (Peirce chain runs as hidden thinking, answer stays short).
-#   true  = native server reasoning via enable_thinking (llama.cpp gemma).
-#   false = prompt-driven: the model emits the <think> block itself. Use this
-#           for servers without chat_template_kwargs (Ollama, LM Studio, ...).
-reasoning = true
+# Reasoning (Peirce chain runs as hidden thinking, answer stays short).
+#   false = model answers directly, no thinking (default).
+#   true  = model thinks before answering.
+# Toggle live in TUI and web chat with the /reasoning command.
+reasoning = false
+
+# HOW thinking is produced when reasoning is on:
+#   "native" = server-side via enable_thinking (llama.cpp gemma).
+#   "prompt" = the model writes the <think> block itself. Use this for servers
+#              without chat_template_kwargs (Ollama, LM Studio, ...).
+reasoning_mode = "native"
 
 # Local working directory Scribe operates in (created on start). The model is
 # told it runs locally here, so it stops claiming it is a cloud/isolated AI.
@@ -47,6 +53,18 @@ index_dir = "~/.scribe/rag"
 [scribe.sme]
 # SME configuration
 db_path = "~/.scribe/sme"
+
+[scribe.integrations]
+# Optional bridges to OTHER local agents/tools. Leave empty (the default) and
+# Scribe keeps everything in its own ~/.scribe paths.
+#
+# Point sme_path/rag_path at another agent's LanceDB to SHARE memory or a
+# document library with it — both agents then read and write the same DB.
+# brave_env_file is an extra env file to read BRAVE_API_KEY from, if you
+# already keep the key somewhere for another tool.
+# sme_path = "~/.other-agent/sme"
+# rag_path = "~/.other-agent/library/.rag"
+# brave_env_file = "~/.other-agent/.env.brave"
 
 [scribe.ui]
 # TUI color theme. Switch live in chat with /theme NAME. Options:

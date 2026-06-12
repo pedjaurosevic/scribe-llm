@@ -7,6 +7,7 @@ Provides persistent semantic memory using LanceDB embeddings.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,8 @@ from typing import Any
 import lancedb
 import pyarrow as pa
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SME_PATH = Path.home() / ".scribe" / "sme"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
@@ -137,8 +140,8 @@ class SMEService:
 
         try:
             vector = self._embed([content])[0]
-        except Exception as e:
-            print(f"[SME] Embedding error: {e}")
+        except Exception:
+            logger.warning("[SME] Embedding error, storing zero vector", exc_info=True)
             vector = [0.0] * EMBEDDING_DIM
 
         row = {
@@ -174,9 +177,12 @@ class SMEService:
         try:
             query_vector = self._embed([query])[0]
 
+            # The topic filter is applied after the vector search, so when one
+            # is set we over-fetch to still end up with `limit` matches.
+            fetch = limit * 5 if topic else limit
             results = (
                 self.table.search(query_vector, vector_column_name="vector")
-                .limit(limit)
+                .limit(fetch)
                 .to_pandas()
             )
 
@@ -194,11 +200,13 @@ class SMEService:
                     metadata=json.loads(row["metadata"]) if row.get("metadata") else {},
                 )
                 entries.append(entry)
+                if len(entries) >= limit:
+                    break
 
             return entries
 
-        except Exception as e:
-            print(f"[SME] Search error: {e}")
+        except Exception:
+            logger.warning("[SME] Vector search failed, falling back to text", exc_info=True)
             return self._search_by_text(query, limit, topic)
 
     def _search_by_text(
@@ -209,7 +217,8 @@ class SMEService:
     ) -> list[MemoryEntry]:
         """Fallback text search when embeddings unavailable."""
         try:
-            results = self.table.search(query).limit(limit).to_pandas()
+            fetch = limit * 5 if topic else limit
+            results = self.table.search(query).limit(fetch).to_pandas()
 
             entries = []
             for _, row in results.iterrows():
@@ -225,6 +234,8 @@ class SMEService:
                     metadata=json.loads(row["metadata"]) if row.get("metadata") else {},
                 )
                 entries.append(entry)
+                if len(entries) >= limit:
+                    break
 
             return entries
 
@@ -284,28 +295,29 @@ class SMEService:
             return 0
 
 
-def get_sme_service() -> SMEService | None:
+def get_sme_service(config=None) -> SMEService | None:
     """
-    Get the SME service, preferring existing Kon SME if available.
+    Get the SME service.
+
+    The DB location comes from config: `scribe.integrations.sme_path` when set
+    (a memory DB shared with another agent), otherwise `scribe.sme.db_path`
+    (Scribe's own, default ~/.scribe/sme).
+
+    Args:
+        config: ScribeConfig to read paths from; loaded fresh when None.
 
     Returns:
         SMEService instance or None if no storage available
     """
-    kon_sme_path = Path.home() / ".kon" / "sme"
+    if config is None:
+        from scribe.config import ScribeConfig
 
-    if kon_sme_path.exists():
-        try:
-            service = SMEService(db_path=kon_sme_path)
-            if service.count() >= 0:
-                return service
-        except Exception:
-            pass
+        config = ScribeConfig()
 
-    scribe_sme_path = Path.home() / ".scribe" / "sme"
     try:
-        service = SMEService(db_path=scribe_sme_path)
-        return service
+        return SMEService(db_path=config.sme_db_path)
     except Exception:
+        logger.warning("[SME] Could not open memory DB", exc_info=True)
         return None
 
 
