@@ -544,6 +544,13 @@ class ScribeTUI:
                     self.console.print(
                         f"[cyan]🌐[/cyan] [bold]{tc['name']}[/bold] [dim]{tc['arguments']}[/dim]"
                     )
+                elif tc["name"] in ("workspace_checkpoint", "workspace_rollback"):
+                    from scribe.tools import checkpoint
+
+                    result = checkpoint.dispatch(self.code_cwd, tc["name"], tc["arguments"])
+                    self.console.print(
+                        f"[cyan]⎌[/cyan] [bold]{tc['name']}[/bold] [dim]{tc['arguments']}[/dim]"
+                    )
                 else:
                     result = fs.dispatch(
                         self.workspace, tc["name"], tc["arguments"],
@@ -878,10 +885,15 @@ class ScribeTUI:
 
     def _active_tools(self) -> list[dict]:
         """Tool schemas advertised to the model for the current mode."""
-        from scribe.tools import fs, shell, web
+        from scribe.tools import checkpoint, fs, shell, web
 
         if self.code_mode:
-            return fs.TOOL_SCHEMAS + shell.TOOL_SCHEMAS + web.TOOL_SCHEMAS
+            return (
+                fs.TOOL_SCHEMAS
+                + shell.TOOL_SCHEMAS
+                + checkpoint.TOOL_SCHEMAS
+                + web.TOOL_SCHEMAS
+            )
         return fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS
 
     def _show_help(self):
