@@ -26,10 +26,19 @@ sme_enabled = true
 rag_enabled = true
 
 # Reasoning (Peirce chain runs as hidden thinking, answer stays short).
-#   false = model answers directly, no thinking (default).
-#   true  = model thinks before answering.
+#   false  = model answers directly, no thinking (default).
+#   true   = model thinks before answering.
+#   "auto" = the reasoning gate decides per request: small talk answers
+#            instantly, debugging/planning/long prompts get a thinking pass.
 # Toggle live in TUI and web chat with the /reasoning command.
 reasoning = false
+
+# GBNF tool-call enforcement (llama.cpp servers only; ignored elsewhere):
+#   "auto"  = if the model emits a malformed tool call, retry that one request
+#             with a grammar that makes invalid output impossible (default).
+#   "force" = grammar-constrain every forced tool decision.
+#   "off"   = disable.
+tool_grammar = "auto"
 
 # HOW thinking is produced when reasoning is on:
 #   "native" = server-side via enable_thinking (llama.cpp gemma).
