@@ -21,23 +21,41 @@ MAX_OUTPUT_CHARS = 10_000
 DEFAULT_TIMEOUT = 120
 
 
-def run_command(command: str, cwd: str | None = None, timeout: int = DEFAULT_TIMEOUT) -> str:
+def run_command(
+    command: str,
+    cwd: str | None = None,
+    timeout: int = DEFAULT_TIMEOUT,
+    sandbox: bool = False,
+) -> str:
     """
     Run a bash command and return its combined stdout/stderr plus exit code.
+
+    Agent-issued commands always pass the destructive-command gate first.
+    With sandbox=True the command additionally runs under bubblewrap
+    (read-only root, workspace read-write, no network) when available.
 
     Never raises — failures (non-zero exit, timeout, spawn error) come back as
     text so the model can read and react to them.
     """
+    from scribe.tools.sandbox import gate_command, run_sandboxed
+
+    reason = gate_command(command)
+    if reason:
+        return f"[refused] command gate: {reason}"
+
     try:
-        proc = subprocess.run(
-            command,
-            shell=True,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            executable="/bin/bash",
-        )
+        if sandbox:
+            proc = run_sandboxed(command, cwd or ".", timeout=timeout)
+        else:
+            proc = subprocess.run(
+                command,
+                shell=True,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                executable="/bin/bash",
+            )
     except subprocess.TimeoutExpired:
         return f"[timeout] command exceeded {timeout}s"
     except Exception as e:  # pragma: no cover - defensive
