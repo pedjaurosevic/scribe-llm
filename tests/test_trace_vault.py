@@ -87,7 +87,11 @@ class TestStatusContract:
             "scribe.llm_adapter.LLMAdapter.is_healthy", lambda self: False
         )
         status = collect_status(cfg)
-        for key in ("version", "server", "capabilities", "workspace", "sessions", "rag", "sme", "bench"):
+        expected_keys = (
+            "version", "server", "capabilities", "workspace",
+            "sessions", "rag", "sme", "bench",
+        )
+        for key in expected_keys:
             assert key in status
         assert status["server"]["reachable"] is False
         assert status["capabilities"]["tool_grammar"] in ("auto", "force", "off")

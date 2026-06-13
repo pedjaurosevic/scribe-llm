@@ -111,7 +111,7 @@ def discover(ctx, tailscale, set_default):
 @click.pass_context
 def compare(ctx, prompt, model_a, model_b):
     """Blind A/B two models on one prompt; vote, then reveal."""
-    from scribe.compare import answer_with, build_blind, Contestant
+    from scribe.compare import Contestant, answer_with, build_blind
 
     console = ctx.obj["console"]
     adapter = LLMAdapter.from_config(ctx.obj["config"])

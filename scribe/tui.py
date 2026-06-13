@@ -812,23 +812,34 @@ class ScribeTUI:
         """
         Turn the model's reasoning on/off live, for both normal and code mode.
 
-        /reasoning        — toggle
-        /reasoning on|off — set explicitly
+        /reasoning           — toggle on/off
+        /reasoning on|off|auto — set explicitly
 
-        ON  = native thinking (enable_thinking=True), Peirce chain then a short
-              answer. OFF = no thinking at all (enable_thinking=False) — the
-              model answers directly. Works mid-conversation.
+        ON  = always think (Peirce chain then a short answer). OFF = never
+        think (answer directly). AUTO = the reasoning gate decides per
+        request. Works mid-conversation.
         """
         action = arg.strip().lower()
         if action in ("on", "true", "1"):
-            self.reasoning = True
+            self.reasoning, mode = True, "on"
         elif action in ("off", "false", "0"):
-            self.reasoning = False
+            self.reasoning, mode = False, "off"
+        elif action == "auto":
+            self.reasoning, mode = True, "auto"
         else:
             self.reasoning = not self.reasoning
+            mode = "on" if self.reasoning else "off"
 
-        # Suppress/enable native reasoning at the transport level.
+        # Drive both knobs the adapter reads: thinking_mode is checked first,
+        # enable_thinking is the static fallback.
+        self.adapter.thinking_mode = mode
         self.adapter.enable_thinking = self.reasoning
+        if mode == "auto":
+            self.console.print(
+                "[success]✓[/success] Reasoning [accent]AUTO[/accent] "
+                "[dim]— model misli samo kad se isplati[/dim]"
+            )
+            return
 
         # Steer the model with a fresh directive (latest system message wins),
         # so it also stops/starts emitting any inline <think>.
@@ -939,7 +950,7 @@ class ScribeTUI:
 `/code` — Enter Scribe Code (terminal expert, full bash access)
 `/chat` — Leave code mode, back to normal chat
 `/theme` — List or switch color theme (e.g. /theme dracula)
-`/reasoning` — Toggle the model's thinking on/off (both modes)
+`/reasoning` — Thinking on/off/auto (e.g. /reasoning auto)
         """
         self.console.print(Markdown(help_text))
 

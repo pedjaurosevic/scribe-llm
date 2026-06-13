@@ -62,9 +62,9 @@ class TestFTSIndex:
         idx = FTSIndex(tmp_path / "fts.db")
         idx.add(
             [
-                {"id": "c1", "source_file": "a.md", "content": "RLIMIT_AS caps process memory"},
-                {"id": "c2", "source_file": "a.md", "content": "bubblewrap isolates the filesystem"},
-                {"id": "c3", "source_file": "b.md", "content": "reciprocal rank fusion merges rankings"},
+                {"id": "c1", "source_file": "a.md", "content": "RLIMIT_AS caps process mem"},
+                {"id": "c2", "source_file": "a.md", "content": "bubblewrap isolates the fs"},
+                {"id": "c3", "source_file": "b.md", "content": "reciprocal rank fusion merges"},
             ]
         )
         yield idx

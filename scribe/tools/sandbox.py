@@ -33,7 +33,8 @@ _DENY_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bdd\b[^|;&]*\bof=/dev/(sd|nvme|vd|hd|mmcblk)"), "raw write to block device"),
     (re.compile(r":\(\)\s*\{\s*:\|:&\s*\}\s*;"), "fork bomb"),
     (re.compile(r"\b(shutdown|reboot|poweroff|halt)\b"), "power control"),
-    (re.compile(r"\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?[0-7]{3,4}\s+/(\s|$)"), "recursive chmod of /"),
+    (re.compile(r"\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?[0-7]{3,4}\s+/(\s|$)"),
+     "recursive chmod of /"),
     (re.compile(r">\s*/dev/(sd|nvme|vd|hd|mmcblk)"), "redirect onto block device"),
     (re.compile(r"\bgit\s+push\s+[^|;&]*--force"), "force push"),
 ]

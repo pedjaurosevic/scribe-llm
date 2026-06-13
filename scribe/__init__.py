@@ -5,7 +5,7 @@ Universal TUI agent that connects to any llama.cpp server and uses
 RAG + semantic memory to research, write, and remember across sessions.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 __author__ = "Peterofovik"
 
 from scribe.config import ScribeConfig
