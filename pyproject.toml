@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "scribe-ai"
+name = "scribeai"
 version = "0.3.0"
 description = "Universal TUI agent for autonomous research and writing, powered by llama.cpp"
 readme = "README.md"
