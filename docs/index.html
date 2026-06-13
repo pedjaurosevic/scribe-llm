@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scribe — a local AI agent that doesn't bluff</title>
-<meta name="description" content="Scribe is a local-first TUI agent for any OpenAI-compatible server with three guarantees: tool calls that can't break (GBNF), answers that cite sources or refuse, and grounding that is measured (SPI).">
+<title>Scribe — local agent with grammar-enforced tool calls and measured grounding</title>
+<meta name="description" content="Scribe is a local-first TUI agent for any OpenAI-compatible server. On llama.cpp it constrains tool calls with a GBNF grammar (malformed calls are impossible), grounds answers in cited sources, and reports a deterministic grounding score (SPI).">
 <style>
   :root{
     --bg:#1d2021; --bg2:#282828; --fg:#ebdbb2; --dim:#a89984;
@@ -54,12 +54,12 @@
 <header>
   <div class="wrap">
     <h1>Scribe<span class="dot">.</span></h1>
-    <p class="tag">A local-first TUI agent for <strong>any</strong> OpenAI-compatible server —
-      with three guarantees most local agents don't make: tool calls that can't break,
-      answers that cite their sources or refuse, and grounding that is <em>measured</em>.</p>
+    <p class="tag">A local-first TUI agent for <strong>any</strong> OpenAI-compatible server.
+      On llama.cpp it constrains tool calls with a grammar, grounds answers in cited
+      sources, and reports a deterministic grounding score you can reproduce.</p>
     <div class="cta">
       <a class="btn" href="https://github.com/pedjaurosevic/scribe-ai">View on GitHub</a>
-      <a class="btn ghost" href="#guarantees">What makes it different</a>
+      <a class="btn ghost" href="#guarantees">How it works</a>
     </div>
     <p class="lang">🌐 English · <a href="index.zh.html">简体中文</a></p>
   </div>
@@ -67,43 +67,48 @@
 
 <section id="guarantees">
   <div class="wrap">
-    <h2>Three guarantees</h2>
+    <h2>How it works</h2>
 
     <div class="claim">
-      <h3><span class="n">1</span>The tool call cannot break</h3>
-      <p>On a llama.cpp server, Scribe builds a grammar from your tool schemas and
-        constrains the model with it, so a malformed tool call is <strong>grammatically
-        impossible</strong> — the right tool name, the required arguments, valid JSON.
-        If a model still fumbles, the call is re-asked under the grammar.</p>
-      <span class="how">How: GBNF (llama.cpp's grammar-constrained decoding — a proven
-        technique) auto-generated from the tool schemas and wired as a tool-call
-        integrity layer. Guarantees the call's <em>form</em>, not the model's judgment.</span>
+      <h3><span class="n">1</span>Tool calls are grammar-constrained</h3>
+      <p>Scribe generates a GBNF grammar from your tool schemas and passes it with the
+        request. llama.cpp then masks every token that would violate it, so the output
+        can only be a well-formed call: a real tool name, the required arguments, valid
+        JSON. A malformed call has zero probability of being sampled, not just a low one.
+        If a model emits a bad call without the grammar, that one request is retried with
+        it attached.</p>
+      <span class="how">Constrained decoding (GBNF) is a known llama.cpp feature; what's
+        specific here is generating the grammar from the tool schemas and using it as an
+        automatic repair path. It constrains the call's <em>form</em> — the model can
+        still pick the wrong tool, it just can't emit a malformed one.</span>
     </div>
 
     <div class="claim">
-      <h3><span class="n">2</span>Cite or refuse</h3>
-      <p>Grounded Q&amp;A maps every claim to a numbered source <code>[n]</code>, tags
-        <code>[CONTRADICTION]</code> when sources disagree, and <strong>refuses</strong>
-        to answer outside the sources instead of hallucinating.</p>
-      <span class="how">How: hybrid retrieval (SQLite FTS5 + vectors, fused with
-        Reciprocal Rank Fusion) feeds numbered sources into a grounding prompt.</span>
+      <h3><span class="n">2</span>Answers cite sources, or decline</h3>
+      <p>In grounded Q&amp;A, retrieved chunks are passed as numbered sources and the
+        prompt requires a <code>[n]</code> citation per claim. Conflicting sources get a
+        <code>[CONTRADICTION]</code> tag; a question the sources don't cover gets a
+        refusal instead of an invented answer.</p>
+      <span class="how">Retrieval is hybrid: SQLite FTS5 (exact terms, identifiers) and
+        vector search (paraphrase) fused with Reciprocal Rank Fusion, so both kinds of
+        match surface.</span>
     </div>
 
     <div class="claim">
-      <h3><span class="n">3</span>Grounding is measured, not claimed</h3>
-      <p><code>scribe bench</code> reports a deterministic <strong>Source-Presence Index
-        (SPI)</strong> over a checksum-locked held-out suite. On Gemma 4 12B it scores
-        <strong>SPI 1.00</strong> — and you can re-run it on your own model.</p>
-      <span class="how">How: SPI scores citation coverage on answerable tasks and
-        correct refusal on impossible ones — no LLM judge, fully reproducible.</span>
+      <h3><span class="n">3</span>Grounding has a number</h3>
+      <p><code>scribe bench</code> computes a <strong>Source-Presence Index (SPI)</strong>
+        over a checksum-locked held-out suite: citation coverage on answerable tasks,
+        correct refusal on impossible ones. It's deterministic — no LLM judge — so it
+        reproduces. Gemma 4 12B scores SPI 1.00 on the shipped suite; run it on yours.</p>
+      <span class="how">The suite is small and authored in-repo: treat it as a regression
+        gate, not an independent benchmark. The point is that the metric is reproducible
+        and runs on your own model and data.</span>
     </div>
 
-    <p class="note">Honest scope: GBNF and constrained decoding are well-known
-      (llama.cpp added grammars in 2023; the same idea ships as "structured outputs"
-      elsewhere). Scribe's contribution is the <em>integration</em> — using it as an
-      automatic tool-call safety net for small local models — not the technique itself.
-      Guarantees 1–3 hold on llama.cpp; other backends degrade gracefully to a
-      best-effort text parser.</p>
+    <p class="note">Scope, stated plainly: GBNF and constrained decoding date to 2023 in
+      llama.cpp and exist elsewhere as "structured outputs" — the technique isn't new, the
+      integration is. Points 1–3 hold on a llama.cpp backend; Ollama, LM Studio and cloud
+      APIs fall back to a best-effort text parser without the hard guarantee.</p>
   </div>
 </section>
 
