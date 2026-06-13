@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import random
 
-import pytest
-
-from scribe.compare import BlindComparison, Contestant, build_blind
+from scribe.compare import Contestant, build_blind
 from scribe.discovery import DEFAULT_PORTS, Endpoint, discover
 
 

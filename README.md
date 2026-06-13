@@ -8,18 +8,37 @@
 
 > Local-first chat + research + coding agent. Connects to **any** OpenAI-compatible server (llama.cpp, Ollama, LM Studio, or a cloud API key) and uses web search, RAG and semantic memory to research, write, and remember — across sessions. Runs comfortably on a 12 GB VRAM machine with Gemma 4 12B at 128k context.
 
+## Why Scribe
+
+Three things hold true here that most local agents only hope for:
+
+1. **The tool call cannot break.** On a llama.cpp server Scribe enforces tool
+   calls with a GBNF grammar generated from the tool schemas — a malformed
+   call is *grammatically impossible*, and a model that fumbles is re-asked
+   under the grammar. ([scribe/grammar.py](scribe/grammar.py))
+2. **Answers cite their sources, or say they can't.** Grounded Q&A maps every
+   claim to a numbered source `[n]`, tags `[CONTRADICTION]` when sources
+   disagree, and refuses to answer outside the sources. ([scribe/prompts.py](scribe/prompts.py))
+3. **Grounding is measured, not asserted.** `scribe bench` reports a
+   deterministic Source-Presence Index (SPI) over a checksum-locked held-out
+   suite — on Gemma 4 12B it scores **SPI 1.00**. ([scribe/evolve/spi.py](scribe/evolve/spi.py))
+
 ## Features
 
 - **Universal LLM Adapter** — llama.cpp, Ollama, LM Studio, or any OpenAI-compatible cloud API (OpenRouter, Groq, ...) — see [docs/providers.md](docs/providers.md)
-- **Internet Research** — `web_search` + `web_fetch` tools; works out of the box via DuckDuckGo (no API key), upgrades to Brave Search with a key
-- **Writing Agent** — deep-research and writer skills for books, papers and reports on any topic, with sandboxed workspace file tools
-- **Coding Mode** — `/code` turns Scribe into a terminal expert with full (per-command confirmed) bash access
-- **Rich TUI** — Beautiful terminal interface with streaming, themes, and live reasoning marquee
+- **GBNF Tool Enforcement** — grammar-constrained tool calls on llama.cpp; auto-repair when a model emits a malformed call
+- **Grounded Q&A** — hybrid retrieval (FTS5 + vectors, RRF) with mandatory citations and contradiction tagging
+- **Quality Gate** — `scribe bench` runs a judge-scored fitness suite and the deterministic SPI grounding metric
+- **Safe Code Mode** — `/code` with a destructive-command gate, Python AST gate, bubblewrap sandbox, and git checkpoint/rollback
+- **Internet Research** — `web_search` + `web_fetch` tools; DuckDuckGo out of the box, Brave with a key
+- **Writing Agent** — deep-research and writer skills for books, papers and reports, with sandboxed workspace file tools
+- **Persistent Self** — a WorldModel persona injected into every prompt, plus pulse heartbeat and nightly diary
+- **Observability** — ORORO session traces and a machine-readable `scribe status --json` contract
+- **Project Vaults** — `scribe init` gives a directory its own isolated RAG/SME stores
+- **Model Discovery & Blind Compare** — auto-find local servers; A/B two models without bias
 - **Cross-Session Memory** — SME (Semantic Memory Engine) for seamless session continuity
-- **RAG Integration** — Semantic search over your document library
-- **Modular Skills** — Extend capabilities with skill modules
-- **Email Bridge** — Get results by email and send commands from one approved address (stdlib only)
-- **Wittgenstein + Peirce** — Philosophy-inspired harness design for stable LLM behavior
+- **Email Bridge** — get results by email and send commands from one approved address (stdlib only)
+- **Wittgenstein + Peirce** — philosophy-inspired harness design for stable LLM behavior
 
 ## Installation
 
@@ -99,13 +118,25 @@ scribe chat --resume TAG       # Resume a past session (no TAG = last one)
 scribe web                     # Web UI at http://localhost:8765
 
 scribe memory recall "query"  # Recall from semantic memory
-scribe rag search "query"     # Semantic search over ingested documents
+scribe rag search "query"     # Hybrid search (FTS5 + vectors); --semantic-only to opt out
+scribe rag ask "question"     # Grounded Q&A — answers cite sources or refuse
+scribe rag reindex             # Rebuild the lexical (FTS5) index
 scribe session last            # Show last session
 scribe session list            # List all sessions
 scribe session search "query" # Full-text search across all session transcripts
 
+scribe init [DIR]              # Create a project-local vault (config + ./.scribe)
+scribe discover [--tailscale]  # Find OpenAI-compatible model servers
+scribe compare "q" --a M1 --b M2  # Blind A/B two models on one prompt
+scribe bench [--fitness|--spi] # Quality gate: judge fitness + SPI grounding
+scribe trace [ID] [--json]     # Show a session's ORORO trace
+
+scribe pulse                   # Record one heartbeat (wire to a systemd timer)
+scribe diary                   # Reflect on today's sessions
+scribe remember "fact"        # Add a durable fact to the WorldModel
+
 scribe config show             # Show current config
-scribe status                  # Check system status
+scribe status [--json]         # System status (--json = machine-readable contract)
 scribe evolve eval             # Run the held-out fitness suite (Phase 0)
 
 scribe mail send "Subj" "Body" # Email yourself a notification
