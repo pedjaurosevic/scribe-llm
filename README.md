@@ -53,7 +53,13 @@ Three properties that hold by construction, not by prompt-tuning:
 
 ## Installation
 
-### 🐧 Linux
+### From PyPI
+```bash
+pip install scribeai        # provides the `scribe` command
+```
+> The distribution is named `scribeai` (the import package stays `scribe`).
+
+### From source (🐧 Linux)
 ```bash
 # Clone the repository
 git clone https://github.com/pedjaurosevic/scribe-ai.git
