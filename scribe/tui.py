@@ -93,6 +93,21 @@ class ScribeTUI:
         self.workspace = Path(self.config.workspace_dir)
         self.workspace.mkdir(parents=True, exist_ok=True)
 
+        # WorldModel keeps the agent's identity stable across sessions; its
+        # live environment is refreshed each launch but the persona persists.
+        from scribe.worldmodel import load_worldmodel, save_worldmodel
+
+        self.worldmodel = load_worldmodel()
+        self.worldmodel.environment.update({
+            "workspace": str(self.workspace),
+            "server": self.config.base_url,
+            "model": self.config.model,
+        })
+        try:
+            save_worldmodel(self.worldmodel)
+        except OSError:
+            pass
+
         self.messages.append({
             "role": "system",
             "content": get_system_prompt(
@@ -100,6 +115,7 @@ class ScribeTUI:
                 workspace=str(self.workspace),
                 max_thinking_words=self.config.max_thinking_words,
                 mode=self.config.reasoning_mode,
+                worldmodel=self.worldmodel,
             ),
         })
 

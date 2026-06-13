@@ -74,6 +74,47 @@ def init(ctx, directory):
 
 
 @main.command()
+@click.pass_context
+def pulse(ctx):
+    """Record one heartbeat (wire to a systemd timer for continuity)."""
+    from scribe.pulse import beat
+
+    console = ctx.obj["console"]
+    event = beat(ctx.obj["config"])
+    mark = "[success]●[/success]" if event["server_up"] else "[error]○[/error]"
+    console.print(f"{mark} pulse {event['ts']}  model={event['model'] or '—'}")
+
+
+@main.command()
+@click.pass_context
+def diary(ctx):
+    """Write a short reflection on today's sessions (opt-in continuity)."""
+    from scribe.pulse import write_diary
+
+    console = ctx.obj["console"]
+    entry = write_diary(ctx.obj["config"])
+    if entry:
+        console.print(f"[success]✓[/success] Diary written to [path]{entry}[/path]")
+    else:
+        console.print("[dim]No sessions today — nothing to reflect on[/dim]")
+
+
+@main.command()
+@click.argument("fact")
+@click.pass_context
+def remember(ctx, fact):
+    """Add a durable fact to the WorldModel (injected into every prompt)."""
+    from scribe.worldmodel import remember as _remember
+
+    console = ctx.obj["console"]
+    wm = _remember(fact)
+    console.print(
+        f"[success]✓[/success] Remembered. WorldModel now holds "
+        f"{len(wm.knowledge)} fact(s) [dim](rev {wm.revision})[/dim]."
+    )
+
+
+@main.command()
 @click.argument("session_id", required=False)
 @click.option("--json", "as_json", is_flag=True, help="Emit raw trace events")
 @click.pass_context
