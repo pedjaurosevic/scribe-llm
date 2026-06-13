@@ -10,7 +10,7 @@
 
 ## Why Scribe
 
-Three things hold true here that most local agents only hope for:
+Three properties that hold by construction, not by prompt-tuning:
 
 1. **The tool call cannot break.** On a llama.cpp server Scribe enforces tool
    calls with a GBNF grammar generated from the tool schemas — a malformed

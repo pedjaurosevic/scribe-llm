@@ -83,9 +83,9 @@ play() {
   clear
   printf "\033[1;35m"
   cat <<'BANNER'
-   ┌─────────────────────────────────────────────┐
-   │  Scribe — a local agent that doesn't bluff   │
-   └─────────────────────────────────────────────┘
+   ┌──────────────────────────────────────────────────────┐
+   │  Scribe — grammar-enforced tool calls, cited answers  │
+   └──────────────────────────────────────────────────────┘
 BANNER
   printf "\033[0m\n"
   sleep 1.5
@@ -94,14 +94,14 @@ BANNER
   say "Grammar enforcement and the sandbox are on by default."
   run "$SCRIBE status"
 
-  scene "Claim 1 — the tool call cannot break"
-  say "A GBNF grammar is built from the tool schemas. Under it, the model"
-  say "can only emit a VALID call — a malformed tool call is impossible."
+  scene "1 — tool calls are grammar-constrained"
+  say "A GBNF grammar is generated from the tool schemas. Under it, llama.cpp"
+  say "can only sample a well-formed call — a malformed one has zero probability."
   run "python3 promo/_demo_grammar.py"
 
-  scene "Claim 2 + 3 — cite or refuse, and it's measured"
-  say "scribe bench runs a checksum-locked grounded suite: answerable tasks"
-  say "must cite their sources [n], impossible ones must be refused."
+  scene "2 + 3 — answers cite sources, and grounding is measured"
+  say "scribe bench runs a checksum-locked suite: answerable tasks must cite"
+  say "their sources [n], impossible ones must be refused. SPI is deterministic."
   run "$SCRIBE bench --spi"
 
   scene "Try it yourself"
