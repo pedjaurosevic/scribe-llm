@@ -23,6 +23,17 @@ Three things hold true here that most local agents only hope for:
    deterministic Source-Presence Index (SPI) over a checksum-locked held-out
    suite — on Gemma 4 12B it scores **SPI 1.00**. ([scribe/evolve/spi.py](scribe/evolve/spi.py))
 
+> **Honest scope:** GBNF and constrained decoding aren't new — llama.cpp added
+> grammars in 2023, and the same idea ships elsewhere as "structured outputs".
+> Scribe's contribution is the *integration*: auto-generating the grammar from
+> your tool schemas and wiring it as an automatic tool-call safety net for small
+> local models. Guarantees 1–3 hold on llama.cpp; other backends degrade to a
+> best-effort text parser. The grammar guarantees a call's *form*, not the
+> model's *judgment* (it can still pick the wrong tool — it just can't emit a
+> malformed one).
+
+📖 Full overview on the [project site](https://pedjaurosevic.github.io/scribe-ai/).
+
 ## Features
 
 - **Universal LLM Adapter** — llama.cpp, Ollama, LM Studio, or any OpenAI-compatible cloud API (OpenRouter, Groq, ...) — see [docs/providers.md](docs/providers.md)
