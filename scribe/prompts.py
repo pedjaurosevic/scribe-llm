@@ -230,13 +230,16 @@ def get_system_prompt(
     workspace: str | None = None,
     max_thinking_words: int = 30,
     mode: str = "native",
+    worldmodel=None,
 ) -> str:
     """
     Pick the system prompt for the current reasoning state.
 
     Args:
         reasoning: Whether the model should think before answering at all.
-            False (the default) = answer directly, no <think> block.
+            False (the default) = answer directly, no <think> block. The string
+            "auto" is treated as reasoning-on for prompt purposes (the gate
+            decides per request whether the server actually thinks).
         workspace: Local working directory. When given, an environment note is
             appended so the model knows it runs locally (not in the cloud).
         max_thinking_words: Hard upper bound (in words) for the <think> block,
@@ -244,17 +247,22 @@ def get_system_prompt(
         mode: HOW thinking is produced when reasoning is on. "native" = the
             server emits it (llama.cpp enable_thinking); "prompt" = the model
             must write the <think> block itself (Ollama, LM Studio, ...).
+        worldmodel: Optional WorldModel; its persona/identity block is always
+            prepended so the agent never loses its sense of self (Kon E2B bug).
 
     Returns:
         The matching system prompt string.
     """
-    if not reasoning:
+    reasoning_on = bool(reasoning) if not isinstance(reasoning, str) else reasoning != "off"
+    if not reasoning_on:
         prompt = SYSTEM_PROMPT_DIRECT
     else:
         prompt = SYSTEM_PROMPT_FORCED if mode == "prompt" else SYSTEM_PROMPT
         prompt = prompt + THINK_LIMIT_NOTE.format(max_words=max_thinking_words)
     if workspace:
         prompt = prompt + ENV_NOTE.format(workspace=workspace)
+    if worldmodel is not None:
+        prompt = worldmodel.render() + "\n\n" + prompt
     return _with_constitution(prompt)
 
 
