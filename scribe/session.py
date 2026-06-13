@@ -21,6 +21,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from scribe.trace import TRACE_FILE, Tracer
+
 
 def session_tag(session_id: str) -> str:
     """Short, stable, shell-safe tag (hashtag) for a session id."""
@@ -83,6 +85,7 @@ class SessionManager:
 
         self.current_session: SessionCheckpoint | None = None
         self.session_history: list[str] = []
+        self.tracer: Tracer | None = None
 
     @staticmethod
     def _resolve_sessions_dir(config) -> Path:
@@ -128,7 +131,15 @@ class SessionManager:
             status="active",
             current_language_game=language_game,
         )
+        self.tracer = Tracer(self.sessions_dir / session_id / TRACE_FILE)
+        self.trace("session_start", topic=topic, mode=language_game)
         return self.current_session
+
+    def trace(self, kind: str, **payload) -> None:
+        """Record one ORORO trace event for the current session (no-op when
+        no session is active)."""
+        if self.tracer is not None:
+            self.tracer.event(kind, **payload)
 
     def end_session(self, status: str = "completed") -> None:
         """
@@ -139,6 +150,7 @@ class SessionManager:
         """
         if self.current_session:
             self.current_session.status = status
+            self.trace("session_end", status=status)
             self._save_checkpoint(self.current_session)
             self._update_last_session(self.current_session)
             self._add_to_sme(self.current_session)
@@ -349,6 +361,7 @@ class SessionManager:
         """
         if self.current_session:
             self.current_session.messages.append({"role": role, "content": content})
+            self.trace("turn_start", role=role, chars=len(content))
 
     def get_recent_messages(self, count: int = 10) -> list[dict[str, str]]:
         """
