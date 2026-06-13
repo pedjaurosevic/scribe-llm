@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import locale
 import sys
 from pathlib import Path
@@ -48,6 +49,58 @@ def main(ctx):
     ctx.ensure_object(dict)
     ctx.obj["config"] = ScribeConfig()
     ctx.obj["console"] = get_default_console()
+
+
+@main.command()
+@click.argument("directory", default=".", type=click.Path())
+@click.pass_context
+def init(ctx, directory):
+    """
+    Create a project-local vault (config.toml + ./.scribe) so this directory
+    has its own isolated RAG/SME stores. Idempotent — never overwrites.
+    """
+    from scribe.vault import init_vault
+
+    console = ctx.obj["console"]
+    report = init_vault(directory)
+    for name in report["created"]:
+        console.print(f"  [success]+[/success] {name}")
+    for name in report["existing"]:
+        console.print(f"  [dim]= {name} (kept)[/dim]")
+    console.print(
+        f"\n[info]Vault ready[/info] at [path]{report['vault']}[/path]. "
+        "Run Scribe from this directory to use it."
+    )
+
+
+@main.command()
+@click.argument("session_id", required=False)
+@click.option("--json", "as_json", is_flag=True, help="Emit raw trace events")
+@click.pass_context
+def trace(ctx, session_id, as_json):
+    """Show the ORORO trace for a session (latest when omitted)."""
+    from scribe.session import SessionManager
+    from scribe.trace import TRACE_FILE, read_trace, trace_summary
+
+    console = ctx.obj["console"]
+    manager = SessionManager(ctx.obj["config"])
+    if not session_id:
+        sessions = manager.list_sessions()
+        session_id = sessions[0] if sessions else None
+    if not session_id:
+        console.print("[dim]No sessions found[/dim]")
+        return
+    path = manager.sessions_dir / session_id / TRACE_FILE
+    if as_json:
+        for event in read_trace(path):
+            click.echo(json.dumps(event, sort_keys=True, ensure_ascii=False))
+        return
+    summary = trace_summary(path)
+    console.print(f"[bold]Trace {session_id}[/bold] — {summary['events']} events")
+    for kind, n in sorted(summary["kinds"].items()):
+        console.print(f"  {kind:<14} {n}")
+    if summary["events"] and not summary["monotone"]:
+        console.print("  [error]⚠ sequence not monotone[/error]")
 
 
 @main.command(context_settings={"ignore_unknown_options": True})
@@ -589,53 +642,27 @@ def mail_watch(ctx, once):
 
 
 @main.command()
+@click.option("--json", "as_json", is_flag=True,
+              help="Emit the machine-readable status contract")
 @click.pass_context
-def status(ctx):
-    """Check system status."""
+def status(ctx, as_json):
+    """Check system status (server, capabilities, memory, bench)."""
+    from scribe.status import collect_status, render_status
+
     console = ctx.obj["console"]
     config = ctx.obj["config"]
-
-    adapter = LLMAdapter.from_config(config)
-
-    console.print("[bold]System Status[/bold]\n")
-
-    if adapter.is_healthy():
-        model_name = adapter.get_model_name()
-        console.print(f"[success]✓[/success] LLM Server: Connected ({model_name})")
-    else:
-        console.print("[error]✗[/error] LLM Server: Not reachable")
-
-    session_mgr = SessionManager(config)
-    sessions = session_mgr.list_sessions()
-    console.print(f"[info]Sessions:[/info] {len(sessions)} total")
-
-    shared_sme = bool(config.get("scribe.integrations", "sme_path"))
-    sme = get_sme_service(config)
-    if sme:
-        origin = "shared" if shared_sme else "own"
-        console.print(
-            f"[info]Memory:[/info] {sme.count()} entries ({origin}: {sme.db_path})"
-        )
-    else:
-        console.print("[warning]Memory:[/warning] not available")
-
-    shared_rag = bool(config.get("scribe.integrations", "rag_path"))
-    rag = get_rag_service(config)
-    if rag:
-        origin = "shared" if shared_rag else "own"
-        console.print(
-            f"[info]RAG:[/info] {rag.count()} chunks "
-            f"from {len(rag.list_sources())} sources ({origin}: {rag.db_path})"
-        )
-    else:
-        console.print("[warning]RAG:[/warning] not available")
+    report = collect_status(config)
+    if as_json:
+        click.echo(json.dumps(report, indent=2, ensure_ascii=False))
+        return
+    render_status(report, console)
 
     ecfg = config.email_config()
     if ecfg["enabled"] and ecfg["address"] and ecfg["password"]:
         intake = "commands ON" if ecfg["secret"] else "send-only (no secret)"
         console.print(f"[info]Email:[/info] {ecfg['address']} ({intake})")
     else:
-        console.print("[warning]Email:[/warning] disabled")
+        console.print("[dim]email: disabled[/dim]")
 
 
 if __name__ == "__main__":

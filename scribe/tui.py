@@ -527,7 +527,12 @@ class ScribeTUI:
             # Execute each call and feed the result back. Bash runs in the code
             # working directory and is confirmed first; file tools stay in the
             # workspace (unless /permissions unlocked).
+            if getattr(self.adapter, "last_tool_repair", None):
+                self.session.trace("tool_repair", reason=self.adapter.last_tool_repair)
             for tc in tool_calls:
+                self.session.trace(
+                    "tool_call", name=tc["name"], arguments=str(tc["arguments"])[:500]
+                )
                 if tc["name"] == "run_bash":
                     command = shell.parse_command(tc["arguments"])
                     self.console.print(
@@ -560,6 +565,12 @@ class ScribeTUI:
                         f"[cyan]⚙[/cyan] [bold]{tc['name']}[/bold] [dim]{tc['arguments']}[/dim]"
                     )
                 self.console.print(f"  [dim]{result}[/dim]")
+                self.session.trace(
+                    "tool_result",
+                    name=tc["name"],
+                    ok=not str(result).startswith(("Error", "[refused]", "[timeout]")),
+                    chars=len(str(result)),
+                )
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
