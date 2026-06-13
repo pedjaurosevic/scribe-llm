@@ -74,6 +74,72 @@ def init(ctx, directory):
 
 
 @main.command()
+@click.option("--tailscale", is_flag=True, help="Also scan Tailscale peers")
+@click.option("--set-default", is_flag=True,
+              help="Save the first discovered endpoint as base_url")
+@click.pass_context
+def discover(ctx, tailscale, set_default):
+    """Scan local (and optional Tailscale) ports for model servers."""
+    from scribe.discovery import discover as scan
+
+    console = ctx.obj["console"]
+    console.print("[info]Scanning for model servers…[/info]")
+    endpoints = scan(include_tailscale=tailscale)
+    if not endpoints:
+        console.print("[dim]No OpenAI-compatible servers found[/dim]")
+        return
+    for ep in endpoints:
+        console.print(
+            f"  [success]●[/success] [accent]{ep.base_url}[/accent]  "
+            f"[dim]{', '.join(ep.models[:3])}"
+            + (f" +{len(ep.models) - 3} more" if len(ep.models) > 3 else "")
+            + "[/dim]"
+        )
+    if set_default:
+        config = ctx.obj["config"]
+        target = config.save_value("scribe", "base_url", endpoints[0].base_url)
+        console.print(
+            f"\n[success]✓[/success] Default base_url set to "
+            f"[accent]{endpoints[0].base_url}[/accent] [dim]({target})[/dim]"
+        )
+
+
+@main.command()
+@click.argument("prompt")
+@click.option("--a", "model_a", required=True, help="First model name")
+@click.option("--b", "model_b", required=True, help="Second model name")
+@click.pass_context
+def compare(ctx, prompt, model_a, model_b):
+    """Blind A/B two models on one prompt; vote, then reveal."""
+    from scribe.compare import answer_with, build_blind, Contestant
+
+    console = ctx.obj["console"]
+    adapter = LLMAdapter.from_config(ctx.obj["config"])
+
+    console.print("[info]Querying both models…[/info]\n")
+    left = Contestant(model_a, answer_with(adapter, model_a, prompt))
+    right = Contestant(model_b, answer_with(adapter, model_b, prompt))
+    blind = build_blind(prompt, left, right)
+
+    for label in blind.labels():
+        console.print(f"[bold accent]── {label} ──[/bold accent]")
+        console.print(blind.slots[label].answer)
+        console.print()
+
+    vote = click.prompt("Which is better? (A/B/tie)", default="tie").strip().upper()
+    vote = vote if vote in ("A", "B") else None
+    result = blind.reveal(vote)
+
+    console.print()
+    console.print(f"  A = [accent]{result['A']}[/accent]")
+    console.print(f"  B = [accent]{result['B']}[/accent]")
+    if result["winner"]:
+        console.print(f"  [success]Winner: {result['winner']}[/success]")
+    else:
+        console.print("  [dim]Tie / no vote[/dim]")
+
+
+@main.command()
 @click.pass_context
 def pulse(ctx):
     """Record one heartbeat (wire to a systemd timer for continuity)."""
