@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scribe — Universal local-LLM research & writing agent</title>
-<meta name="description" content="Scribe is a universal TUI/web agent that connects to any llama.cpp server and uses RAG + semantic memory to research, write, and remember across sessions.">
+<title>Scribe — a local AI agent that doesn't bluff</title>
+<meta name="description" content="Scribe is a local-first TUI agent for any OpenAI-compatible server with three guarantees: tool calls that can't break (GBNF), answers that cite sources or refuse, and grounding that is measured (SPI).">
 <style>
   :root{
     --bg:#1d2021; --bg2:#282828; --fg:#ebdbb2; --dim:#a89984;
@@ -41,31 +41,84 @@
   ul.checks{list-style:none;padding:0}
   ul.checks li{padding:6px 0}
   ul.checks li::before{content:"▸ ";color:var(--accent)}
+  .claim{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:10px;padding:20px 22px;margin-bottom:16px}
+  .claim h3{margin:0 0 6px;font-size:1.1rem;color:var(--accent)}
+  .claim .n{color:var(--accent2);font-weight:700;margin-right:8px}
+  .claim p{margin:0;color:var(--fg)}
+  .claim .how{display:block;margin-top:8px;color:var(--dim);font-size:.9rem}
+  .note{color:var(--dim);font-size:.9rem;margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
     <h1>Scribe<span class="dot">.</span></h1>
-    <p class="tag">A universal TUI &amp; web agent that connects to <strong>any</strong> llama.cpp server
-      and uses RAG + semantic memory to research, write, and remember — across sessions.</p>
+    <p class="tag">A local-first TUI agent for <strong>any</strong> OpenAI-compatible server —
+      with three guarantees most local agents don't make: tool calls that can't break,
+      answers that cite their sources or refuse, and grounding that is <em>measured</em>.</p>
     <div class="cta">
       <a class="btn" href="https://github.com/pedjaurosevic/scribe-ai">View on GitHub</a>
-      <a class="btn ghost" href="#quickstart">Quick start</a>
+      <a class="btn ghost" href="#guarantees">What makes it different</a>
     </div>
     <p class="lang">🌐 English · <a href="index.zh.html">简体中文</a></p>
   </div>
 </header>
 
+<section id="guarantees">
+  <div class="wrap">
+    <h2>Three guarantees</h2>
+
+    <div class="claim">
+      <h3><span class="n">1</span>The tool call cannot break</h3>
+      <p>On a llama.cpp server, Scribe builds a grammar from your tool schemas and
+        constrains the model with it, so a malformed tool call is <strong>grammatically
+        impossible</strong> — the right tool name, the required arguments, valid JSON.
+        If a model still fumbles, the call is re-asked under the grammar.</p>
+      <span class="how">How: GBNF (llama.cpp's grammar-constrained decoding — a proven
+        technique) auto-generated from the tool schemas and wired as a tool-call
+        integrity layer. Guarantees the call's <em>form</em>, not the model's judgment.</span>
+    </div>
+
+    <div class="claim">
+      <h3><span class="n">2</span>Cite or refuse</h3>
+      <p>Grounded Q&amp;A maps every claim to a numbered source <code>[n]</code>, tags
+        <code>[CONTRADICTION]</code> when sources disagree, and <strong>refuses</strong>
+        to answer outside the sources instead of hallucinating.</p>
+      <span class="how">How: hybrid retrieval (SQLite FTS5 + vectors, fused with
+        Reciprocal Rank Fusion) feeds numbered sources into a grounding prompt.</span>
+    </div>
+
+    <div class="claim">
+      <h3><span class="n">3</span>Grounding is measured, not claimed</h3>
+      <p><code>scribe bench</code> reports a deterministic <strong>Source-Presence Index
+        (SPI)</strong> over a checksum-locked held-out suite. On Gemma 4 12B it scores
+        <strong>SPI 1.00</strong> — and you can re-run it on your own model.</p>
+      <span class="how">How: SPI scores citation coverage on answerable tasks and
+        correct refusal on impossible ones — no LLM judge, fully reproducible.</span>
+    </div>
+
+    <p class="note">Honest scope: GBNF and constrained decoding are well-known
+      (llama.cpp added grammars in 2023; the same idea ships as "structured outputs"
+      elsewhere). Scribe's contribution is the <em>integration</em> — using it as an
+      automatic tool-call safety net for small local models — not the technique itself.
+      Guarantees 1–3 hold on llama.cpp; other backends degrade gracefully to a
+      best-effort text parser.</p>
+  </div>
+</section>
+
 <section>
   <div class="wrap">
     <h2>What it does</h2>
     <div class="grid">
-      <div class="card"><h3>Universal LLM adapter</h3><p>Point it at any OpenAI-compatible endpoint — local llama.cpp, Ollama, LM Studio, or remote.</p></div>
+      <div class="card"><h3>Universal LLM adapter</h3><p>Point it at any OpenAI-compatible endpoint — local llama.cpp, Ollama, LM Studio, or remote. <code>scribe discover</code> finds them.</p></div>
+      <div class="card"><h3>Safe code mode</h3><p><code>/code</code> with a destructive-command gate, a Python AST gate, a bubblewrap sandbox, and git checkpoint / rollback.</p></div>
+      <div class="card"><h3>Cross-session memory</h3><p>SME (Semantic Memory Engine) recalls your last session, and a WorldModel persona keeps the agent's identity stable across runs.</p></div>
+      <div class="card"><h3>Hybrid RAG over your docs</h3><p>FTS5 + local embeddings (multilingual-e5) fused with RRF — exact identifiers and paraphrase both retrieve.</p></div>
+      <div class="card"><h3>Observability</h3><p>Deterministic ORORO session traces and a machine-readable <code>scribe status --json</code> contract.</p></div>
       <div class="card"><h3>Rich TUI &amp; web UI</h3><p>A terminal interface (Rich + Textual) and a streaming FastAPI web chat with login.</p></div>
-      <div class="card"><h3>Cross-session memory</h3><p>SME (Semantic Memory Engine) recalls your last session so context survives restarts.</p></div>
-      <div class="card"><h3>RAG over your docs</h3><p>Local embeddings (multilingual-e5) + LanceDB for semantic search across your library.</p></div>
-      <div class="card"><h3>Sandboxed file tools</h3><p>The model gets write/read/list tools scoped strictly to a per-user workspace.</p></div>
+      <div class="card"><h3>Project vaults</h3><p><code>scribe init</code> gives any directory its own isolated RAG / SME stores.</p></div>
+      <div class="card"><h3>Blind compare</h3><p><code>scribe compare</code> A/B tests two models on one prompt without telling you which is which — pick a local model honestly.</p></div>
       <div class="card"><h3>Modular skills</h3><p>Deep-research, writer, and wiki-memory skills — drop in more as SKILL.md modules.</p></div>
     </div>
   </div>
@@ -82,11 +135,12 @@ cd scribe-ai
 # 2. Start your llama-server (or use any OpenAI-compatible endpoint)
 ./scripts/start-server.sh
 
-# 3. Chat in the terminal …
-scribe chat
+# 3. Find your model server, then chat
+scribe discover             # scan local ports (+ --tailscale)
+scribe chat                 # … or: scribe web  → http://localhost:8765
 
-# … or launch the web UI
-scribe web                  # http://localhost:8765</code></pre>
+# 4. See the grounding number for yourself
+scribe bench                # judge-scored fitness + deterministic SPI</code></pre>
     <p style="color:var(--dim)">Configure the endpoint in <code>~/.config/scribe/config.toml</code> or via
       <code>SCRIBE_BASE_URL</code> / <code>SCRIBE_MODEL</code> env vars.</p>
   </div>
@@ -100,16 +154,21 @@ scribe web                  # http://localhost:8765</code></pre>
 │        Rich · Textual · FastAPI          │
 ├─────────────────────────────────────────┤
 │              CORE KERNEL                 │
-│  Session Manager · Skills · Config       │
+│  Session · Skills · WorldModel · Traces  │
 ├─────────────────────────────────────────┤
 │           LLM ADAPTER LAYER              │
-│    OpenAI-compatible (llama.cpp)         │
+│  OpenAI-compatible · GBNF tool grammar   │
+│      · reasoning gate · discovery        │
 ├─────────────────────────────────────────┤
 │             MEMORY LAYER                 │
-│  SME (cross-session) · RAG (documents)   │
+│  SME (cross-session) · hybrid RAG (RRF)  │
+│        FTS5 + vectors · grounding        │
 ├─────────────────────────────────────────┤
 │              TOOLS LAYER                 │
-│   web_search · web_fetch · fs · bash     │
+│  web · fs · bash · sandbox · checkpoint  │
+├─────────────────────────────────────────┤
+│            QUALITY GATE                  │
+│   scribe bench · SPI · fitness suite     │
 └─────────────────────────────────────────┘</div>
   </div>
 </section>
