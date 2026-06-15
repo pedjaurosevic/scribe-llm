@@ -243,7 +243,11 @@ def chat(ctx, textual, resume, subargs):
 
 
 @main.command()
-@click.option("--host", default="0.0.0.0", help="Host to bind to")
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    help="Host to bind to (default localhost; use 0.0.0.0 to expose on the network)",
+)
 @click.option("--port", default=8765, help="Port to bind to")
 @click.pass_context
 def web(ctx, host, port):
@@ -255,6 +259,11 @@ def web(ctx, host, port):
     console.print(f"  Host: {host}")
     console.print(f"  Port: {port}")
     console.print(f"  URL:  http://localhost:{port}")
+    if host == "0.0.0.0":
+        console.print(
+            "[yellow]  ! Bound to 0.0.0.0 — reachable from the network. "
+            "The web UI includes a shell terminal; keep the PIN set.[/yellow]"
+        )
     console.print()
     console.print("[dim]Press Ctrl+C to stop[/dim]")
 
