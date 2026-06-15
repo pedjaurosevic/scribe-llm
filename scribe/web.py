@@ -4,18 +4,29 @@ Scribe Web - FastAPI web server with streaming chat UI.
 
 from __future__ import annotations
 
+import asyncio
+import fcntl
 import hashlib
 import hmac
 import json
+import os
+import pty
+import shutil
+import signal
+import struct
+import subprocess
+import tempfile
+import termios
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from scribe.config import ScribeConfig
+from scribe.documents import DocumentStore
 from scribe.llm_adapter import LLMAdapter
 from scribe.memory.sme import get_sme_service, recall_previous_session
 from scribe.prompts import get_system_prompt
@@ -39,6 +50,7 @@ adapter = LLMAdapter.from_config(config)
 session_manager = SessionManager(config)
 sme_service = get_sme_service()
 skills_executor = SkillsExecutor()
+store = DocumentStore(config)
 
 # Local working directory Scribe operates in.
 WORKSPACE_DIR = Path(config.workspace_dir)
@@ -131,12 +143,147 @@ async def logout():
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Serve the main chat UI."""
+    """Serve the document editor UI (dark Google-Docs style)."""
+    return templates.TemplateResponse("editor.html", {
+        "request": request,
+        "model_name": adapter.get_model_name(),
+    })
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_ui(request: Request):
+    """Serve the original plain chat UI."""
     session_summary = recall_previous_session(sme_service)
     return templates.TemplateResponse("index.html", {
         "request": request,
         "session_summary": session_summary,
         "model_name": adapter.get_model_name(),
+    })
+
+
+# --- Document store REST API ---------------------------------------------
+
+
+@app.get("/api/docs")
+async def api_list_docs():
+    """List all documents/books, newest first (for the sidebar)."""
+    return {"documents": store.list()}
+
+
+@app.post("/api/docs")
+async def api_create_doc(request: Request):
+    """Create a new document or book."""
+    body = await request.json()
+    title = body.get("title", "Untitled")
+    doc_type = body.get("type", "doc")
+    return store.create(title, doc_type)
+
+
+@app.get("/api/docs/{doc_id}")
+async def api_get_doc(doc_id: str):
+    """Load full document (meta + body, or chapter bodies for a book)."""
+    doc = store.load(doc_id)
+    if doc is None:
+        return PlainTextResponse("Not found", status_code=404)
+    return doc
+
+
+@app.put("/api/docs/{doc_id}")
+async def api_save_doc(doc_id: str, request: Request):
+    """Autosave: body of a doc, one chapter of a book, and/or the title."""
+    if not store.exists(doc_id):
+        return PlainTextResponse("Not found", status_code=404)
+    body = await request.json()
+    if "title" in body:
+        store.rename(doc_id, body["title"])
+    if "chapter_id" in body:
+        store.save_chapter(doc_id, body["chapter_id"], body.get("content", ""))
+    elif "content" in body:
+        store.save_content(doc_id, body["content"])
+    return {"ok": True}
+
+
+@app.post("/api/docs/{doc_id}/chapters")
+async def api_add_chapter(doc_id: str, request: Request):
+    """Append one chapter, or replace the whole TOC with a list of titles."""
+    if not store.exists(doc_id):
+        return PlainTextResponse("Not found", status_code=404)
+    body = await request.json()
+    if "titles" in body:
+        return store.set_toc(doc_id, body["titles"])
+    return store.add_chapter(doc_id, body.get("title", "Untitled"))
+
+
+@app.delete("/api/docs/{doc_id}")
+async def api_delete_doc(doc_id: str):
+    """Delete a document (only ever called from an explicit UI action)."""
+    return {"ok": store.delete(doc_id)}
+
+
+# --- Export ---------------------------------------------------------------
+
+
+@app.get("/api/docs/{doc_id}/export.md")
+async def export_md(doc_id: str):
+    """Download the assembled markdown."""
+    if not store.exists(doc_id):
+        return PlainTextResponse("Not found", status_code=404)
+    md = store.assemble_markdown(doc_id)
+    filename = f"{doc_id}.md"
+    return PlainTextResponse(
+        md,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/docs/{doc_id}/export.epub")
+async def export_epub(doc_id: str):
+    """Convert the assembled markdown to EPUB via pandoc."""
+    if not store.exists(doc_id):
+        return PlainTextResponse("Not found", status_code=404)
+    if shutil.which("pandoc") is None:
+        return PlainTextResponse("pandoc nije instaliran na sistemu.", status_code=501)
+
+    doc = store.load(doc_id)
+    md = store.assemble_epub_markdown(doc_id)
+    tmpdir = Path(tempfile.mkdtemp(prefix="scribe-epub-"))
+    md_path = tmpdir / "book.md"
+    epub_path = tmpdir / "book.epub"
+    md_path.write_text(md, encoding="utf-8")
+    try:
+        subprocess.run(
+            [
+                "pandoc", str(md_path), "-o", str(epub_path),
+                "--metadata", f"title={doc.get('title', 'Untitled')}",
+                "--toc",
+            ],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        detail = getattr(e, "stderr", b"")
+        msg = detail.decode("utf-8", "replace") if isinstance(detail, bytes) else str(e)
+        return PlainTextResponse(f"pandoc greška: {msg}", status_code=500)
+
+    return FileResponse(
+        str(epub_path),
+        media_type="application/epub+zip",
+        filename=f"{doc.get('title', doc_id)}.epub",
+    )
+
+
+@app.get("/print/{doc_id}", response_class=HTMLResponse)
+async def print_view(doc_id: str, request: Request):
+    """Clean light 'paper' page for browser Save-as-PDF."""
+    doc = store.load(doc_id)
+    if doc is None:
+        return PlainTextResponse("Not found", status_code=404)
+    return templates.TemplateResponse("print.html", {
+        "request": request,
+        "title": doc.get("title", "Untitled"),
+        "markdown": store.assemble_markdown(doc_id),
     })
 
 
@@ -171,6 +318,25 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> str:
+    """Wrap the user's command with the current document so the model writes
+    content meant to be inserted straight into the editor.
+
+    The model answer is streamed verbatim into the document, so we ask for the
+    raw markdown body only — no chat-style preamble, no meta commentary.
+    """
+    unit = "poglavlja" if mode == "book" else "dokumenta"
+    parts = []
+    if doc_context.strip():
+        parts.append(f"[Trenutni sadržaj {unit}]:\n{doc_context.strip()}")
+    parts.append(f"[Zadatak]: {instruction}")
+    parts.append(
+        "Odgovori ISKLJUČIVO tekstom (markdown) koji treba da stoji u "
+        f"{unit}, bez uvodnih fraza, pozdrava ili komentara o tome šta radiš."
+    )
+    return "\n\n".join(parts)
 
 
 @app.websocket("/ws/chat")
@@ -241,7 +407,13 @@ async def websocket_chat(websocket: WebSocket):
                     await websocket.send_json({"type": "done", "content": note})
                     continue
 
-                messages.append({"role": "user", "content": user_content})
+                doc_context = event.get("doc_context", "")
+                mode = event.get("mode", "free")
+                if doc_context or mode == "book":
+                    model_input = _compose_writing_prompt(user_content, doc_context, mode)
+                else:
+                    model_input = user_content
+                messages.append({"role": "user", "content": model_input})
 
                 await websocket.send_json({
                     "type": "status",
@@ -356,6 +528,105 @@ async def chat(request: Request):
     response = adapter.complete(messages)
 
     return {"response": response}
+
+
+# --- Integrated terminal (PTY over WebSocket, VSCode-style) ---------------
+
+
+def _set_winsize(fd: int, rows: int, cols: int) -> None:
+    """Tell the PTY its window size so curses/editors render correctly."""
+    try:
+        winsize = struct.pack("HHHH", rows, cols, 0, 0)
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+    except OSError:
+        pass
+
+
+@app.websocket("/ws/terminal")
+async def websocket_terminal(websocket: WebSocket):
+    """Spawn a real login shell in a PTY and bridge it to xterm.js.
+
+    Gated by the same PIN as the rest of the UI. The shell starts in the
+    workspace; output is streamed as binary frames (avoids breaking multi-byte
+    UTF-8), input/resize arrive as JSON text frames.
+    """
+    if not _is_authed(websocket):
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+
+    master_fd, slave_fd = pty.openpty()
+    shell = os.environ.get("SHELL", "/bin/bash")
+    proc = subprocess.Popen(
+        [shell, "-l"],
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        cwd=str(WORKSPACE_DIR),
+        start_new_session=True,
+        env={**os.environ, "TERM": "xterm-256color"},
+    )
+    os.close(slave_fd)
+
+    loop = asyncio.get_event_loop()
+    out_queue: asyncio.Queue = asyncio.Queue()
+
+    def _on_readable():
+        try:
+            data = os.read(master_fd, 65536)
+        except OSError:
+            data = b""
+        if data:
+            out_queue.put_nowait(data)
+        else:
+            loop.remove_reader(master_fd)
+            out_queue.put_nowait(None)  # EOF
+
+    loop.add_reader(master_fd, _on_readable)
+
+    async def _pump_output():
+        while True:
+            data = await out_queue.get()
+            if data is None:
+                break
+            try:
+                await websocket.send_bytes(data)
+            except Exception:
+                break
+
+    out_task = asyncio.create_task(_pump_output())
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            event = json.loads(raw)
+            if event.get("type") == "input":
+                os.write(master_fd, event.get("data", "").encode())
+            elif event.get("type") == "resize":
+                _set_winsize(master_fd, int(event.get("rows", 24)), int(event.get("cols", 80)))
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        try:
+            loop.remove_reader(master_fd)
+        except (ValueError, OSError):
+            pass
+        out_task.cancel()
+        if proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGHUP)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
 
 
 def run(host: str = "0.0.0.0", port: int = 8765):
