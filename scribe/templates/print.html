@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            background: #fff; color: #1a1a1a; margin: 0;
+            font-family: 'Georgia', 'Iowan Old Style', serif; line-height: 1.7;
+        }
+        .paper { max-width: 720px; margin: 0 auto; padding: 3rem 2.5rem; }
+        h1 { font-size: 2rem; margin: 0 0 1.5rem; }
+        h2 { font-size: 1.4rem; margin: 2rem 0 .8rem; page-break-before: always; }
+        h2:first-of-type { page-break-before: avoid; }
+        h3 { font-size: 1.1rem; margin: 1.2rem 0 .5rem; }
+        p { margin: .8rem 0; }
+        pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+        code { font-family: 'Fira Code', monospace; font-size: .9em; }
+        blockquote { border-left: 3px solid #ccc; margin: 1rem 0; padding-left: 1rem; color: #555; }
+        .toolbar {
+            position: fixed; top: 1rem; right: 1rem; display: flex; gap: .5rem;
+        }
+        .toolbar button {
+            background: #1a1a1a; color: #fff; border: none; border-radius: 6px;
+            padding: .5rem 1rem; cursor: pointer; font-family: sans-serif;
+        }
+        @media print { .toolbar { display: none; } .paper { max-width: none; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button onclick="window.print()">Sačuvaj kao PDF (Print)</button>
+    </div>
+    <div class="paper" id="paper"></div>
+    <script>
+        const md = {{ markdown | tojson }};
+        document.getElementById('paper').innerHTML = marked.parse(md);
+        // Pusti render da se smiri, pa otvori print dialog.
+        window.addEventListener('load', () => setTimeout(() => window.print(), 400));
+    </script>
+</body>
+</html>
