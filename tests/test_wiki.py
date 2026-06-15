@@ -226,7 +226,8 @@ class TestOKF:
     def test_index_uses_frontmatter_title_and_description(self, tmp_path):
         wiki = wiki_dir(_config(tmp_path))
         (wiki / "pages" / "x.md").write_text(
-            "---\ntype: decision\ntitle: GBNF za alate\ndescription: Tool pozivi preko gramatike.\n---\n\n# nesto drugo\n"
+            "---\ntype: decision\ntitle: GBNF za alate\n"
+            "description: Tool pozivi preko gramatike.\n---\n\n# nesto drugo\n"
         )
         rebuild_index(wiki)
         index = (wiki / "index.md").read_text()
