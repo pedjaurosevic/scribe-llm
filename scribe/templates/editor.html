@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scribe — Book Studio</title>
+    <link href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/gruvbox-dark.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <style>
+        :root {
+            --bg: #1e1e1e;            /* editor bg */
+            --bg-panel: #252526;      /* side panels */
+            --bg-bar: #333333;        /* title/activity bars */
+            --bg-input: #3c3c3c;
+            --bg-page: #1e1e1e;
+            --border: #3c3c3c;
+            --gutter: #2d2d2d;
+            --gutter-hover: #007acc;
+            --text: #d4d4d4;
+            --text-dim: #858585;
+            --accent: #4ec9b0;        /* teal */
+            --accent2: #569cd6;       /* blue */
+            --warning: #dcdcaa;
+            --error: #f48771;
+            --statusbar: #007acc;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Segoe UI', -apple-system, Roboto, Ubuntu, sans-serif;
+            background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+
+        /* Middle region: activity bar + workbench */
+        .mid { flex: 1 1 auto; display: flex; min-height: 0; }
+
+        /* Activity bar (VSCode / Antigravity left rail) */
+        .activitybar {
+            width: 48px; flex: 0 0 auto; background: #2d2d2d; border-right: 1px solid #1a1a1a;
+            display: flex; flex-direction: column; align-items: center; padding-top: .4rem; gap: .2rem;
+        }
+        .activitybar .act {
+            width: 100%; height: 44px; display: flex; align-items: center; justify-content: center;
+            color: var(--text-dim); cursor: pointer; font-size: 1.2rem; border-left: 2px solid transparent;
+        }
+        .activitybar .act:hover { color: #fff; }
+        .activitybar .act.active { color: #fff; border-left-color: var(--accent); }
+        .activitybar .spacer { flex: 1; }
+
+        /* Top bar */
+        .topbar {
+            height: 36px; background: var(--bg-bar); display: flex; align-items: center;
+            justify-content: space-between; padding: 0 .8rem; flex: 0 0 auto;
+            border-bottom: 1px solid #1a1a1a; font-size: .8rem;
+        }
+        .topbar .brand { color: var(--accent); font-weight: 600; letter-spacing: .02rem; }
+        .topbar .right { display: flex; align-items: center; gap: 1rem; color: var(--text-dim); }
+        .topbar a { color: var(--text-dim); text-decoration: none; }
+        .topbar a:hover { color: var(--accent2); }
+
+        /* Three-pane workbench */
+        .workbench {
+            flex: 1 1 auto; display: grid; min-height: 0;
+            grid-template-columns: 1fr 6px 1fr 6px 1fr;
+        }
+        .gutter { background: var(--gutter); cursor: col-resize; }
+        .gutter:hover, .gutter.dragging { background: var(--gutter-hover); }
+
+        .pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+        .pane-head {
+            height: 30px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 .7rem; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            font-size: .68rem; text-transform: uppercase; letter-spacing: .08rem; color: var(--text-dim);
+        }
+        .pane-head .actions { display: flex; gap: .35rem; }
+        .pane-head button {
+            background: transparent; color: var(--text-dim); border: none; cursor: pointer;
+            font-size: .8rem; padding: 0 .2rem;
+        }
+        .pane-head button:hover { color: var(--accent); }
+        .pane-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+
+        /* Explorer pane */
+        .explorer { background: var(--bg-panel); }
+        .explorer .pane-body { padding: .5rem; }
+        .new-btns { display: flex; gap: .4rem; margin-bottom: .8rem; }
+        .new-btns button {
+            flex: 1; background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+            border-radius: 4px; padding: .4rem; cursor: pointer; font-size: .78rem;
+        }
+        .new-btns button:hover { border-color: var(--accent); color: var(--accent); }
+        .side-label { font-size: .66rem; text-transform: uppercase; color: var(--text-dim);
+            letter-spacing: .06rem; margin: .6rem 0 .35rem; }
+        .doc-item {
+            padding: .35rem .45rem; border-radius: 4px; cursor: pointer; font-size: .83rem;
+            display: flex; justify-content: space-between; align-items: center; gap: .3rem;
+        }
+        .doc-item:hover { background: var(--bg-input); }
+        .doc-item.active { background: #094771; }
+        .doc-item .ico { color: var(--text-dim); font-size: .72rem; }
+        .doc-item .del { color: var(--text-dim); opacity: 0; }
+        .doc-item:hover .del { opacity: 1; }
+        .doc-item .del:hover { color: var(--error); }
+        .toc-chapter {
+            padding: .3rem .45rem .3rem .9rem; border-radius: 4px; cursor: pointer;
+            font-size: .8rem; color: var(--text-dim);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .toc-chapter:hover { background: var(--bg-input); }
+        .toc-chapter.active { color: #fff; background: #094771; }
+        .toc-btn {
+            width: 100%; margin-top: .35rem; background: transparent; color: var(--text-dim);
+            border: 1px dashed var(--border); border-radius: 4px; padding: .35rem; cursor: pointer; font-size: .74rem;
+        }
+        .toc-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Editor pane */
+        .editor-pane { background: var(--bg); }
+        .doc-toolbar { display: flex; align-items: center; gap: .4rem; width: 100%; }
+        .doc-toolbar input.title {
+            flex: 1; background: transparent; border: none; color: var(--text);
+            font-size: .8rem; font-weight: 600; outline: none; text-transform: none; letter-spacing: 0;
+        }
+        .doc-toolbar button {
+            background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border);
+            border-radius: 4px; padding: .2rem .5rem; cursor: pointer; font-size: .7rem; text-transform: none; letter-spacing: 0;
+        }
+        .doc-toolbar button:hover { border-color: var(--accent2); color: var(--accent2); }
+        .page-wrap { padding: 1.5rem 1rem; display: flex; justify-content: center; }
+        .page {
+            width: 100%; max-width: 760px; background: var(--bg-page);
+            border: 1px solid var(--border); border-radius: 6px;
+            box-shadow: 0 2px 24px rgba(0,0,0,.4); min-height: 65vh; padding: 2.5rem 3rem;
+        }
+        .page textarea {
+            width: 100%; min-height: 55vh; background: transparent; border: none; resize: none;
+            color: var(--text); font-size: 1.02rem; line-height: 1.8; outline: none;
+            font-family: 'Georgia', 'Iowan Old Style', serif;
+        }
+        .page .preview { font-size: 1.02rem; line-height: 1.8; }
+        .page .preview h1, .page .preview h2, .page .preview h3 { color: var(--accent2); margin: 1.1rem 0 .5rem; }
+        .page .preview p { margin: .75rem 0; }
+        .page .preview pre { background: #141414; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+        .page .preview code { font-family: 'Fira Code', monospace; font-size: .9em; }
+        .empty-state { color: var(--text-dim); text-align: center; margin-top: 18vh; line-height: 1.7; }
+
+        /* Assistant pane */
+        .assistant { background: var(--bg-panel); }
+        .assistant .pane-body { display: flex; flex-direction: column; }
+        .chat-log {
+            flex: 1 1 auto; overflow-y: auto; padding: .6rem .7rem; font-size: .8rem;
+            color: var(--text-dim); display: flex; flex-direction: column; gap: .35rem;
+        }
+        .chat-log .cmd { color: var(--text); }
+        .chat-log .cmd::before { content: "› "; color: var(--accent); }
+        .chat-log .info::before { content: "• "; color: var(--accent2); }
+        .chat-input-area { flex: 0 0 auto; border-top: 1px solid var(--border); padding: .6rem .7rem; }
+        .chat-input-area textarea {
+            width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); padding: .55rem .7rem; resize: none; outline: none; font-size: .9rem;
+            font-family: inherit; min-height: 60px; max-height: 160px;
+        }
+        .chat-controls { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+        .chat-controls .mode-pill {
+            font-size: .68rem; color: var(--text-dim); padding: .2rem .5rem;
+            border: 1px solid var(--border); border-radius: 999px;
+        }
+        .chat-controls button {
+            margin-left: auto; background: var(--accent); color: #08201b; border: none; border-radius: 6px;
+            padding: .45rem 1rem; font-weight: 700; cursor: pointer; font-size: .82rem;
+        }
+        .chat-controls button:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* Integrated terminal panel (bottom, VSCode-style, toggleable) */
+        .terminal-panel { flex: 0 0 auto; display: none; flex-direction: column; background: #181818; }
+        .terminal-panel.open { display: flex; }
+        .term-resize { height: 5px; cursor: row-resize; background: var(--gutter); }
+        .term-resize:hover, .term-resize.dragging { background: var(--gutter-hover); }
+        .term-head {
+            height: 28px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 .7rem; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            font-size: .68rem; text-transform: uppercase; letter-spacing: .08rem; color: var(--text-dim);
+        }
+        .term-head .tabs { color: var(--accent); }
+        .term-head .term-actions button {
+            background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: .9rem; padding: 0 .3rem;
+        }
+        .term-head .term-actions button:hover { color: #fff; }
+        .term-body { flex: 1 1 auto; min-height: 0; padding: .3rem .5rem; }
+        .term-body .xterm { height: 100%; }
+
+        /* Status bar */
+        .statusbar {
+            height: 22px; flex: 0 0 auto; background: var(--statusbar); color: #fff;
+            display: flex; align-items: center; gap: 1rem; padding: 0 .8rem; font-size: .72rem;
+        }
+        .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: #8ae234; display: inline-block; }
+        .statusbar .dot.offline { background: var(--error); }
+        .statusbar .sp { margin-left: auto; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <span class="brand">✦ Scribe Book Studio</span>
+        <div class="right">
+            <span>{{ model_name }}</span>
+            <a href="#" onclick="resetLayout();return false;" title="Vrati jednake trećine">⟲ raspored</a>
+            <a href="/chat">chat ↗</a>
+        </div>
+    </div>
+
+    <div class="mid">
+    <div class="activitybar">
+        <div class="act active" title="Explorer">▤</div>
+        <div class="act" title="Terminal (Ctrl+`)" onclick="toggleTerminal()">▢</div>
+        <div class="spacer"></div>
+        <div class="act" title="Asistent">✦</div>
+    </div>
+    <div class="workbench" id="workbench">
+        <!-- Pane 1: Explorer -->
+        <section class="pane explorer">
+            <div class="pane-head"><span>Explorer</span></div>
+            <div class="pane-body">
+                <div class="new-btns">
+                    <button onclick="createDoc('doc')">＋ Dokument</button>
+                    <button onclick="createDoc('book')">＋ Knjiga</button>
+                </div>
+                <div class="side-label">Pisanja</div>
+                <div id="docList"></div>
+                <div id="tocSection" style="display:none">
+                    <div class="side-label">Sadržaj (TOC)</div>
+                    <div id="tocList"></div>
+                    <button class="toc-btn" onclick="addChapter()">＋ poglavlje</button>
+                    <button class="toc-btn" onclick="generateToc()">✦ Generiši TOC modelom</button>
+                </div>
+            </div>
+        </section>
+
+        <div class="gutter" data-gutter="0"></div>
+
+        <!-- Pane 2: Editor -->
+        <section class="pane editor-pane">
+            <div class="pane-head">
+                <div class="doc-toolbar" id="docToolbar" style="display:none">
+                    <input class="title" id="docTitle" placeholder="Naslov…">
+                    <button onclick="togglePreview()" id="previewBtn">Pregled</button>
+                    <button onclick="exportDoc('md')">MD</button>
+                    <button onclick="exportDoc('epub')">EPUB</button>
+                    <button onclick="exportDoc('pdf')">PDF</button>
+                </div>
+                <span id="editorIdle">Editor</span>
+            </div>
+            <div class="pane-body">
+                <div class="page-wrap">
+                    <div class="page" id="page">
+                        <div class="empty-state" id="emptyState">
+                            Napravi <b>Knjigu</b> levo, generiši TOC, pa piši poglavlje po poglavlje.<br>
+                            Komandu modelu pošalji desno sa <b>Ctrl+Enter</b> — tekst se upisuje ovde.
+                        </div>
+                        <textarea id="editor" style="display:none" placeholder="Piši ovde…"></textarea>
+                        <div class="preview" id="preview" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="gutter" data-gutter="1"></div>
+
+        <!-- Pane 3: Assistant -->
+        <section class="pane assistant">
+            <div class="pane-head"><span>Asistent</span></div>
+            <div class="pane-body">
+                <div class="chat-log" id="chatLog"></div>
+                <div class="chat-input-area">
+                    <textarea id="cmdInput" placeholder="Reci modelu šta da napiše…&#10;(Ctrl+Enter za slanje)"></textarea>
+                    <div class="chat-controls">
+                        <span class="mode-pill" id="modePill">slobodno</span>
+                        <button id="sendBtn" onclick="sendCommand()">➤ Piši</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    </div><!-- /.mid -->
+
+    <div class="terminal-panel" id="terminalPanel">
+        <div class="term-resize" id="termResize"></div>
+        <div class="term-head">
+            <span class="tabs">● bash — terminal</span>
+            <span class="term-actions">
+                <button onclick="resetTerminal()" title="Novi shell">⟲</button>
+                <button onclick="toggleTerminal()" title="Zatvori (Ctrl+`)">✕</button>
+            </span>
+        </div>
+        <div class="term-body"><div id="terminal"></div></div>
+    </div>
+
+    <div class="statusbar">
+        <span><span class="dot" id="statusDot"></span> <span id="statusText">…</span></span>
+        <span id="sbDoc">nema dokumenta</span>
+        <span style="cursor:pointer" onclick="toggleTerminal()" title="Ctrl+`">▢ Terminal</span>
+        <span class="sp" id="sbMode">slobodno</span>
+        <span id="sbSave">spremno</span>
+    </div>
+
+    <script>
+        marked.setOptions({ breaks: true });
+        const $ = (id) => document.getElementById(id);
+
+        let ws = null, isConnected = false, isGenerating = false;
+        let currentDoc = null, currentChapterId = null;
+        let previewing = false, saveTimer = null;
+        let streamBase = "", pendingToc = false, tocBuffer = "";
+
+        // --- Resizable three-pane layout (Terminator-style gutters) -------
+        const WB = $('workbench');
+        const LAYOUT_KEY = 'scribe.layout.cols';
+        function applyCols(cols) { WB.style.gridTemplateColumns = `${cols[0]}fr 6px ${cols[1]}fr 6px ${cols[2]}fr`; }
+        function loadLayout() {
+            try { const s = JSON.parse(localStorage.getItem(LAYOUT_KEY)); if (Array.isArray(s) && s.length === 3) applyCols(s); } catch (e) {}
+        }
+        function resetLayout() { localStorage.removeItem(LAYOUT_KEY); applyCols([1, 1, 1]); }
+        function currentCols() {
+            const parts = getComputedStyle(WB).gridTemplateColumns.split(' ').map(parseFloat);
+            // [c1, gutter, c2, gutter, c3] in px → keep the three pane widths
+            return [parts[0], parts[2], parts[4]];
+        }
+        document.querySelectorAll('.gutter').forEach(g => {
+            g.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const idx = parseInt(g.dataset.gutter); // 0: between 1&2, 1: between 2&3
+                const startX = e.clientX;
+                const cols = currentCols();
+                const left = idx === 0 ? 0 : 1;       // pane index that grows/shrinks
+                const right = left + 1;
+                const startLeft = cols[left], startRight = cols[right];
+                g.classList.add('dragging');
+                function onMove(ev) {
+                    const dx = ev.clientX - startX;
+                    const nl = Math.max(120, startLeft + dx);
+                    const nr = Math.max(120, startRight - dx);
+                    cols[left] = nl; cols[right] = nr;
+                    applyCols(cols);
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    g.classList.remove('dragging');
+                    localStorage.setItem(LAYOUT_KEY, JSON.stringify(currentCols()));
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        });
+
+        // --- WebSocket ----------------------------------------------------
+        function connect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${location.host}/ws/chat`);
+            ws.onopen = () => { isConnected = true; $('statusDot').classList.remove('offline'); $('statusText').textContent = 'povezan'; };
+            ws.onclose = () => { isConnected = false; $('statusDot').classList.add('offline'); $('statusText').textContent = 'nije povezan'; setTimeout(connect, 3000); };
+            ws.onerror = () => { $('statusDot').classList.add('offline'); $('statusText').textContent = 'greška'; };
+            ws.onmessage = (e) => handleWs(JSON.parse(e.data));
+        }
+        function handleWs(data) {
+            switch (data.type) {
+                case 'chunk':
+                    if (pendingToc) tocBuffer = data.full; else applyStream(data.full);
+                    break;
+                case 'done':
+                    if (pendingToc) finishToc(tocBuffer);
+                    else { logInfo('✓ upisano u dokument'); scheduleSave(); }
+                    isGenerating = false; $('sendBtn').disabled = false;
+                    break;
+                case 'error':
+                    logInfo('⚠ ' + data.content); isGenerating = false; $('sendBtn').disabled = false; pendingToc = false;
+                    break;
+            }
+        }
+        function applyStream(full) {
+            const ed = $('editor');
+            ed.value = streamBase + (streamBase ? "\n\n" : "") + full;
+            ed.scrollTop = ed.scrollHeight;
+            if (previewing) renderPreview();
+        }
+
+        // --- Explorer / doc list ------------------------------------------
+        async function loadDocList() {
+            const r = await fetch('/api/docs'); const { documents } = await r.json();
+            const list = $('docList'); list.innerHTML = '';
+            documents.forEach(d => {
+                const div = document.createElement('div');
+                div.className = 'doc-item' + (currentDoc && d.id === currentDoc.id ? ' active' : '');
+                div.innerHTML = `<span><span class="ico">${d.type === 'book' ? '▤' : '▦'}</span> ${escapeHtml(d.title)}</span><span class="del" title="obriši">✕</span>`;
+                div.querySelector('span').onclick = () => openDoc(d.id);
+                div.querySelector('.del').onclick = (e) => { e.stopPropagation(); deleteDoc(d.id, d.title); };
+                list.appendChild(div);
+            });
+        }
+        async function createDoc(type) {
+            const title = prompt(type === 'book' ? 'Naslov knjige:' : 'Naslov dokumenta:', type === 'book' ? 'Nova knjiga' : 'Nov dokument');
+            if (title === null) return;
+            const r = await fetch('/api/docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, type }) });
+            const meta = await r.json();
+            await loadDocList(); openDoc(meta.id);
+        }
+        async function deleteDoc(id, title) {
+            if (!confirm(`Obrisati "${title}"? Ovo se ne može vratiti.`)) return;
+            await fetch('/api/docs/' + id, { method: 'DELETE' });
+            if (currentDoc && currentDoc.id === id) { currentDoc = null; showEmpty(); }
+            loadDocList();
+        }
+        async function openDoc(id) {
+            const r = await fetch('/api/docs/' + id);
+            if (!r.ok) return;
+            currentDoc = await r.json(); currentChapterId = null;
+            $('docToolbar').style.display = 'flex'; $('editorIdle').style.display = 'none';
+            $('emptyState').style.display = 'none'; $('docTitle').value = currentDoc.title;
+            if (currentDoc.type === 'book') {
+                $('tocSection').style.display = 'block'; renderToc();
+                if (currentDoc.chapters.length) selectChapter(currentDoc.chapters[0].id); else setEditor('');
+            } else {
+                $('tocSection').style.display = 'none'; setEditor(currentDoc.content || '');
+            }
+            updateModePill(); loadDocList();
+            $('sbDoc').textContent = (currentDoc.type === 'book' ? '▤ ' : '▦ ') + currentDoc.title;
+        }
+        function showEmpty() {
+            $('docToolbar').style.display = 'none'; $('editorIdle').style.display = 'inline';
+            $('tocSection').style.display = 'none'; $('editor').style.display = 'none';
+            $('preview').style.display = 'none'; $('emptyState').style.display = 'block';
+            $('sbDoc').textContent = 'nema dokumenta';
+        }
+        function setEditor(text) {
+            previewing = false; $('editor').style.display = 'block'; $('preview').style.display = 'none';
+            $('emptyState').style.display = 'none'; $('previewBtn').textContent = 'Pregled'; $('editor').value = text;
+        }
+
+        // --- Book TOC -----------------------------------------------------
+        function renderToc() {
+            const list = $('tocList'); list.innerHTML = '';
+            currentDoc.chapters.forEach((ch, i) => {
+                const div = document.createElement('div');
+                div.className = 'toc-chapter' + (ch.id === currentChapterId ? ' active' : '');
+                div.textContent = `${i + 1}. ${ch.title}`;
+                div.onclick = () => selectChapter(ch.id);
+                list.appendChild(div);
+            });
+        }
+        function selectChapter(chId) {
+            const ch = currentDoc.chapters.find(c => c.id === chId);
+            if (!ch) return;
+            currentChapterId = chId; setEditor(ch.content || ''); renderToc(); updateModePill();
+        }
+        async function addChapter() {
+            if (!currentDoc) return;
+            const title = prompt('Naslov poglavlja:');
+            if (!title) return;
+            await fetch(`/api/docs/${currentDoc.id}/chapters`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+            await openDoc(currentDoc.id);
+        }
+        function generateToc() {
+            if (!currentDoc) return;
+            const topic = prompt('O čemu je knjiga? (model predlaže poglavlja)', currentDoc.title);
+            if (!topic) return;
+            pendingToc = true; tocBuffer = ''; isGenerating = true; $('sendBtn').disabled = true;
+            logCmd('Generiši TOC: ' + topic);
+            const instruction = `Predloži tabelu sadržaja za knjigu "${topic}". Izlistaj 6-12 naslova poglavlja, svaki u svom redu, bez numeracije i bez ikakvog drugog teksta.`;
+            ws.send(JSON.stringify({ type: 'message', content: instruction, mode: 'free' }));
+        }
+        async function finishToc(text) {
+            const titles = text.split('\n').map(l => l.replace(/^\s*(\d+[\.\)]|[-*#>•]+)\s*/, '').trim()).filter(Boolean);
+            if (!titles.length) { logInfo('TOC prazan — pokušaj ponovo.'); pendingToc = false; return; }
+            await fetch(`/api/docs/${currentDoc.id}/chapters`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ titles }) });
+            pendingToc = false; logInfo(`✓ TOC: ${titles.length} poglavlja`); await openDoc(currentDoc.id);
+        }
+
+        // --- Saving -------------------------------------------------------
+        function scheduleSave() { clearTimeout(saveTimer); $('sbSave').textContent = '✎ menja se…'; saveTimer = setTimeout(saveDoc, 800); }
+        async function saveDoc() {
+            if (!currentDoc) return;
+            const body = { title: $('docTitle').value };
+            if (currentDoc.type === 'book' && currentChapterId) { body.chapter_id = currentChapterId; body.content = $('editor').value; }
+            else if (currentDoc.type === 'doc') { body.content = $('editor').value; }
+            await fetch('/api/docs/' + currentDoc.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (currentDoc.type === 'doc') currentDoc.content = $('editor').value;
+            else if (currentChapterId) { const ch = currentDoc.chapters.find(c => c.id === currentChapterId); if (ch) ch.content = $('editor').value; }
+            $('sbSave').textContent = '✓ sačuvano';
+        }
+
+        // --- Preview ------------------------------------------------------
+        function togglePreview() {
+            previewing = !previewing;
+            $('editor').style.display = previewing ? 'none' : 'block';
+            $('preview').style.display = previewing ? 'block' : 'none';
+            $('previewBtn').textContent = previewing ? 'Uredi' : 'Pregled';
+            if (previewing) renderPreview();
+        }
+        function renderPreview() { $('preview').innerHTML = marked.parse($('editor').value || ''); }
+
+        // --- Commands -----------------------------------------------------
+        function updateModePill() {
+            const m = (currentDoc && currentDoc.type === 'book') ? 'knjiga · poglavlje' : 'slobodno';
+            $('modePill').textContent = m; $('sbMode').textContent = m;
+        }
+        function sendCommand() {
+            const input = $('cmdInput'); const text = input.value.trim();
+            if (!text || !isConnected || isGenerating || !currentDoc) {
+                if (!currentDoc) logInfo('Prvo otvori ili napravi dokument.');
+                return;
+            }
+            if (previewing) togglePreview();
+            streamBase = $('editor').value.trim();
+            const mode = currentDoc.type === 'book' ? 'book' : 'free';
+            isGenerating = true; $('sendBtn').disabled = true;
+            logCmd(text); input.value = '';
+            ws.send(JSON.stringify({ type: 'message', content: text, doc_context: streamBase, mode }));
+        }
+        async function exportDoc(fmt) {
+            if (!currentDoc) return;
+            await saveDoc();
+            if (fmt === 'md') window.location = `/api/docs/${currentDoc.id}/export.md`;
+            else if (fmt === 'epub') window.location = `/api/docs/${currentDoc.id}/export.epub`;
+            else if (fmt === 'pdf') window.open(`/print/${currentDoc.id}`, '_blank');
+        }
+
+        // --- Helpers ------------------------------------------------------
+        function logCmd(t) { addLog('cmd', t); }
+        function logInfo(t) { addLog('info', t); }
+        function addLog(cls, t) {
+            const log = $('chatLog'); const div = document.createElement('div');
+            div.className = cls; div.textContent = t; log.appendChild(div); log.scrollTop = log.scrollHeight;
+        }
+        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+        // --- Wiring -------------------------------------------------------
+        $('editor').addEventListener('input', scheduleSave);
+        $('docTitle').addEventListener('input', scheduleSave);
+        $('cmdInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendCommand(); }
+        });
+
+        // --- Integrated terminal (xterm.js + PTY backend) -----------------
+        let term = null, fitAddon = null, termWs = null, termOpen = false;
+        const TH_KEY = 'scribe.terminal.height';
+
+        function ensureTerminal() {
+            if (term) return;
+            term = new Terminal({
+                fontFamily: "'Fira Code', 'Cascadia Code', monospace", fontSize: 13,
+                cursorBlink: true,
+                theme: { background: '#181818', foreground: '#d4d4d4', cursor: '#4ec9b0' },
+            });
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open($('terminal'));
+            term.onData(d => { if (termWs && termWs.readyState === 1) termWs.send(JSON.stringify({ type: 'input', data: d })); });
+            connectTerminal();
+        }
+
+        function connectTerminal() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            termWs = new WebSocket(`${proto}//${location.host}/ws/terminal`);
+            termWs.binaryType = 'arraybuffer';
+            termWs.onopen = () => { fitTerminal(); };
+            termWs.onmessage = (e) => {
+                if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
+                else term.write(e.data);
+            };
+            termWs.onclose = () => { term && term.write('\r\n\x1b[31m[shell zatvoren]\x1b[0m\r\n'); };
+        }
+
+        function fitTerminal() {
+            if (!fitAddon || !termOpen) return;
+            try {
+                fitAddon.fit();
+                if (termWs && termWs.readyState === 1)
+                    termWs.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
+            } catch (e) {}
+        }
+
+        function toggleTerminal() {
+            const panel = $('terminalPanel');
+            termOpen = !termOpen;
+            panel.classList.toggle('open', termOpen);
+            if (termOpen) {
+                const h = parseInt(localStorage.getItem(TH_KEY)) || 240;
+                panel.style.height = h + 'px';
+                ensureTerminal();
+                setTimeout(() => { fitTerminal(); term.focus(); }, 50);
+            }
+        }
+
+        function resetTerminal() {
+            if (termWs) { try { termWs.close(); } catch (e) {} }
+            if (term) term.clear();
+            connectTerminal();
+        }
+
+        // Drag the terminal panel taller/shorter.
+        (function () {
+            const handle = $('termResize'), panel = $('terminalPanel');
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault(); handle.classList.add('dragging');
+                const startY = e.clientY, startH = panel.offsetHeight;
+                function onMove(ev) {
+                    const h = Math.max(120, Math.min(window.innerHeight - 150, startH + (startY - ev.clientY)));
+                    panel.style.height = h + 'px'; fitTerminal();
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    handle.classList.remove('dragging');
+                    localStorage.setItem(TH_KEY, panel.offsetHeight);
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        })();
+
+        window.addEventListener('resize', fitTerminal);
+        // Ctrl+` toggles the terminal, just like VSCode.
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && (e.key === '`' || e.code === 'Backquote')) { e.preventDefault(); toggleTerminal(); }
+        });
+
+        loadLayout();
+        connect();
+        loadDocList();
+    </script>
+</body>
+</html>
