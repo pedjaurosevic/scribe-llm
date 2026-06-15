@@ -6,7 +6,10 @@ from types import SimpleNamespace
 from scribe.session import SessionCheckpoint, SessionManager
 from scribe.wiki import (
     distill,
+    dump_frontmatter,
+    ensure_frontmatter,
     load_ledger,
+    parse_frontmatter,
     pending_sessions,
     rebuild_index,
     render_session,
@@ -183,6 +186,66 @@ class TestDistill:
         assert [r["status"] for r in results] == ["error"]
         # Not in the ledger → will be retried next run.
         assert cp.session_id not in load_ledger(wiki_dir(cfg))
+
+
+class TestOKF:
+    def test_parse_frontmatter_roundtrip(self):
+        meta, body = parse_frontmatter(
+            "---\ntype: insight\ntitle: Deadlock\ntags: [async, bug]\n---\n\n# Deadlock\nTekst.\n"
+        )
+        assert meta["type"] == "insight"
+        assert meta["title"] == "Deadlock"
+        assert meta["tags"] == ["async", "bug"]
+        assert body.startswith("# Deadlock")
+
+    def test_parse_frontmatter_absent(self):
+        meta, body = parse_frontmatter("# Bez frontmatter\ntekst\n")
+        assert meta == {}
+        assert body.startswith("# Bez frontmatter")
+
+    def test_dump_frontmatter_field_order_and_list(self):
+        out = dump_frontmatter({"title": "T", "type": "fact", "tags": ["a", "b"]})
+        # `type` comes before `title` per OKF field order; list is inlined.
+        assert out.index("type:") < out.index("title:")
+        assert "tags: [a, b]" in out
+
+    def test_ensure_frontmatter_adds_block_and_infers_source(self, tmp_path):
+        wiki = wiki_dir(_config(tmp_path))
+        page = wiki / "pages" / "deadlock.md"
+        page.write_text("# Deadlock\nProcesi cekaju. (sesija abc123, tag a1b2c)\n")
+        assert ensure_frontmatter(page) is True
+
+        meta, body = parse_frontmatter(page.read_text())
+        assert meta["type"] == "insight"
+        assert meta["title"] == "Deadlock"
+        assert meta["source"] == "sesija abc123"
+        assert "# Deadlock" in body
+        # Idempotent: already-OKF page is left alone.
+        assert ensure_frontmatter(page) is False
+
+    def test_index_uses_frontmatter_title_and_description(self, tmp_path):
+        wiki = wiki_dir(_config(tmp_path))
+        (wiki / "pages" / "x.md").write_text(
+            "---\ntype: decision\ntitle: GBNF za alate\ndescription: Tool pozivi preko gramatike.\n---\n\n# nesto drugo\n"
+        )
+        rebuild_index(wiki)
+        index = (wiki / "index.md").read_text()
+        assert "[GBNF za alate](pages/x.md)" in index
+        assert "Tool pozivi preko gramatike." in index
+
+    def test_distill_writes_okf_frontmatter_and_log(self, tmp_path, monkeypatch):
+        cfg = _config(tmp_path)
+        mgr = _manager(tmp_path, monkeypatch)
+        mgr.current_session = _checkpoint()
+        mgr.checkpoint()
+
+        distill(cfg, adapter=_FakeAdapter())
+        wiki = wiki_dir(cfg)
+        # The model wrote a bare `# Odluke` page; distill backfilled OKF.
+        meta, _ = parse_frontmatter((wiki / "pages" / "odluke.md").read_text())
+        assert meta.get("type") == "insight"
+        assert (wiki / "log.md").exists()
+        assert "sesija" in (wiki / "log.md").read_text()
 
 
 class TestIndexAndRagSync:

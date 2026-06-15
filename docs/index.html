@@ -119,6 +119,8 @@
       <div class="card"><h3>Universal LLM adapter</h3><p>Point it at any OpenAI-compatible endpoint — local llama.cpp, Ollama, LM Studio, or remote. <code>scribe discover</code> finds them.</p></div>
       <div class="card"><h3>Safe code mode</h3><p><code>/code</code> with a destructive-command gate, a Python AST gate, a bubblewrap sandbox, and git checkpoint / rollback.</p></div>
       <div class="card"><h3>Cross-session memory</h3><p>SME (Semantic Memory Engine) recalls your last session, and a WorldModel persona keeps the agent's identity stable across runs.</p></div>
+      <div class="card"><h3>Open Knowledge Format</h3><p><code>scribe wiki distill</code> curates sessions into <a href="open-knowledge-format.md">OKF</a> markdown — frontmatter + links in your git repo. SME/RAG are just derived indexes over the files. Portable, open, no SDK.</p></div>
+      <div class="card"><h3>Book Studio (web)</h3><p>A dark, VSCode-style web studio for writing books with your local model: three resizable panes, an integrated terminal, model-drafted chapters, and EPUB / PDF / Markdown export.</p></div>
       <div class="card"><h3>Hybrid RAG over your docs</h3><p>FTS5 + local embeddings (multilingual-e5) fused with RRF — exact identifiers and paraphrase both retrieve.</p></div>
       <div class="card"><h3>Observability</h3><p>Deterministic ORORO session traces and a machine-readable <code>scribe status --json</code> contract.</p></div>
       <div class="card"><h3>Rich TUI &amp; web UI</h3><p>A terminal interface (Rich + Textual) and a streaming FastAPI web chat with login.</p></div>

@@ -14,9 +14,11 @@ marked processed and skipped forever.
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +29,15 @@ logger = logging.getLogger(__name__)
 LEDGER_FILE = ".distilled.json"
 RAG_SYNC_FILE = ".rag-sync.json"
 INDEX_FILE = "index.md"
+LOG_FILE = "log.md"
 PAGES_DIR = "pages"
+
+# The wiki is stored in the Open Knowledge Format (OKF): every page is a
+# markdown file with a YAML frontmatter block, the file path is the concept's
+# identity, markdown links form the graph, index.md is navigation and log.md is
+# the chronological history. The only required frontmatter field is `type`.
+# SME/RAG are derived indexes over these files, not separate sources of truth.
+OKF_FIELDS = ("type", "title", "description", "tags", "timestamp", "source")
 
 # Cap how much of a session is shown to the model.
 MAX_SESSION_CHARS = 16_000
@@ -48,20 +58,30 @@ What counts as durable: decisions made, conclusions reached, verified facts,
 architecture/design notes, important preferences, open questions. What does
 NOT: greetings, chit-chat, transient errors, anything trivially re-derivable.
 
+The wiki uses the Open Knowledge Format (OKF): each page is a markdown file
+with a YAML frontmatter block, and pages link to each other to form a graph.
 Your file tools operate INSIDE the wiki folder:
-- pages/<topic>.md  — one page per topic, kebab-case file names
-- index.md          — the table of contents
+- pages/<topic>.md  — one page per topic/concept, kebab-case file names
+- index.md, log.md  — maintained automatically; never edit them yourself
 
 How to work:
 1. Read the transcript and decide if it contains anything durable.
    If it does NOT, reply with exactly: SKIP
 2. Otherwise, for each topic: read_file the existing page first if it may
    exist, MERGE new knowledge into it (never erase existing content), or
-   create a new page. Keep pages short and factual. Start every page with a
-   `# Title` heading. Mark each new entry with the source session:
-   `(sesija <id>, tag <tag>)`.
-3. index.md is maintained automatically — never edit it yourself.
-4. Write pages in the language the session was held in.
+   create a new page. Begin EVERY page with an OKF frontmatter block, then a
+   `# Title` heading and short factual content:
+   ---
+   type: insight        # or: decision, fact, design, preference, question
+   title: <short title>
+   description: <one sentence>
+   tags: [tag1, tag2]
+   timestamp: <YYYY-MM-DD>
+   source: sesija <id>
+   ---
+   Link related pages inline with [Title](other-page.md). Mark each new entry
+   with its source session: `(sesija <id>, tag <tag>)`.
+3. Write pages in the language the session was held in.
 
 Finally, answer with ONE short sentence describing what you stored (or SKIP).
 """
@@ -106,26 +126,106 @@ def save_ledger(wiki: Path, ledger: dict[str, str]) -> None:
     )
 
 
-def _page_title_and_hook(page: Path) -> tuple[str, str]:
-    """Title = first `#` heading (or the file stem); hook = first prose line."""
-    title, hook = page.stem.replace("-", " ").replace("_", " "), ""
+def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    """Split OKF frontmatter from body. Returns ({} , text) when absent.
+
+    A tiny YAML reader: ``key: value`` per line, with ``[a, b]`` parsed as a
+    list. Deliberately dependency-free — OKF frontmatter is intentionally flat.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}, text
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    if end is None:
+        return {}, text
+    meta: dict[str, Any] = {}
+    for line in lines[1:end]:
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key, value = key.strip(), value.strip()
+        # Drop inline comments after a value (frontmatter is simple).
+        if " #" in value:
+            value = value.split(" #", 1)[0].strip()
+        if value.startswith("[") and value.endswith("]"):
+            value = [v.strip() for v in value[1:-1].split(",") if v.strip()]
+        meta[key] = value
+    body = "\n".join(lines[end + 1:]).lstrip("\n")
+    return meta, body
+
+
+def dump_frontmatter(meta: dict[str, Any]) -> str:
+    """Serialize meta back into a YAML frontmatter block (OKF field order)."""
+    out = ["---"]
+    for key in OKF_FIELDS:
+        if key not in meta:
+            continue
+        value = meta[key]
+        if isinstance(value, list):
+            value = "[" + ", ".join(value) + "]"
+        out.append(f"{key}: {value}")
+    out.append("---")
+    return "\n".join(out)
+
+
+def _first_heading(body: str) -> str:
+    for line in body.splitlines():
+        s = line.strip()
+        if s.startswith("#"):
+            return s.lstrip("#").strip()
+    return ""
+
+
+def _first_prose(body: str) -> str:
+    for line in body.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        return s.lstrip("*- ").replace("**", "").strip()
+    return ""
+
+
+def _page_meta(page: Path) -> tuple[str, str, dict[str, Any]]:
+    """Title, hook and OKF meta for a page (frontmatter wins, else markdown)."""
+    stem = page.stem.replace("-", " ").replace("_", " ")
     try:
-        lines = page.read_text(encoding="utf-8").splitlines()
+        text = page.read_text(encoding="utf-8")
     except OSError:
-        return title, hook
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if stripped.startswith("#"):
-            if title == page.stem.replace("-", " ").replace("_", " "):
-                title = stripped.lstrip("#").strip() or title
-            continue
-        hook = stripped.lstrip("*- ").replace("**", "").strip()
-        break
+        return stem, "", {}
+    meta, body = parse_frontmatter(text)
+    title = meta.get("title") or _first_heading(body) or stem
+    hook = meta.get("description") or _first_prose(body)
     if len(hook) > 80:
         hook = hook[:77] + "..."
-    return title, hook
+    return title, hook, meta
+
+
+def ensure_frontmatter(page: Path, source: str = "") -> bool:
+    """Give a page an OKF frontmatter block if it lacks one. Returns True if
+    the file was rewritten. Attribution (`source`) is taken from the page body
+    (`sesija <id>` markers) when not provided, to avoid mis-crediting."""
+    try:
+        text = page.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    meta, body = parse_frontmatter(text)
+    if meta.get("type"):  # already OKF (type is the only required field)
+        return False
+    meta["type"] = "insight"
+    meta["title"] = _first_heading(body) or page.stem.replace("-", " ").replace("_", " ")
+    prose = _first_prose(body)
+    if prose:
+        meta["description"] = prose
+    meta["timestamp"] = datetime.date.today().isoformat()
+    src = source or ""
+    if not src:
+        m = re.search(r"sesija\s+([^\s,)\]]+)", body)
+        if m:
+            src = f"sesija {m.group(1)}"
+    if src:
+        meta["source"] = src
+    page.write_text(dump_frontmatter(meta) + "\n\n" + body.lstrip("\n"), encoding="utf-8")
+    return True
 
 
 def rebuild_index(wiki: Path) -> None:
@@ -144,10 +244,26 @@ def rebuild_index(wiki: Path) -> None:
         "",
     ]
     for page in sorted((wiki / PAGES_DIR).glob("*.md")):
-        title, hook = _page_title_and_hook(page)
+        title, hook, _ = _page_meta(page)
         entry = f"- [{title}]({PAGES_DIR}/{page.name})"
         lines.append(f"{entry} — {hook}" if hook else entry)
     (wiki / INDEX_FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def append_log(wiki: Path, entry: str) -> None:
+    """Append one dated line to log.md — the OKF chronological history."""
+    path = wiki / LOG_FILE
+    header = "# WIKI Log\n\nHronološka istorija destilacije (`scribe wiki distill`).\n"
+    existing = ""
+    if path.exists():
+        try:
+            existing = path.read_text(encoding="utf-8")
+        except OSError:
+            existing = ""
+    if not existing.strip():
+        existing = header
+    line = f"- {datetime.date.today().isoformat()} — {entry}"
+    path.write_text(existing.rstrip() + "\n" + line + "\n", encoding="utf-8")
 
 
 def _page_digests(wiki: Path) -> dict[str, str]:
@@ -352,7 +468,13 @@ def distill(
         ledger[session_id] = session_digest(checkpoint)
         save_ledger(wiki, ledger)
         if status == "stored":
+            # Guarantee every page is valid OKF even if the model omitted the
+            # frontmatter, then refresh the derived index and history.
+            this_source = f"sesija {session_id}"
+            for page in (wiki / PAGES_DIR).glob("*.md"):
+                ensure_frontmatter(page, source=this_source)
             rebuild_index(wiki)
+            append_log(wiki, f"{summary.strip()} ({this_source}, tag {session_tag(session_id)})")
         results.append({"session": session_id, "status": status, "summary": summary})
         if on_progress:
             on_progress(session_id, summary)
