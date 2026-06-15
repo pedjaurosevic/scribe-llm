@@ -629,8 +629,13 @@ async def websocket_terminal(websocket: WebSocket):
             pass
 
 
-def run(host: str = "0.0.0.0", port: int = 8765):
-    """Run the web server."""
+def run(host: str = "127.0.0.1", port: int = 8765):
+    """Run the web server.
+
+    Binds to localhost by default: the web UI exposes a shell terminal
+    (`/ws/terminal`), so it should not be reachable from the network unless the
+    operator explicitly opts in with `--host 0.0.0.0`.
+    """
     uvicorn.run(app, host=host, port=port, reload=False)
 
 
