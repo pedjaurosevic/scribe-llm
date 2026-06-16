@@ -204,6 +204,9 @@ class ScribeTUI:
         else:
             self.console.print("[warning]⚠[/warning] Memory: not available")
 
+        self.console.print(
+            "  [dim]/help for commands · /models to switch backend (llama.cpp or API key)[/dim]"
+        )
         self.console.print()
 
     def _show_resume_banner(self):
@@ -696,6 +699,8 @@ class ScribeTUI:
             self._toggle_code_mode(arg, force_off=(cmd == "/chat"))
         elif cmd == "/theme":
             self._handle_theme(arg)
+        elif cmd in ("/models", "/model"):
+            self._handle_models(arg)
         elif cmd == "/reasoning":
             self._toggle_reasoning(arg)
         else:
@@ -807,6 +812,109 @@ class ScribeTUI:
         body = "\n".join(lines) + "\n\n[dim]Use /theme NAME to switch.[/dim]"
         return Panel(body, title="[scribe]Themes[/scribe]", border_style="scribe",
                      box=ROUNDED, padding=(1, 2))
+
+    def _handle_models(self, arg: str = ""):
+        """
+        Choose the model backend: a local llama.cpp server or any
+        OpenAI-compatible API (OpenRouter, Groq, DeepSeek, ...).
+
+        /models          — show current backend and a short menu
+        /models local    — point Scribe at a local llama.cpp server
+        /models api      — enter an OpenAI-compatible base URL + API key
+        """
+        choice = arg.strip().lower()
+
+        if choice in ("", "show", "status"):
+            self.console.print(self._models_panel())
+            choice = self.console.input(
+                "  [dim]Choose[/dim] [accent]1[/accent] [dim]llama.cpp /[/dim] "
+                "[accent]2[/accent] [dim]API /[/dim] [accent]Enter[/accent] [dim]cancel ›[/dim] "
+            ).strip().lower()
+
+        if choice in ("1", "local", "llama", "llama.cpp", "llamacpp"):
+            self._configure_local()
+        elif choice in ("2", "api", "cloud", "openai"):
+            self._configure_api()
+        elif choice in ("", "cancel", "q"):
+            self.console.print("[dim]→ No changes.[/dim]")
+        else:
+            self.console.print(f"[warning]Unknown option:[/warning] {choice}")
+            self.console.print("[dim]Use /models, /models local or /models api.[/dim]")
+
+    def _models_panel(self) -> Panel:
+        """Show the active backend so the user knows what they are changing."""
+        key = self.config.api_key
+        has_key = bool(key) and key not in ("not-needed", "")
+        key_state = "[success]set[/success]" if has_key else "[dim]none (local)[/dim]"
+        body = (
+            f"[dim]Base URL[/dim]  [accent]{self.config.base_url}[/accent]\n"
+            f"[dim]Model[/dim]     {self.config.model}\n"
+            f"[dim]API key[/dim]   {key_state}\n\n"
+            "[accent]1[/accent] llama.cpp  [dim]— local server, no API key, GBNF tool grammar[/dim]\n"
+            "[accent]2[/accent] API        [dim]— OpenAI-compatible endpoint + key (cloud or remote)[/dim]"
+        )
+        return Panel(body, title="[scribe]Model backend[/scribe]",
+                     border_style="scribe", box=ROUNDED, padding=(1, 2))
+
+    def _configure_local(self):
+        """Point Scribe at a local llama.cpp (OpenAI-compatible) server."""
+        default = "http://127.0.0.1:18083/v1"
+        url = self.console.input(
+            f"  [dim]Base URL[/dim] [accent](Enter = {default})[/accent] [dim]›[/dim] "
+        ).strip() or default
+        self._apply_backend(
+            base_url=url, model="default", api_key="not-needed", tool_grammar="auto"
+        )
+
+    def _configure_api(self):
+        """Enter an OpenAI-compatible API endpoint, model and key."""
+        url = self.console.input(
+            "  [dim]Base URL (e.g. https://openrouter.ai/api/v1)[/dim] [dim]›[/dim] "
+        ).strip()
+        if not url:
+            self.console.print("[dim]→ Canceled (no base URL).[/dim]")
+            return
+        model = self.console.input(
+            "  [dim]Model id (e.g. deepseek-chat)[/dim] [dim]›[/dim] "
+        ).strip()
+        if not model:
+            self.console.print("[dim]→ Canceled (no model).[/dim]")
+            return
+        key = self.console.input(
+            "  [dim]API key (stored in your local config; or leave empty to use SCRIBE_API_KEY)[/dim] [dim]›[/dim] "
+        ).strip() or "not-needed"
+        # Cloud backends do not support GBNF grammar; fall back to plain parsing.
+        self._apply_backend(
+            base_url=url, model=model, api_key=key, tool_grammar="off"
+        )
+
+    def _apply_backend(self, base_url: str, model: str, api_key: str, tool_grammar: str):
+        """Persist backend settings, rebuild the adapter, and report health."""
+        try:
+            self.config.save_value("scribe", "base_url", base_url)
+            self.config.save_value("scribe", "model", model)
+            self.config.save_value("scribe", "api_key", api_key)
+            target = self.config.save_value("scribe", "tool_grammar", tool_grammar)
+            saved = f"[dim]saved to {target}[/dim]"
+        except Exception as e:
+            saved = f"[dim]session only (could not save: {e})[/dim]"
+
+        # Rebuild the adapter from the updated config so the next turn uses it.
+        self.adapter = LLMAdapter.from_config(self.config)
+        self.context["server"] = self.config.base_url
+        self.context["model"] = self.config.model
+
+        if self.adapter.is_healthy():
+            name = self.adapter.get_model_name()
+            health = f"[success]✓[/success] Connected to [green]{name}[/green]"
+        else:
+            health = "[warning]⚠[/warning] Saved, but the server is not reachable yet."
+
+        self.console.print(Panel(
+            f"[scribe]✶[/scribe] Backend set to [accent]{base_url}[/accent]\n"
+            f"{health}\n{saved}",
+            border_style="scribe", box=ROUNDED, padding=(0, 2),
+        ))
 
     def _toggle_reasoning(self, arg: str = ""):
         """
@@ -935,24 +1043,34 @@ class ScribeTUI:
         return fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS
 
     def _show_help(self):
-        """Show help message."""
-        help_text = """
-**Commands:**
-
-`/help` — Show this help
-`/quit` — Exit Scribe
-`/clear` — Clear screen
-`/session` — Show current session
-`/skills` — List available skills
-`/memory` — Show memory stats
-`/status` — Show system status
-`/permissions` — Show/allow file access outside the workspace
-`/code` — Enter Scribe Code (terminal expert, full bash access)
-`/chat` — Leave code mode, back to normal chat
-`/theme` — List or switch color theme (e.g. /theme dracula)
-`/reasoning` — Thinking on/off/auto (e.g. /reasoning auto)
-        """
-        self.console.print(Markdown(help_text))
+        """Show help. Command names stand out; explanations stay dim."""
+        commands = [
+            ("/models", "Switch backend: local llama.cpp or an OpenAI-compatible API"),
+            ("/reasoning", "Thinking on/off/auto (e.g. /reasoning auto)"),
+            ("/code", "Enter Scribe Code (terminal expert, full bash access)"),
+            ("/chat", "Leave code mode, back to normal chat"),
+            ("/theme", "List or switch color theme (e.g. /theme dracula)"),
+            ("/permissions", "Show/allow file access outside the workspace"),
+            ("/status", "Show system status"),
+            ("/session", "Show current session"),
+            ("/skills", "List available skills"),
+            ("/memory", "Show memory stats"),
+            ("/clear", "Clear screen"),
+            ("/help", "Show this help"),
+            ("/quit", "Exit Scribe"),
+        ]
+        width = max(len(name) for name, _ in commands)
+        lines = [
+            f"[accent]{name.ljust(width)}[/accent]  [dim]{desc}[/dim]"
+            for name, desc in commands
+        ]
+        self.console.print(Panel(
+            "\n".join(lines),
+            title="[scribe]Commands[/scribe]",
+            border_style="scribe",
+            box=ROUNDED,
+            padding=(1, 2),
+        ))
 
     def _show_session_info(self):
         """Show current session information."""
