@@ -270,13 +270,13 @@ class TestReasoningDefaults:
 
         prompt = get_system_prompt(reasoning=False)
         assert "Do NOT produce a <think> block" in prompt
-        assert "OBSERVATION" not in prompt  # no Peirce chain instructions
+        assert "How you think" not in prompt  # no reasoning instructions
 
     def test_native_prompt_when_reasoning_on(self):
         from scribe.prompts import get_system_prompt
 
         prompt = get_system_prompt(reasoning=True)
-        assert "OBSERVATION" in prompt
+        assert "How you think (reasoning only)" in prompt
         assert "Start your output now" not in prompt  # not the forced variant
 
     def test_forced_prompt_when_reasoning_on_prompt_mode(self):
