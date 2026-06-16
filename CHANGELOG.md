@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-16
+
+### Added
+- **PDF ingestion for RAG** (`pypdf`): `scribe rag` can now extract text from
+  `.pdf` files. Added `pypdf` to the dependencies.
+
+### Fixed
+- **`scribe --version` now reports the real version.** `__version__` is read
+  from the installed distribution metadata (`scribe-llm`) instead of a
+  hard-coded string that had drifted to `0.3.0`.
+- **Robust RAG chunking** (`memory/rag.py`): oversized paragraphs are split
+  recursively (by line, then by word) so no chunk can exceed the size limit.
+
 ## [0.4.1] - 2026-06-16
 
 ### Fixed
