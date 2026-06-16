@@ -4,7 +4,7 @@ name: Publish to PyPI
 # Uses PyPI Trusted Publishing (OIDC) — no API token is stored in the repo.
 #
 # One-time setup on PyPI (https://pypi.org/manage/account/publishing/):
-#   Add a "pending publisher" for project `scribeai` with:
+#   Add a "pending publisher" for project `scribe-llm` with:
 #     Owner:           pedjaurosevic
 #     Repository:      scribe-ai
 #     Workflow name:   publish.yml
