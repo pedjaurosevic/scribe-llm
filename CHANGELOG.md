@@ -6,6 +6,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-16
+
+### Added
+- **Workspace file explorer in Scribe Web.** The left pane now shows a real
+  VSCode-style file tree of `~/scribe-workspace`: folders expand lazily, a
+  click opens a file in the middle editor, and edits auto-save back. New
+  endpoints `GET /api/files`, `GET /api/file`, `PUT /api/file`, all confined
+  to the workspace through `fs._safe_path` (path traversal is rejected). The
+  Documents / Books section is kept below the tree.
+- **Model backend switcher in Scribe Web** (`⚙` in the top bar). Choose a
+  local **llama.cpp** server or any **OpenAI-compatible API** (base URL, model,
+  API key) from a modal; `GET`/`POST /api/backend` persist the choice and
+  rebuild the adapter live — the web mirror of the TUI `/models` command.
+
+### Changed
+- **Softer accent color.** The intense greens (`#4ec9b0`, `#50fa7b`) are
+  replaced by a soft pale turquoise-green (`#8fd1c0`) across the editor and
+  chat UIs — accent, buttons, status dot, terminal cursor and gutters.
+- The web chat can now write into an open workspace file, not only documents.
+
 ## [0.5.0] - 2026-06-16
 
 ### Added
