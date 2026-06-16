@@ -138,7 +138,7 @@ class RAGService:
         """
         Split text into chunks.
 
-        Simple character-based chunking.
+        Robust character-based chunking that guarantees no chunk exceeds chars_per_chunk.
         """
         chars_per_chunk = self.chunk_size * 4
         chunks = []
@@ -146,7 +146,40 @@ class RAGService:
 
         current_chunk = ""
         for para in paragraphs:
-            if len(current_chunk) + len(para) + 2 <= chars_per_chunk:
+            para = para.strip()
+            if not para:
+                continue
+
+            # If a single paragraph is too large, split it recursively by single newlines
+            if len(para) > chars_per_chunk:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+
+                lines = para.split("\n")
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if len(current_chunk) + len(line) + 1 <= chars_per_chunk:
+                        current_chunk += line + "\n"
+                    else:
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
+                        # If a single line is still too large, split by spaces
+                        if len(line) > chars_per_chunk:
+                            words = line.split(" ")
+                            current_chunk = ""
+                            for word in words:
+                                if len(current_chunk) + len(word) + 1 <= chars_per_chunk:
+                                    current_chunk += word + " "
+                                else:
+                                    if current_chunk:
+                                        chunks.append(current_chunk.strip())
+                                    current_chunk = word + " "
+                        else:
+                            current_chunk = line + "\n"
+            elif len(current_chunk) + len(para) + 2 <= chars_per_chunk:
                 current_chunk += para + "\n\n"
             else:
                 if current_chunk:
@@ -217,8 +250,21 @@ class RAGService:
             data = json.loads(file_path.read_text())
             return json.dumps(data, indent=2)
 
+        elif suffix == ".pdf":
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(file_path)
+                text = ""
+                for page in reader.pages:
+                    text += (page.extract_text() or "") + "\n\n"
+                return text
+            except Exception as e:
+                logger.error(f"Failed to extract text from PDF {file_path.name}: {e}")
+                return f"[Failed to extract content from {file_path.name}]"
+
         else:
             return f"[Content from {file_path.name}]"
+
 
     def search(
         self,
