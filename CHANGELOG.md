@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-16
+
+### Added
+- **`/models` command in the chat TUI.** Switch the model backend without
+  restarting: pick a local **llama.cpp** server (GBNF tool grammar, no API
+  key) or any **OpenAI-compatible API** (OpenRouter, Groq, DeepSeek, ...) by
+  entering a base URL, model id and API key. The choice is saved to the user
+  config and the adapter is rebuilt live. Supports `/models`, `/models local`
+  and `/models api`.
+
+### Changed
+- **Clearer command help.** `/help` now renders command names in the accent
+  color with dimmed, aligned explanations, and the welcome banner hints at
+  `/help` and `/models`.
+
 ## [0.4.2] - 2026-06-16
 
 ### Added
