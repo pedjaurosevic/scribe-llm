@@ -55,9 +55,9 @@ Three properties that hold by construction, not by prompt-tuning:
 
 ### From PyPI
 ```bash
-pip install scribeai        # provides the `scribe` command
+pip install scribe-llm       # provides the `scribe` command
 ```
-> The distribution is named `scribeai` (the import package stays `scribe`).
+> The PyPI distribution is named `scribe-llm` (the import package and CLI stay `scribe`).
 
 ### From source (🐧 Linux)
 ```bash
