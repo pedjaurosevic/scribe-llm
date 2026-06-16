@@ -3,197 +3,322 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Scribe — local agent with grammar-enforced tool calls and measured grounding</title>
-<meta name="description" content="Scribe is a local-first TUI agent for any OpenAI-compatible server. On llama.cpp it constrains tool calls with a GBNF grammar (malformed calls are impossible), grounds answers in cited sources, and reports a deterministic grounding score (SPI).">
+<title>Scribe - local-first agent for research, writing, and coding</title>
+<meta name="description" content="Scribe is a local-first research, writing, and coding agent for OpenAI-compatible model servers. It supports local llama.cpp, Ollama, LM Studio, and cloud API providers.">
 <style>
   :root{
-    --bg:#1d2021; --bg2:#282828; --fg:#ebdbb2; --dim:#a89984;
-    --accent:#fabd2f; --accent2:#83a598; --green:#b8bb26; --border:#3c3836;
+    --bg:#ffffff;
+    --canvas:#f6f8fa;
+    --fg:#24292f;
+    --muted:#57606a;
+    --subtle:#6e7781;
+    --border:#d0d7de;
+    --border-muted:#d8dee4;
+    --accent:#0969da;
+    --accent-dark:#0550ae;
+    --success:#1a7f37;
+    --done:#8250df;
+    --danger:#cf222e;
+    --code-bg:#0d1117;
+    --code-fg:#c9d1d9;
+    --shadow:0 1px 2px rgba(27,31,36,.04);
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--bg);color:var(--fg);line-height:1.6}
-  a{color:var(--accent2);text-decoration:none}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--fg);
+    line-height:1.5;
+    font-size:16px;
+  }
+  a{color:var(--accent);text-decoration:none}
   a:hover{text-decoration:underline}
-  .wrap{max-width:860px;margin:0 auto;padding:0 24px}
-  header{padding:80px 0 50px;text-align:center;border-bottom:1px solid var(--border)}
-  h1{font-size:3.2rem;margin:0;letter-spacing:-1px}
-  h1 .dot{color:var(--accent)}
-  .tag{font-size:1.25rem;color:var(--dim);margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto}
-  .cta{margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
-  .btn{display:inline-block;padding:12px 24px;border-radius:8px;font-weight:600;
-    background:var(--accent);color:#1d2021;border:1px solid var(--accent)}
-  .btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
-  .btn:hover{text-decoration:none;opacity:.92}
-  .lang{margin-top:18px;font-size:.9rem;color:var(--dim)}
-  section{padding:54px 0;border-bottom:1px solid var(--border)}
-  h2{font-size:1.7rem;margin:0 0 24px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px}
-  .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px}
-  .card h3{margin:0 0 8px;font-size:1.05rem;color:var(--accent)}
-  .card p{margin:0;color:var(--dim);font-size:.95rem}
-  pre{background:var(--bg2);border:1px solid var(--border);border-radius:10px;
-    padding:18px;overflow-x:auto;font-size:.9rem}
-  code{font-family:"SFMono-Regular",Consolas,monospace}
-  pre code{color:var(--green)}
-  .arch{white-space:pre;font-family:monospace;color:var(--dim);font-size:.82rem;line-height:1.35}
-  footer{padding:40px 0;text-align:center;color:var(--dim);font-size:.9rem}
-  ul.checks{list-style:none;padding:0}
-  ul.checks li{padding:6px 0}
-  ul.checks li::before{content:"▸ ";color:var(--accent)}
-  .claim{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);
-    border-radius:10px;padding:20px 22px;margin-bottom:16px}
-  .claim h3{margin:0 0 6px;font-size:1.1rem;color:var(--accent)}
-  .claim .n{color:var(--accent2);font-weight:700;margin-right:8px}
-  .claim p{margin:0;color:var(--fg)}
-  .claim .how{display:block;margin-top:8px;color:var(--dim);font-size:.9rem}
-  .note{color:var(--dim);font-size:.9rem;margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+  code,pre{font-family:ui-monospace,SFMono-Regular,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+  code{background:rgba(175,184,193,.2);border-radius:6px;padding:.12em .34em;font-size:.88em}
+  .container{max-width:1120px;margin:0 auto;padding:0 24px}
+  .topbar{
+    position:sticky;
+    top:0;
+    z-index:10;
+    background:rgba(255,255,255,.92);
+    border-bottom:1px solid var(--border-muted);
+    backdrop-filter:blur(10px);
+  }
+  .nav{display:flex;align-items:center;justify-content:space-between;min-height:64px;gap:18px}
+  .brand{display:flex;align-items:center;gap:10px;color:var(--fg);font-weight:650}
+  .brand-mark{
+    width:32px;height:32px;border:1px solid var(--border);border-radius:6px;
+    display:grid;place-items:center;background:var(--canvas);color:var(--accent);
+    font-weight:800;box-shadow:var(--shadow)
+  }
+  .nav-links{display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:14px}
+  .nav-links a{color:var(--muted)}
+  .hero{background:linear-gradient(180deg,#ffffff 0%,#f6f8fa 100%);border-bottom:1px solid var(--border-muted)}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,.95fr);gap:40px;align-items:center;padding:64px 0}
+  .eyebrow{display:flex;align-items:center;gap:8px;color:var(--success);font-size:14px;font-weight:600;margin-bottom:14px}
+  .dot{width:8px;height:8px;border-radius:999px;background:var(--success);display:inline-block}
+  h1{font-size:48px;line-height:1.08;margin:0 0 16px;letter-spacing:0;font-weight:750}
+  .lead{font-size:20px;color:var(--muted);max-width:680px;margin:0 0 24px}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    min-height:40px;padding:8px 16px;border-radius:6px;border:1px solid var(--border);
+    font-weight:600;font-size:14px;color:var(--fg);background:#fff;box-shadow:var(--shadow)
+  }
+  .btn:hover{text-decoration:none;background:var(--canvas)}
+  .btn.primary{background:var(--success);border-color:rgba(27,31,36,.15);color:#fff}
+  .btn.primary:hover{background:#116329}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--subtle);font-size:14px}
+  .terminal{
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+    background:var(--code-bg);
+    box-shadow:0 8px 24px rgba(140,149,159,.2);
+  }
+  .terminal-head{
+    display:flex;align-items:center;gap:7px;padding:10px 12px;
+    background:#161b22;border-bottom:1px solid #30363d;color:#8b949e;font-size:12px
+  }
+  .light{width:10px;height:10px;border-radius:999px;background:#30363d}
+  .terminal pre{margin:0;padding:18px;overflow:auto;color:var(--code-fg);font-size:13px;line-height:1.55}
+  .terminal .prompt{color:#7ee787}
+  .terminal .comment{color:#8b949e}
+  section{padding:52px 0;border-bottom:1px solid var(--border-muted)}
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:20px}
+  h2{font-size:26px;line-height:1.25;margin:0;font-weight:700}
+  .section-note{color:var(--muted);max-width:700px;margin:8px 0 0}
+  .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .card{
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:#fff;
+    padding:18px;
+    box-shadow:var(--shadow);
+  }
+  .card h3{margin:0 0 8px;font-size:16px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .label{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:3px 9px;font-size:12px;font-weight:600;margin-bottom:12px;background:var(--canvas)}
+  .label.blue{color:var(--accent)}
+  .label.green{color:var(--success)}
+  .label.purple{color:var(--done)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .panel{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden;box-shadow:var(--shadow)}
+  .panel h3{margin:0;padding:14px 16px;border-bottom:1px solid var(--border-muted);font-size:16px;background:var(--canvas)}
+  .panel pre{margin:0;padding:16px;overflow:auto;background:#fff;color:var(--fg);font-size:13px;line-height:1.55}
+  .panel code{background:transparent;padding:0}
+  .table{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+  .row{display:grid;grid-template-columns:210px 1fr;border-bottom:1px solid var(--border-muted)}
+  .row:last-child{border-bottom:0}
+  .cell{padding:13px 16px;font-size:14px}
+  .cell.key{font-weight:600;background:var(--canvas)}
+  .cell.value{color:var(--muted)}
+  .commands{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .command{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:#fff}
+  .command code{background:transparent;padding:0;color:var(--fg);font-weight:600}
+  .command span{color:var(--muted);font-size:13px;text-align:right}
+  .callout{border:1px solid #bf8700;border-left:4px solid #bf8700;background:#fff8c5;border-radius:8px;padding:16px;color:#3b2300}
+  footer{padding:34px 0;color:var(--muted);font-size:14px}
+  .footer-line{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  @media (max-width:860px){
+    .hero-grid,.split{grid-template-columns:1fr}
+    .grid{grid-template-columns:1fr}
+    h1{font-size:36px}
+    .lead{font-size:18px}
+    .nav{align-items:flex-start;flex-direction:column;padding:12px 0}
+    .commands{grid-template-columns:1fr}
+    .row{grid-template-columns:1fr}
+    .cell.key{border-bottom:1px solid var(--border-muted)}
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <h1>Scribe<span class="dot">.</span></h1>
-    <p class="tag">A local-first TUI agent for <strong>any</strong> OpenAI-compatible server.
-      On llama.cpp it constrains tool calls with a grammar, grounds answers in cited
-      sources, and reports a deterministic grounding score you can reproduce.</p>
-    <div class="cta">
-      <a class="btn" href="https://github.com/pedjaurosevic/scribe-ai">View on GitHub</a>
-      <a class="btn ghost" href="#guarantees">How it works</a>
+<div class="topbar">
+  <div class="container nav">
+    <a class="brand" href="#">
+      <span class="brand-mark">S</span>
+      <span>Scribe</span>
+    </a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a href="#install">Install</a>
+      <a href="#providers">Providers</a>
+      <a href="#features">Features</a>
+      <a href="#commands">Commands</a>
+      <a href="providers.md">Docs</a>
+      <a href="https://github.com/pedjaurosevic/scribe-ai">GitHub</a>
+      <a href="index.zh.html">简体中文</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="container hero-grid">
+    <div>
+      <div class="eyebrow"><span class="dot"></span> Local-first, OpenAI-compatible agent</div>
+      <h1>Scribe helps you research, write, and work with code from a local workspace.</h1>
+      <p class="lead">Use Scribe with a local llama.cpp, Ollama, or LM Studio server, or point it at a cloud API on weaker hardware. It keeps sessions, files, RAG, and memory in plain local folders.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/pedjaurosevic/scribe-ai">View on GitHub</a>
+        <a class="btn" href="#install">Install</a>
+        <a class="btn" href="providers.md">Provider guide</a>
+      </div>
+      <div class="meta">
+        <span>MIT License</span>
+        <span>Python 3.10+</span>
+        <span>CLI + TUI + Web UI</span>
+      </div>
     </div>
-    <p class="lang">🌐 English · <a href="index.zh.html">简体中文</a></p>
+    <div class="terminal" aria-label="Scribe terminal preview">
+      <div class="terminal-head">
+        <span class="light"></span><span class="light"></span><span class="light"></span>
+        <span>scribe quick start</span>
+      </div>
+<pre><code><span class="prompt">$</span> git clone https://github.com/pedjaurosevic/scribe-ai.git
+<span class="prompt">$</span> cd scribe-ai && ./scripts/install.sh
+<span class="prompt">$</span> scribe config show
+base_url: http://127.0.0.1:18083/v1
+workspace: ~/scribe-workspace
+
+<span class="prompt">$</span> scribe chat
+<span class="comment"># Work with files, sessions, RAG, and tools
+# inside your local Scribe workspace.</span></code></pre>
+    </div>
   </div>
 </header>
 
-<section id="guarantees">
-  <div class="wrap">
-    <h2>How it works</h2>
-
-    <div class="claim">
-      <h3><span class="n">1</span>Tool calls are grammar-constrained</h3>
-      <p>Scribe generates a GBNF grammar from your tool schemas and passes it with the
-        request. llama.cpp then masks every token that would violate it, so the output
-        can only be a well-formed call: a real tool name, the required arguments, valid
-        JSON. A malformed call has zero probability of being sampled, not just a low one.
-        If a model emits a bad call without the grammar, that one request is retried with
-        it attached.</p>
-      <span class="how">Constrained decoding (GBNF) is a known llama.cpp feature; what's
-        specific here is generating the grammar from the tool schemas and using it as an
-        automatic repair path. It constrains the call's <em>form</em> — the model can
-        still pick the wrong tool, it just can't emit a malformed one.</span>
+<section id="install">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h2>Install from GitHub or PyPI</h2>
+        <p class="section-note">The GitHub install is editable, so a later <code>git pull</code> updates the same checkout. The install script also creates <code>~/.config/scribe/config.toml</code> and <code>~/scribe-workspace</code>.</p>
+      </div>
     </div>
-
-    <div class="claim">
-      <h3><span class="n">2</span>Answers cite sources, or decline</h3>
-      <p>In grounded Q&amp;A, retrieved chunks are passed as numbered sources and the
-        prompt requires a <code>[n]</code> citation per claim. Conflicting sources get a
-        <code>[CONTRADICTION]</code> tag; a question the sources don't cover gets a
-        refusal instead of an invented answer.</p>
-      <span class="how">Retrieval is hybrid: SQLite FTS5 (exact terms, identifiers) and
-        vector search (paraphrase) fused with Reciprocal Rank Fusion, so both kinds of
-        match surface.</span>
-    </div>
-
-    <div class="claim">
-      <h3><span class="n">3</span>Grounding has a number</h3>
-      <p><code>scribe bench</code> computes a <strong>Source-Presence Index (SPI)</strong>
-        over a checksum-locked held-out suite: citation coverage on answerable tasks,
-        correct refusal on impossible ones. It's deterministic — no LLM judge — so it
-        reproduces. Gemma 4 12B scores SPI 1.00 on the shipped suite; run it on yours.</p>
-      <span class="how">The suite is small and authored in-repo: treat it as a regression
-        gate, not an independent benchmark. The point is that the metric is reproducible
-        and runs on your own model and data.</span>
-    </div>
-
-    <p class="note">Scope, stated plainly: GBNF and constrained decoding date to 2023 in
-      llama.cpp and exist elsewhere as "structured outputs" — the technique isn't new, the
-      integration is. Points 1–3 hold on a llama.cpp backend; Ollama, LM Studio and cloud
-      APIs fall back to a best-effort text parser without the hard guarantee.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>What it does</h2>
-    <div class="grid">
-      <div class="card"><h3>Universal LLM adapter</h3><p>Point it at any OpenAI-compatible endpoint — local llama.cpp, Ollama, LM Studio, or remote. <code>scribe discover</code> finds them.</p></div>
-      <div class="card"><h3>Safe code mode</h3><p><code>/code</code> with a destructive-command gate, a Python AST gate, a bubblewrap sandbox, and git checkpoint / rollback.</p></div>
-      <div class="card"><h3>Cross-session memory</h3><p>SME (Semantic Memory Engine) recalls your last session, and a WorldModel persona keeps the agent's identity stable across runs.</p></div>
-      <div class="card"><h3>Open Knowledge Format</h3><p><code>scribe wiki distill</code> curates sessions into <a href="open-knowledge-format.md">OKF</a> markdown — frontmatter + links in your git repo. SME/RAG are just derived indexes over the files. Portable, open, no SDK.</p></div>
-      <div class="card"><h3>Book Studio (web)</h3><p>A dark, VSCode-style web studio for writing books with your local model: three resizable panes, an integrated terminal, model-drafted chapters, and EPUB / PDF / Markdown export.</p></div>
-      <div class="card"><h3>Hybrid RAG over your docs</h3><p>FTS5 + local embeddings (multilingual-e5) fused with RRF — exact identifiers and paraphrase both retrieve.</p></div>
-      <div class="card"><h3>Observability</h3><p>Deterministic ORORO session traces and a machine-readable <code>scribe status --json</code> contract.</p></div>
-      <div class="card"><h3>Rich TUI &amp; web UI</h3><p>A terminal interface (Rich + Textual) and a streaming FastAPI web chat with login.</p></div>
-      <div class="card"><h3>Project vaults</h3><p><code>scribe init</code> gives any directory its own isolated RAG / SME stores.</p></div>
-      <div class="card"><h3>Blind compare</h3><p><code>scribe compare</code> A/B tests two models on one prompt without telling you which is which — pick a local model honestly.</p></div>
-      <div class="card"><h3>Modular skills</h3><p>Deep-research, writer, and wiki-memory skills — drop in more as SKILL.md modules.</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="quickstart">
-  <div class="wrap">
-    <h2>Quick start</h2>
-<pre><code># 1. Clone &amp; install
-git clone https://github.com/pedjaurosevic/scribe-ai.git
+    <div class="split">
+      <div class="panel">
+        <h3>Source install</h3>
+<pre><code>git clone https://github.com/pedjaurosevic/scribe-ai.git
 cd scribe-ai
-./scripts/install.sh        # installs the package + config + ~/scribe-workspace
+./scripts/install.sh
+scribe --version</code></pre>
+      </div>
+      <div class="panel">
+        <h3>PyPI install</h3>
+<pre><code>python3 -m pip install scribe-llm
+scribe --help
+scribe chat</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
 
-# 2. Start your llama-server (or use any OpenAI-compatible endpoint)
-./scripts/start-server.sh
+<section id="providers">
+  <div class="container">
+    <h2>Run local, remote, or both</h2>
+    <p class="section-note">Scribe talks to OpenAI-compatible APIs. On llama.cpp it can use grammar-constrained tool calls; on cloud providers it falls back to regular tool-call/text parsing.</p>
+    <div class="grid" style="margin-top:20px">
+      <div class="card">
+        <span class="label green">Local</span>
+        <h3>llama.cpp</h3>
+        <p>Good for private work, local files, and long-context setups. Default endpoint is <code>http://127.0.0.1:18083/v1</code>.</p>
+      </div>
+      <div class="card">
+        <span class="label blue">Desktop</span>
+        <h3>Ollama or LM Studio</h3>
+        <p>Use a smaller model locally, or test Scribe without running a custom server. Set <code>base_url</code> and <code>model</code>.</p>
+      </div>
+      <div class="card">
+        <span class="label purple">Cloud</span>
+        <h3>OpenRouter, Groq, DeepSeek</h3>
+        <p>Useful on weaker machines. Keep the API key in <code>SCRIBE_API_KEY</code>, not in a committed config file.</p>
+      </div>
+    </div>
+    <div class="split" style="margin-top:18px">
+      <div class="panel">
+        <h3>Config file</h3>
+<pre><code>[scribe]
+base_url = "https://api.deepseek.com"
+model = "your-deepseek-model"
+api_key = "use-env-instead"
+reasoning = false
+tool_grammar = "off"</code></pre>
+      </div>
+      <div class="panel">
+        <h3>Environment</h3>
+<pre><code>export SCRIBE_BASE_URL="https://api.deepseek.com"
+export SCRIBE_MODEL="your-deepseek-model"
+export SCRIBE_API_KEY="..."
+scribe chat</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
 
-# 3. Find your model server, then chat
-scribe discover             # scan local ports (+ --tailscale)
-scribe chat                 # … or: scribe web  → http://localhost:8765
-
-# 4. See the grounding number for yourself
-scribe bench                # judge-scored fitness + deterministic SPI</code></pre>
-    <p style="color:var(--dim)">Configure the endpoint in <code>~/.config/scribe/config.toml</code> or via
-      <code>SCRIBE_BASE_URL</code> / <code>SCRIBE_MODEL</code> env vars.</p>
+<section id="features">
+  <div class="container">
+    <h2>What Scribe includes</h2>
+    <p class="section-note">The project is a practical agent stack: model adapter, session manager, local tools, RAG, semantic memory, and a web writing studio.</p>
+    <div class="grid" style="margin-top:20px">
+      <div class="card"><h3>Workspace file tools</h3><p>The agent reads and writes inside a configured workspace directory, with scoped file operations.</p></div>
+      <div class="card"><h3>Research workflows</h3><p>Web search, web fetch, source-grounded answers, contradiction tags, and citation-oriented prompts.</p></div>
+      <div class="card"><h3>Hybrid RAG</h3><p>SQLite FTS5 plus vector search with multilingual embeddings, combined with reciprocal rank fusion.</p></div>
+      <div class="card"><h3>Semantic memory</h3><p>Cross-session recall through SME and a durable WorldModel for persistent context.</p></div>
+      <div class="card"><h3>Code mode</h3><p>Command gates, Python AST checks, sandbox support, and git checkpoints for safer local changes.</p></div>
+      <div class="card"><h3>Book Studio</h3><p>A localhost web editor for chapters, outlines, terminal work, and Markdown/PDF/EPUB export.</p></div>
+    </div>
   </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <h2>Architecture</h2>
-    <div class="arch">┌─────────────────────────────────────────┐
-│              SCRIBE TUI / WEB            │
-│        Rich · Textual · FastAPI          │
-├─────────────────────────────────────────┤
-│              CORE KERNEL                 │
-│  Session · Skills · WorldModel · Traces  │
-├─────────────────────────────────────────┤
-│           LLM ADAPTER LAYER              │
-│  OpenAI-compatible · GBNF tool grammar   │
-│      · reasoning gate · discovery        │
-├─────────────────────────────────────────┤
-│             MEMORY LAYER                 │
-│  SME (cross-session) · hybrid RAG (RRF)  │
-│        FTS5 + vectors · grounding        │
-├─────────────────────────────────────────┤
-│              TOOLS LAYER                 │
-│  web · fs · bash · sandbox · checkpoint  │
-├─────────────────────────────────────────┤
-│            QUALITY GATE                  │
-│   scribe bench · SPI · fitness suite     │
-└─────────────────────────────────────────┘</div>
+  <div class="container">
+    <h2>Project status</h2>
+    <p class="section-note">Scribe is usable, but it is still an alpha project. The site should make the boundaries clear instead of overselling them.</p>
+    <div class="table" style="margin-top:20px">
+      <div class="row">
+        <div class="cell key">Best supported backend</div>
+        <div class="cell value">llama.cpp with OpenAI-compatible server endpoints.</div>
+      </div>
+      <div class="row">
+        <div class="cell key">Cloud API support</div>
+        <div class="cell value">Works with OpenAI-compatible providers through <code>base_url</code>, <code>model</code>, and <code>api_key</code>.</div>
+      </div>
+      <div class="row">
+        <div class="cell key">Hard tool-call guarantee</div>
+        <div class="cell value">Only on llama.cpp with GBNF grammar support. Other backends use best-effort parsing.</div>
+      </div>
+      <div class="row">
+        <div class="cell key">Workspace data</div>
+        <div class="cell value">Local by default. Your sessions and documents are not committed to the source repo.</div>
+      </div>
+    </div>
   </div>
 </section>
 
-<section>
-  <div class="wrap">
-    <h2>Philosophy</h2>
-    <ul class="checks">
-      <li><strong>Language games</strong> — explicit command vocabularies so the model knows exactly what each action means.</li>
-      <li><strong>Reasoning stays hidden</strong> — when enabled, step-by-step thinking runs inside a <code>&lt;think&gt;</code> block and never leaks into the answer; Scribe answers directly by default.</li>
-    </ul>
+<section id="commands">
+  <div class="container">
+    <h2>Common commands</h2>
+    <div class="commands" style="margin-top:20px">
+      <div class="command"><code>scribe chat</code><span>interactive terminal chat</span></div>
+      <div class="command"><code>scribe web</code><span>localhost Book Studio</span></div>
+      <div class="command"><code>scribe discover</code><span>find local model servers</span></div>
+      <div class="command"><code>scribe status --json</code><span>machine-readable status</span></div>
+      <div class="command"><code>scribe rag search</code><span>search indexed documents</span></div>
+      <div class="command"><code>scribe init</code><span>create a project vault</span></div>
+      <div class="command"><code>scribe compare</code><span>blind A/B model test</span></div>
+      <div class="command"><code>scribe bench</code><span>quality and grounding checks</span></div>
+    </div>
+    <div class="callout" style="margin-top:18px">
+      Keep cloud API keys in environment variables or a local config that is not committed. The source repo is public; your workspace and secrets are local state.
+    </div>
   </div>
 </section>
 
 <footer>
-  <div class="wrap">
-    Scribe — MIT licensed · built by <a href="https://github.com/pedjaurosevic">Pedja Urosevic</a> ·
-    <a href="https://github.com/pedjaurosevic/scribe-ai">source</a>
+  <div class="container footer-line">
+    <span>Scribe - MIT licensed - built by <a href="https://github.com/pedjaurosevic">Pedja Urosevic</a></span>
+    <span><a href="https://github.com/pedjaurosevic/scribe-ai">Source</a> | <a href="providers.md">Providers</a> | <a href="open-knowledge-format.md">Open Knowledge Format</a></span>
   </div>
 </footer>
 </body>
