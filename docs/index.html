@@ -5,10 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scribe - local-first agent for research, writing, and coding</title>
 <meta name="description" content="Scribe is a local-first research, writing, and coding agent for OpenAI-compatible model servers. It supports local llama.cpp, Ollama, LM Studio, and cloud API providers.">
+<script>
+  (() => {
+    try {
+      const saved = localStorage.getItem("scribe-theme");
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme =
+        saved === "light" || saved === "dark" ? saved : systemDark ? "dark" : "light";
+    } catch {
+      document.documentElement.dataset.theme = "light";
+    }
+  })();
+</script>
 <style>
   :root{
+    color-scheme:light;
     --bg:#ffffff;
     --canvas:#f6f8fa;
+    --surface:#ffffff;
     --fg:#24292f;
     --muted:#57606a;
     --subtle:#6e7781;
@@ -21,7 +35,36 @@
     --danger:#cf222e;
     --code-bg:#0d1117;
     --code-fg:#c9d1d9;
+    --topbar-bg:rgba(255,255,255,.92);
+    --hero-bg:linear-gradient(180deg,#ffffff 0%,#f6f8fa 100%);
+    --warning-bg:#fff8c5;
+    --warning-border:#bf8700;
+    --warning-fg:#3b2300;
     --shadow:0 1px 2px rgba(27,31,36,.04);
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0d1117;
+    --canvas:#161b22;
+    --surface:#0d1117;
+    --fg:#e6edf3;
+    --muted:#8b949e;
+    --subtle:#7d8590;
+    --border:#30363d;
+    --border-muted:#21262d;
+    --accent:#58a6ff;
+    --accent-dark:#79c0ff;
+    --success:#3fb950;
+    --done:#a371f7;
+    --danger:#f85149;
+    --code-bg:#010409;
+    --code-fg:#e6edf3;
+    --topbar-bg:rgba(13,17,23,.9);
+    --hero-bg:linear-gradient(180deg,#0d1117 0%,#161b22 100%);
+    --warning-bg:#2d2200;
+    --warning-border:#9e6a03;
+    --warning-fg:#f0d98c;
+    --shadow:0 1px 2px rgba(1,4,9,.5);
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
@@ -42,11 +85,12 @@
     position:sticky;
     top:0;
     z-index:10;
-    background:rgba(255,255,255,.92);
+    background:var(--topbar-bg);
     border-bottom:1px solid var(--border-muted);
     backdrop-filter:blur(10px);
   }
   .nav{display:flex;align-items:center;justify-content:space-between;min-height:64px;gap:18px}
+  .nav-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:flex-end}
   .brand{display:flex;align-items:center;gap:10px;color:var(--fg);font-weight:650}
   .brand-mark{
     width:32px;height:32px;border:1px solid var(--border);border-radius:6px;
@@ -55,7 +99,17 @@
   }
   .nav-links{display:flex;align-items:center;gap:18px;flex-wrap:wrap;font-size:14px}
   .nav-links a{color:var(--muted)}
-  .hero{background:linear-gradient(180deg,#ffffff 0%,#f6f8fa 100%);border-bottom:1px solid var(--border-muted)}
+  .theme-toggle{
+    display:inline-flex;align-items:center;gap:8px;
+    min-height:32px;padding:5px 10px;border:1px solid var(--border);
+    border-radius:6px;background:var(--surface);color:var(--fg);
+    font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow)
+  }
+  .theme-toggle:hover{background:var(--canvas)}
+  .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .theme-icon{width:14px;height:14px;display:inline-block;border-radius:999px;background:var(--fg);box-shadow:inset -5px -5px 0 var(--surface)}
+  :root[data-theme="dark"] .theme-icon{box-shadow:inset -5px -5px 0 var(--accent);background:var(--fg)}
+  .hero{background:var(--hero-bg);border-bottom:1px solid var(--border-muted)}
   .hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(340px,.95fr);gap:40px;align-items:center;padding:64px 0}
   .eyebrow{display:flex;align-items:center;gap:8px;color:var(--success);font-size:14px;font-weight:600;margin-bottom:14px}
   .dot{width:8px;height:8px;border-radius:999px;background:var(--success);display:inline-block}
@@ -65,7 +119,7 @@
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:8px;
     min-height:40px;padding:8px 16px;border-radius:6px;border:1px solid var(--border);
-    font-weight:600;font-size:14px;color:var(--fg);background:#fff;box-shadow:var(--shadow)
+    font-weight:600;font-size:14px;color:var(--fg);background:var(--surface);box-shadow:var(--shadow)
   }
   .btn:hover{text-decoration:none;background:var(--canvas)}
   .btn.primary{background:var(--success);border-color:rgba(27,31,36,.15);color:#fff}
@@ -80,9 +134,9 @@
   }
   .terminal-head{
     display:flex;align-items:center;gap:7px;padding:10px 12px;
-    background:#161b22;border-bottom:1px solid #30363d;color:#8b949e;font-size:12px
+    background:var(--canvas);border-bottom:1px solid var(--border);color:var(--muted);font-size:12px
   }
-  .light{width:10px;height:10px;border-radius:999px;background:#30363d}
+  .light{width:10px;height:10px;border-radius:999px;background:var(--border)}
   .terminal pre{margin:0;padding:18px;overflow:auto;color:var(--code-fg);font-size:13px;line-height:1.55}
   .terminal .prompt{color:#7ee787}
   .terminal .comment{color:#8b949e}
@@ -94,7 +148,7 @@
   .card{
     border:1px solid var(--border);
     border-radius:8px;
-    background:#fff;
+    background:var(--surface);
     padding:18px;
     box-shadow:var(--shadow);
   }
@@ -105,21 +159,21 @@
   .label.green{color:var(--success)}
   .label.purple{color:var(--done)}
   .split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  .panel{border:1px solid var(--border);border-radius:8px;background:#fff;overflow:hidden;box-shadow:var(--shadow)}
+  .panel{border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
   .panel h3{margin:0;padding:14px 16px;border-bottom:1px solid var(--border-muted);font-size:16px;background:var(--canvas)}
-  .panel pre{margin:0;padding:16px;overflow:auto;background:#fff;color:var(--fg);font-size:13px;line-height:1.55}
+  .panel pre{margin:0;padding:16px;overflow:auto;background:var(--surface);color:var(--fg);font-size:13px;line-height:1.55}
   .panel code{background:transparent;padding:0}
-  .table{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+  .table{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
   .row{display:grid;grid-template-columns:210px 1fr;border-bottom:1px solid var(--border-muted)}
   .row:last-child{border-bottom:0}
   .cell{padding:13px 16px;font-size:14px}
   .cell.key{font-weight:600;background:var(--canvas)}
   .cell.value{color:var(--muted)}
   .commands{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .command{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:#fff}
+  .command{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--surface)}
   .command code{background:transparent;padding:0;color:var(--fg);font-weight:600}
   .command span{color:var(--muted);font-size:13px;text-align:right}
-  .callout{border:1px solid #bf8700;border-left:4px solid #bf8700;background:#fff8c5;border-radius:8px;padding:16px;color:#3b2300}
+  .callout{border:1px solid var(--warning-border);border-left:4px solid var(--warning-border);background:var(--warning-bg);border-radius:8px;padding:16px;color:var(--warning-fg)}
   footer{padding:34px 0;color:var(--muted);font-size:14px}
   .footer-line{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
   @media (max-width:860px){
@@ -128,6 +182,7 @@
     h1{font-size:36px}
     .lead{font-size:18px}
     .nav{align-items:flex-start;flex-direction:column;padding:12px 0}
+    .nav-right{align-items:flex-start;justify-content:flex-start}
     .commands{grid-template-columns:1fr}
     .row{grid-template-columns:1fr}
     .cell.key{border-bottom:1px solid var(--border-muted)}
@@ -141,15 +196,21 @@
       <span class="brand-mark">S</span>
       <span>Scribe</span>
     </a>
-    <nav class="nav-links" aria-label="Main navigation">
-      <a href="#install">Install</a>
-      <a href="#providers">Providers</a>
-      <a href="#features">Features</a>
-      <a href="#commands">Commands</a>
-      <a href="providers.md">Docs</a>
-      <a href="https://github.com/pedjaurosevic/scribe-ai">GitHub</a>
-      <a href="index.zh.html">简体中文</a>
-    </nav>
+    <div class="nav-right">
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="#install">Install</a>
+        <a href="#providers">Providers</a>
+        <a href="#features">Features</a>
+        <a href="#commands">Commands</a>
+        <a href="providers.md">Docs</a>
+        <a href="https://github.com/pedjaurosevic/scribe-ai">GitHub</a>
+        <a href="index.zh.html">简体中文</a>
+      </nav>
+      <button class="theme-toggle" type="button" id="themeToggle" aria-label="Switch to dark theme" aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true"></span>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -321,5 +382,33 @@ scribe chat</code></pre>
     <span><a href="https://github.com/pedjaurosevic/scribe-ai">Source</a> | <a href="providers.md">Providers</a> | <a href="open-knowledge-format.md">Open Knowledge Format</a></span>
   </div>
 </footer>
+<script>
+  (() => {
+    const root = document.documentElement;
+    const button = document.getElementById("themeToggle");
+    const label = document.getElementById("themeLabel");
+    const storageKey = "scribe-theme";
+
+    const preferredTheme = () => {
+      const saved = localStorage.getItem(storageKey);
+      if (saved === "light" || saved === "dark") return saved;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    };
+
+    const setTheme = (theme) => {
+      root.dataset.theme = theme;
+      localStorage.setItem(storageKey, theme);
+      const nextTheme = theme === "dark" ? "light" : "dark";
+      label.textContent = nextTheme === "dark" ? "Dark" : "Light";
+      button.setAttribute("aria-label", `Switch to ${nextTheme} theme`);
+      button.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+    };
+
+    setTheme(preferredTheme());
+    button.addEventListener("click", () => {
+      setTheme(root.dataset.theme === "dark" ? "light" : "dark");
+    });
+  })();
+</script>
 </body>
 </html>
