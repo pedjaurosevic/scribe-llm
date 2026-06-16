@@ -30,7 +30,13 @@ except ImportError:  # native Windows
 
 import uvicorn
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -294,6 +300,129 @@ async def print_view(doc_id: str, request: Request):
         "title": doc.get("title", "Untitled"),
         "markdown": store.assemble_markdown(doc_id),
     })
+
+
+# --- Workspace file explorer ---------------------------------------------
+# A real VSCode-style file tree of the workspace. Every path is resolved and
+# confined to WORKSPACE_DIR through fs._safe_path, so the browser can never
+# read or write outside the workspace.
+
+_TEXT_MAX = 2_000_000  # refuse to open files larger than ~2 MB in the editor
+
+
+def _list_dir(rel: str) -> list[dict]:
+    """List one directory level (folders first, then files), workspace-scoped."""
+    target = fs._safe_path(WORKSPACE_DIR, rel or ".")
+    if not target.is_dir():
+        raise fs.WorkspaceError(f"Not a directory: {rel}")
+    entries = []
+    for p in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+        if p.name.startswith("."):
+            continue  # hide dotfiles, like a clean explorer
+        entries.append({
+            "name": p.name,
+            "path": str(p.relative_to(WORKSPACE_DIR)),
+            "type": "dir" if p.is_dir() else "file",
+        })
+    return entries
+
+
+@app.get("/api/files")
+async def api_files(path: str = ""):
+    """List a workspace directory for the file tree (lazy, one level)."""
+    try:
+        return {"path": path, "entries": _list_dir(path)}
+    except (fs.WorkspaceError, OSError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/api/file")
+async def api_read_file(path: str):
+    """Read a workspace text file into the editor."""
+    try:
+        target = fs._safe_path(WORKSPACE_DIR, path)
+        if not target.is_file():
+            return JSONResponse({"error": "Not a file"}, status_code=404)
+        if target.stat().st_size > _TEXT_MAX:
+            return JSONResponse({"error": "File too large to open"}, status_code=413)
+        return {"path": path, "content": target.read_text(encoding="utf-8", errors="replace")}
+    except (fs.WorkspaceError, OSError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.put("/api/file")
+async def api_write_file(request: Request):
+    """Save the editor contents back to a workspace file."""
+    data = await request.json()
+    path = (data.get("path") or "").strip()
+    if not path:
+        return JSONResponse({"error": "Missing path"}, status_code=400)
+    try:
+        fs.write_file(WORKSPACE_DIR, path, data.get("content", ""))
+        return {"ok": True, "path": path}
+    except (fs.WorkspaceError, OSError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+# --- Model backend switcher (mirrors the TUI /models command) -------------
+
+
+@app.get("/api/backend")
+async def api_get_backend():
+    """Report the active model backend so the UI can show it."""
+    key = config.api_key
+    return {
+        "base_url": config.base_url,
+        "model": config.model,
+        "has_key": bool(key) and key not in ("not-needed", ""),
+        "healthy": adapter.is_healthy(),
+        "model_name": adapter.get_model_name(),
+    }
+
+
+@app.post("/api/backend")
+async def api_set_backend(request: Request):
+    """
+    Switch the model backend at runtime: a local llama.cpp server or any
+    OpenAI-compatible API. Persists to the user config and rebuilds the
+    adapter so the next chat turn uses it — no server restart.
+    """
+    global adapter
+    data = await request.json()
+    kind = (data.get("kind") or "").strip().lower()
+
+    if kind == "local":
+        base_url = (data.get("base_url") or "http://127.0.0.1:18083/v1").strip()
+        model, api_key, grammar = "default", "not-needed", "auto"
+    elif kind == "api":
+        base_url = (data.get("base_url") or "").strip()
+        model = (data.get("model") or "").strip()
+        if not base_url or not model:
+            return JSONResponse(
+                {"error": "API backend needs base_url and model"}, status_code=400
+            )
+        # Cloud endpoints do not support GBNF grammar; fall back to parsing.
+        api_key = (data.get("api_key") or "").strip() or "not-needed"
+        grammar = "off"
+    else:
+        return JSONResponse({"error": "kind must be 'local' or 'api'"}, status_code=400)
+
+    try:
+        config.save_value("scribe", "base_url", base_url)
+        config.save_value("scribe", "model", model)
+        config.save_value("scribe", "api_key", api_key)
+        config.save_value("scribe", "tool_grammar", grammar)
+    except Exception as e:
+        return JSONResponse({"error": f"Could not save config: {e}"}, status_code=500)
+
+    adapter = LLMAdapter.from_config(config)
+    return {
+        "ok": True,
+        "base_url": config.base_url,
+        "model": config.model,
+        "healthy": adapter.is_healthy(),
+        "model_name": adapter.get_model_name(),
+    }
 
 
 @app.get("/status")

@@ -18,14 +18,15 @@
             --bg-page: #1e1e1e;
             --border: #3c3c3c;
             --gutter: #2d2d2d;
-            --gutter-hover: #007acc;
+            --gutter-hover: #5a8f86;
             --text: #d4d4d4;
             --text-dim: #858585;
-            --accent: #4ec9b0;        /* teal */
+            --accent: #8fd1c0;        /* soft pale turquoise-green */
+            --accent-deep: #6fae9e;   /* slightly deeper, for borders/hover */
             --accent2: #569cd6;       /* blue */
             --warning: #dcdcaa;
             --error: #f48771;
-            --statusbar: #007acc;
+            --statusbar: #3f6f66;     /* muted teal status bar */
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; }
@@ -118,6 +119,58 @@
         }
         .toc-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+        /* Workspace file tree */
+        .tree { font-size: .82rem; }
+        .tree .node {
+            display: flex; align-items: center; gap: .3rem; padding: .22rem .4rem;
+            border-radius: 4px; cursor: pointer; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; color: var(--text);
+        }
+        .tree .node:hover { background: var(--bg-input); }
+        .tree .node.active { background: #094771; }
+        .tree .node .tw { width: .8rem; color: var(--text-dim); font-size: .65rem; flex: 0 0 auto; }
+        .tree .node .ico { color: var(--text-dim); font-size: .8rem; flex: 0 0 auto; }
+        .tree .node.dir > .ico { color: var(--accent); }
+        .tree .children { margin-left: .55rem; border-left: 1px solid var(--border); padding-left: .1rem; }
+
+        /* Model backend modal */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
+            align-items: center; justify-content: center; z-index: 50;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal {
+            width: 460px; max-width: 92vw; background: var(--bg-panel);
+            border: 1px solid var(--border); border-radius: 10px;
+            box-shadow: 0 12px 48px rgba(0,0,0,.5); overflow: hidden;
+        }
+        .modal-head {
+            padding: .8rem 1rem; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .modal-head .t { color: var(--accent); font-weight: 600; }
+        .modal-head button { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem; }
+        .modal-body { padding: 1rem; }
+        .modal-body .tabs { display: flex; gap: .4rem; margin-bottom: .9rem; }
+        .modal-body .tabs button {
+            flex: 1; background: var(--bg-input); color: var(--text-dim);
+            border: 1px solid var(--border); border-radius: 6px; padding: .45rem; cursor: pointer; font-size: .82rem;
+        }
+        .modal-body .tabs button.active { color: #08201b; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+        .modal-body label { display: block; font-size: .72rem; color: var(--text-dim); margin: .6rem 0 .2rem; }
+        .modal-body input {
+            width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); padding: .5rem .6rem; outline: none; font-size: .85rem; font-family: inherit;
+        }
+        .modal-body input:focus { border-color: var(--accent); }
+        .modal-body .hint { font-size: .7rem; color: var(--text-dim); margin-top: .35rem; line-height: 1.5; }
+        .modal-foot { padding: .8rem 1rem; border-top: 1px solid var(--border); display: flex; align-items: center; gap: .6rem; }
+        .modal-foot .cur { font-size: .72rem; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .modal-foot button.save {
+            background: var(--accent); color: #08201b; border: none; border-radius: 6px;
+            padding: .45rem 1rem; font-weight: 700; cursor: pointer; font-size: .82rem;
+        }
+
         /* Editor pane */
         .editor-pane { background: var(--bg); }
         .doc-toolbar { display: flex; align-items: center; gap: .4rem; width: 100%; }
@@ -198,7 +251,7 @@
             height: 22px; flex: 0 0 auto; background: var(--statusbar); color: #fff;
             display: flex; align-items: center; gap: 1rem; padding: 0 .8rem; font-size: .72rem;
         }
-        .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: #8ae234; display: inline-block; }
+        .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
         .statusbar .dot.offline { background: var(--error); }
         .statusbar .sp { margin-left: auto; }
     </style>
@@ -207,7 +260,7 @@
     <div class="topbar">
         <span class="brand">✦ Scribe Book Studio</span>
         <div class="right">
-            <span>{{ model_name }}</span>
+            <a href="#" onclick="openBackend();return false;" title="Izaberi model / backend">⚙ <span id="topModel">{{ model_name }}</span></a>
             <a href="#" onclick="resetLayout();return false;" title="Vrati jednake trećine">⟲ raspored</a>
             <a href="/chat">chat ↗</a>
         </div>
@@ -225,11 +278,16 @@
         <section class="pane explorer">
             <div class="pane-head"><span>Explorer</span></div>
             <div class="pane-body">
-                <div class="new-btns">
+                <div class="side-label" style="display:flex;justify-content:space-between;align-items:center">
+                    <span>📁 Files (workspace)</span>
+                    <button class="toc-btn" style="width:auto;margin:0;padding:.1rem .4rem" onclick="loadFileTree()" title="Osveži">⟲</button>
+                </div>
+                <div class="tree" id="fileTree"></div>
+                <div class="new-btns" style="margin-top:1rem">
                     <button onclick="createDoc('doc')">＋ Dokument</button>
                     <button onclick="createDoc('book')">＋ Knjiga</button>
                 </div>
-                <div class="side-label">Pisanja</div>
+                <div class="side-label">📚 Dokumenti / Knjige</div>
                 <div id="docList"></div>
                 <div id="tocSection" style="display:none">
                     <div class="side-label">Sadržaj (TOC)</div>
@@ -307,12 +365,46 @@
         <span id="sbSave">spremno</span>
     </div>
 
+    <!-- Model / backend switcher -->
+    <div class="modal-backdrop" id="backendModal">
+        <div class="modal">
+            <div class="modal-head">
+                <span class="t">⚙ Model backend</span>
+                <button onclick="closeBackend()" title="Zatvori">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <button id="tabLocal" class="active" onclick="backendTab('local')">llama.cpp</button>
+                    <button id="tabApi" onclick="backendTab('api')">OpenAI-API</button>
+                </div>
+                <div id="paneLocal">
+                    <label>Base URL</label>
+                    <input id="beLocalUrl" placeholder="http://127.0.0.1:18083/v1">
+                    <div class="hint">Lokalni llama.cpp server. Bez API ključa, GBNF tool-grammar radi.</div>
+                </div>
+                <div id="paneApi" style="display:none">
+                    <label>Base URL</label>
+                    <input id="beApiUrl" placeholder="https://openrouter.ai/api/v1">
+                    <label>Model</label>
+                    <input id="beApiModel" placeholder="npr. deepseek-chat">
+                    <label>API ključ</label>
+                    <input id="beApiKey" type="password" placeholder="čuva se u lokalnom configu">
+                    <div class="hint">Bilo koji OpenAI-kompatibilan provajder (OpenRouter, Groq, DeepSeek…). Na cloud-u se GBNF gasi.</div>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <span class="cur" id="beCurrent">…</span>
+                <button class="save" onclick="saveBackend()">Sačuvaj i poveži</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         marked.setOptions({ breaks: true });
         const $ = (id) => document.getElementById(id);
 
         let ws = null, isConnected = false, isGenerating = false;
-        let currentDoc = null, currentChapterId = null;
+        let currentDoc = null, currentChapterId = null, currentFile = null;
         let previewing = false, saveTimer = null;
         let streamBase = "", pendingToc = false, tocBuffer = "";
 
@@ -417,8 +509,9 @@
         async function openDoc(id) {
             const r = await fetch('/api/docs/' + id);
             if (!r.ok) return;
-            currentDoc = await r.json(); currentChapterId = null;
+            currentDoc = await r.json(); currentChapterId = null; currentFile = null;
             $('docToolbar').style.display = 'flex'; $('editorIdle').style.display = 'none';
+            $('previewBtn').style.display = '';
             $('emptyState').style.display = 'none'; $('docTitle').value = currentDoc.title;
             if (currentDoc.type === 'book') {
                 $('tocSection').style.display = 'block'; renderToc();
@@ -480,7 +573,16 @@
         }
 
         // --- Saving -------------------------------------------------------
-        function scheduleSave() { clearTimeout(saveTimer); $('sbSave').textContent = '✎ menja se…'; saveTimer = setTimeout(saveDoc, 800); }
+        function scheduleSave() { clearTimeout(saveTimer); $('sbSave').textContent = '✎ menja se…'; saveTimer = setTimeout(doSave, 800); }
+        function doSave() { if (currentFile) saveFile(); else saveDoc(); }
+        async function saveFile() {
+            if (!currentFile) return;
+            const r = await fetch('/api/file', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: currentFile, content: $('editor').value }),
+            });
+            $('sbSave').textContent = r.ok ? '✓ sačuvano' : '⚠ greška pri snimanju';
+        }
         async function saveDoc() {
             if (!currentDoc) return;
             const body = { title: $('docTitle').value };
@@ -509,13 +611,13 @@
         }
         function sendCommand() {
             const input = $('cmdInput'); const text = input.value.trim();
-            if (!text || !isConnected || isGenerating || !currentDoc) {
-                if (!currentDoc) logInfo('Prvo otvori ili napravi dokument.');
+            if (!text || !isConnected || isGenerating || (!currentDoc && !currentFile)) {
+                if (!currentDoc && !currentFile) logInfo('Prvo otvori fajl ili napravi dokument.');
                 return;
             }
             if (previewing) togglePreview();
             streamBase = $('editor').value.trim();
-            const mode = currentDoc.type === 'book' ? 'book' : 'free';
+            const mode = (currentDoc && currentDoc.type === 'book') ? 'book' : 'free';
             isGenerating = true; $('sendBtn').disabled = true;
             logCmd(text); input.value = '';
             ws.send(JSON.stringify({ type: 'message', content: text, doc_context: streamBase, mode }));
@@ -537,6 +639,104 @@
         }
         function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
+        // --- Workspace file tree ------------------------------------------
+        async function loadFileTree() {
+            const root = $('fileTree'); root.innerHTML = '';
+            await renderDir('', root);
+        }
+        async function renderDir(path, container) {
+            const r = await fetch('/api/files?path=' + encodeURIComponent(path));
+            if (!r.ok) { container.innerHTML = '<div class="hint" style="padding:.3rem">…</div>'; return; }
+            const { entries } = await r.json();
+            container.innerHTML = '';
+            if (!entries.length) {
+                const e = document.createElement('div');
+                e.className = 'hint'; e.style.padding = '.3rem .4rem'; e.textContent = '(prazno)';
+                container.appendChild(e); return;
+            }
+            entries.forEach(en => {
+                const node = document.createElement('div');
+                node.className = 'node ' + en.type;
+                if (en.type === 'dir') {
+                    node.innerHTML = `<span class="tw">▸</span><span class="ico">📁</span><span class="nm">${escapeHtml(en.name)}</span>`;
+                    const kids = document.createElement('div');
+                    kids.className = 'children'; kids.style.display = 'none';
+                    let loaded = false;
+                    node.onclick = async () => {
+                        const open = kids.style.display === 'block';
+                        kids.style.display = open ? 'none' : 'block';
+                        node.querySelector('.tw').textContent = open ? '▸' : '▾';
+                        if (!loaded && !open) { loaded = true; await renderDir(en.path, kids); }
+                    };
+                    container.appendChild(node); container.appendChild(kids);
+                } else {
+                    node.innerHTML = `<span class="tw"></span><span class="ico">📄</span><span class="nm">${escapeHtml(en.name)}</span>`;
+                    node.onclick = () => openFile(en.path, node);
+                    container.appendChild(node);
+                }
+            });
+        }
+        async function openFile(path, node) {
+            const r = await fetch('/api/file?path=' + encodeURIComponent(path));
+            if (!r.ok) { logInfo('⚠ ne mogu da otvorim fajl'); return; }
+            const data = await r.json();
+            currentFile = path; currentDoc = null; currentChapterId = null;
+            document.querySelectorAll('.tree .node.active').forEach(n => n.classList.remove('active'));
+            if (node) node.classList.add('active');
+            $('tocSection').style.display = 'none';
+            $('docToolbar').style.display = 'flex';
+            $('editorIdle').style.display = 'none';
+            $('docTitle').value = path;
+            // Plain files: export buttons do not apply.
+            $('previewBtn').style.display = 'none';
+            ['MD', 'EPUB', 'PDF'].forEach(() => {});
+            setEditor(data.content);
+            $('sbDoc').textContent = '📄 ' + path;
+            $('modePill').textContent = 'fajl'; $('sbMode').textContent = 'fajl';
+        }
+
+        // --- Model backend switcher ---------------------------------------
+        let backendKind = 'local';
+        async function openBackend() {
+            $('backendModal').classList.add('open');
+            try {
+                const r = await fetch('/api/backend'); const b = await r.json();
+                $('beCurrent').textContent = `${b.healthy ? '●' : '○'} ${b.model_name} — ${b.base_url}`;
+                if (b.has_key) { backendTab('api'); $('beApiUrl').value = b.base_url; $('beApiModel').value = b.model; }
+                else { backendTab('local'); $('beLocalUrl').value = b.base_url; }
+            } catch (e) { $('beCurrent').textContent = 'status nepoznat'; }
+        }
+        function closeBackend() { $('backendModal').classList.remove('open'); }
+        function backendTab(kind) {
+            backendKind = kind;
+            $('tabLocal').classList.toggle('active', kind === 'local');
+            $('tabApi').classList.toggle('active', kind === 'api');
+            $('paneLocal').style.display = kind === 'local' ? 'block' : 'none';
+            $('paneApi').style.display = kind === 'api' ? 'block' : 'none';
+        }
+        async function saveBackend() {
+            const payload = { kind: backendKind };
+            if (backendKind === 'local') {
+                payload.base_url = $('beLocalUrl').value.trim() || 'http://127.0.0.1:18083/v1';
+            } else {
+                payload.base_url = $('beApiUrl').value.trim();
+                payload.model = $('beApiModel').value.trim();
+                payload.api_key = $('beApiKey').value.trim();
+                if (!payload.base_url || !payload.model) { $('beCurrent').textContent = '⚠ unesi Base URL i Model'; return; }
+            }
+            $('beCurrent').textContent = '… povezujem';
+            const r = await fetch('/api/backend', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+            });
+            const b = await r.json();
+            if (!r.ok) { $('beCurrent').textContent = '⚠ ' + (b.error || 'greška'); return; }
+            $('topModel').textContent = b.model_name;
+            $('beCurrent').textContent = `${b.healthy ? '●' : '○'} ${b.model_name} — ${b.base_url}`;
+            logInfo(`✓ backend: ${b.model_name} (${b.base_url})`);
+            setTimeout(closeBackend, 700);
+        }
+        $('backendModal').addEventListener('click', (e) => { if (e.target.id === 'backendModal') closeBackend(); });
+
         // --- Wiring -------------------------------------------------------
         $('editor').addEventListener('input', scheduleSave);
         $('docTitle').addEventListener('input', scheduleSave);
@@ -553,7 +753,7 @@
             term = new Terminal({
                 fontFamily: "'Fira Code', 'Cascadia Code', monospace", fontSize: 13,
                 cursorBlink: true,
-                theme: { background: '#181818', foreground: '#d4d4d4', cursor: '#4ec9b0' },
+                theme: { background: '#181818', foreground: '#d4d4d4', cursor: '#8fd1c0' },
             });
             fitAddon = new FitAddon.FitAddon();
             term.loadAddon(fitAddon);
@@ -631,6 +831,7 @@
         loadLayout();
         connect();
         loadDocList();
+        loadFileTree();
     </script>
 </body>
 </html>
