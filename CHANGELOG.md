@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-16
+
+A web release: a studio for writing books with your local model, and an open
+format for the knowledge Scribe distills.
+
+### Added
+- **Web Book Studio** (`scribe/templates/editor.html`, `scribe/documents.py`):
+  a dark, VSCode/Antigravity-style web UI with three resizable panes
+  (Explorer · Editor · Assistant). Books are a table of contents plus one
+  markdown file per chapter; the model drafts a TOC, then writes chapter by
+  chapter straight into the page. Exports to Markdown, EPUB (pandoc, one
+  section per chapter + title page) and PDF (browser print view).
+- **Integrated terminal** (`/ws/terminal`): a real login shell in a PTY bridged
+  to xterm.js, toggled with `Ctrl+\``, PIN-gated like the rest of the UI.
+- **Open Knowledge Format wiki**: `scribe wiki distill` now stores pages as OKF
+  markdown — YAML frontmatter (`type/title/description/tags/timestamp/source`),
+  `index.md` + `log.md`, inter-page links. `ensure_frontmatter` backfills a
+  valid block when the model omits one. SME/RAG are framed as derived indexes
+  over these files. See `docs/open-knowledge-format.md`.
+
+### Changed
+- The web UI now binds to **`127.0.0.1`** by default (was `0.0.0.0`); the
+  integrated shell terminal should not be network-reachable without an explicit
+  `--host 0.0.0.0` (which prints a warning).
+- PyPI distribution renamed `scribeai` → **`scribe-llm`** (import package and
+  CLI remain `scribe`).
+
 ## [0.3.0] - 2026-06-13
 
 A synthesis release: the strongest mechanisms from sibling local-agent
