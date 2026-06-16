@@ -599,7 +599,7 @@ class ScribeTUI:
 
     def _stream_response(self) -> str:
         """
-        Stream the response, splitting Peirce-style reasoning from the answer.
+        Stream the response, splitting the reasoning block from the answer.
 
         While the model is only reasoning, a one-line marquee shows the tail of
         the thinking stream. Once the answer starts, it streams token by token,
@@ -815,7 +815,7 @@ class ScribeTUI:
         /reasoning           — toggle on/off
         /reasoning on|off|auto — set explicitly
 
-        ON  = always think (Peirce chain then a short answer). OFF = never
+        ON  = always think (reason briefly, then a short answer). OFF = never
         think (answer directly). AUTO = the reasoning gate decides per
         request. Works mid-conversation.
         """

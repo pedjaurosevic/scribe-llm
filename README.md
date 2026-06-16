@@ -43,13 +43,15 @@ Three properties that hold by construction, not by prompt-tuning:
 - **Safe Code Mode** — `/code` with a destructive-command gate, Python AST gate, bubblewrap sandbox, and git checkpoint/rollback
 - **Internet Research** — `web_search` + `web_fetch` tools; DuckDuckGo out of the box, Brave with a key
 - **Writing Agent** — deep-research and writer skills for books, papers and reports, with sandboxed workspace file tools
+- **Book Studio (web)** — dark, VSCode-style web editor: three resizable panes, an integrated terminal, model-drafted table of contents, chapter-by-chapter writing, and Markdown / EPUB / PDF export
+- **Open Knowledge Format** — `scribe wiki distill` curates sessions into portable [OKF](docs/open-knowledge-format.md) markdown (YAML frontmatter + `index.md`/`log.md` + links); SME/RAG are derived indexes over the files
 - **Persistent Self** — a WorldModel persona injected into every prompt, plus pulse heartbeat and nightly diary
 - **Observability** — ORORO session traces and a machine-readable `scribe status --json` contract
 - **Project Vaults** — `scribe init` gives a directory its own isolated RAG/SME stores
 - **Model Discovery & Blind Compare** — auto-find local servers; A/B two models without bias
 - **Cross-Session Memory** — SME (Semantic Memory Engine) for seamless session continuity
 - **Email Bridge** — get results by email and send commands from one approved address (stdlib only)
-- **Wittgenstein + Peirce** — philosophy-inspired harness design for stable LLM behavior
+- **Language games** — explicit command vocabularies (Wittgenstein-inspired) for stable LLM behavior
 
 ## Installation
 
@@ -59,7 +61,7 @@ pip install scribe-llm       # provides the `scribe` command
 ```
 > The PyPI distribution is named `scribe-llm` (the import package and CLI stay `scribe`).
 
-### From source (🐧 Linux)
+### From source (🐧 Linux / 🍎 macOS)
 ```bash
 # Clone the repository
 git clone https://github.com/pedjaurosevic/scribe-ai.git
@@ -71,7 +73,10 @@ cd scribe-ai
 ```
 
 ### 🪟 Windows (WSL)
-Scribe runs seamlessly on Windows via **WSL (Windows Subsystem for Linux)**.
+`scribe chat` and the `scribe web` Book Studio run on native Windows too; only
+the web UI's **integrated terminal** needs a POSIX PTY (it degrades gracefully
+without one). For the full experience, run Scribe via **WSL (Windows Subsystem
+for Linux)**.
 1. Open your WSL terminal (e.g., Ubuntu).
 2. Run the Linux installation commands shown above.
 3. To configure Scribe to work with **Ollama** (either running natively on Windows or inside WSL), check out the [WSL & Ollama Integration Guide](docs/wsl_ollama_guide.md).
@@ -132,7 +137,8 @@ a recipe for **Gemma 4 12B with 128k context on a 12 GB GPU**:
 scribe chat                    # Interactive TUI chat (streaming by default)
 scribe chat --textual          # Full-screen Textual UI (experimental)
 scribe chat --resume TAG       # Resume a past session (no TAG = last one)
-scribe web                     # Web UI at http://localhost:8765
+scribe web                     # Book Studio web UI at http://localhost:8765 (localhost-only by default)
+scribe web --host 0.0.0.0      # Expose on the network (prints a warning — the UI has a shell terminal)
 
 scribe memory recall "query"  # Recall from semantic memory
 scribe rag search "query"     # Hybrid search (FTS5 + vectors); --semantic-only to opt out
@@ -217,11 +223,10 @@ Verification enabled).
 
 ## Philosophy
 
-Scribe is built on two philosophical pillars:
-
-1. **Wittgenstein** — Language games define meaning. Scribe uses explicit command vocabularies so the model knows exactly what each action means.
-
-2. **Peirce** — Signs gain meaning through interpretation chains. Scribe maintains semiotic continuity: every response becomes the next sign in the chain.
+**Language games (Wittgenstein-inspired).** Each command word has a fixed,
+explicit meaning, so the model knows exactly what each action means. Reasoning,
+when enabled, stays in a `<think>` block and never leaks into the answer; by
+default Scribe answers directly.
 
 ## License
 
