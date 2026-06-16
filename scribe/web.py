@@ -5,19 +5,28 @@ Scribe Web - FastAPI web server with streaming chat UI.
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import hashlib
 import hmac
 import json
 import os
-import pty
 import shutil
 import signal
 import struct
 import subprocess
 import tempfile
-import termios
 from pathlib import Path
+
+# The integrated terminal needs a POSIX pseudo-terminal (Linux/macOS/WSL).
+# These modules don't exist on native Windows; the rest of the web UI — editor,
+# chat, book export — still works there, only the terminal is unavailable.
+try:
+    import fcntl
+    import pty
+    import termios
+
+    _PTY_AVAILABLE = True
+except ImportError:  # native Windows
+    _PTY_AVAILABLE = False
 
 import uvicorn
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
@@ -554,6 +563,15 @@ async def websocket_terminal(websocket: WebSocket):
         await websocket.close(code=1008)
         return
     await websocket.accept()
+
+    if not _PTY_AVAILABLE:
+        # Native Windows: no PTY. Tell the client instead of crashing.
+        await websocket.send_bytes(
+            b"\r\n\x1b[33mIntegrisani terminal nije podrzan na ovoj platformi "
+            b"(treba POSIX PTY: Linux, macOS ili WSL).\x1b[0m\r\n"
+        )
+        await websocket.close()
+        return
 
     master_fd, slave_fd = pty.openpty()
     shell = os.environ.get("SHELL", "/bin/bash")

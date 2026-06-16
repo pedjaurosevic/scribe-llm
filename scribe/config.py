@@ -234,7 +234,7 @@ class ScribeConfig:
     @property
     def reasoning(self) -> bool | str:
         """
-        Whether the model thinks before answering (Peirce chain as thinking).
+        Whether the model thinks before answering (step-by-step in a <think> block).
         true / false / "auto" — "auto" runs the per-request reasoning gate
         (think only when the prompt benefits from it). Off by default; toggle
         live with /reasoning in the TUI and web chat.
