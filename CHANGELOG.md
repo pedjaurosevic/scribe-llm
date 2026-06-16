@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-16
+
+### Fixed
+- **`scribe web` now runs on native Windows.** The integrated terminal's
+  POSIX-only imports (`pty`/`termios`/`fcntl`) were unconditional, so
+  `import scribe.web` crashed on Windows. They are now guarded; the terminal
+  degrades gracefully where no PTY is available, while the editor, chat and
+  book export work on Linux, macOS, Windows and WSL.
+
+### Changed
+- **Removed Peirce semiotics from the system prompts.** Reasoning (still
+  opt-in; off by default) is now plain step-by-step thinking inside a `<think>`
+  block instead of a labelled semiotic chain. "Language games" are kept as
+  fixed command meanings.
+- README and landing page document Book Studio, the Open Knowledge Format,
+  macOS support, the terminal's platform requirements, and the `--host` flag.
+
 ## [0.4.0] - 2026-06-16
 
 A web release: a studio for writing books with your local model, and an open
