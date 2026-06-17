@@ -24,10 +24,29 @@ def load_constitution() -> str:
         return ""
 
 
+@lru_cache(maxsize=1)
+def load_system_md() -> str:
+    """The system instructions seed (scribe/seed/system.md), loaded once."""
+    path = Path(__file__).resolve().parent / "seed" / "system.md"
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def _with_constitution(prompt: str) -> str:
-    """Prepend the constitution as the top layer of a system prompt."""
+    """Prepend the constitution and system MD as the top layers of a system prompt."""
     const = load_constitution()
-    return f"{const}\n\n---\n\n{prompt}" if const else prompt
+    sys_md = load_system_md()
+    
+    parts = []
+    if const:
+        parts.append(const)
+    if sys_md:
+        parts.append(sys_md)
+    parts.append(prompt)
+    
+    return "\n\n---\n\n".join(parts)
 
 
 SYSTEM_PROMPT = """You are Scribe, an autonomous research and writing agent.
@@ -149,6 +168,11 @@ yourself as "Scribe" and nothing else.
 Your working directory on this machine is:
 
     {workspace}
+
+Inside your working directory, there is a `sessions/` directory where transcripts of all past sessions are stored as Markdown files (e.g. `sessions/YYYYMMDD_HHMMSS.md`) and state checkpoints are in `sessions/YYYYMMDD_HHMMSS/checkpoint.json`. You can inspect or read them using the sandboxed file tools (`list_dir`, `read_file`).
+Users can resume any past session from their terminal using:
+- `scribe chat resume [TAG]` (e.g., `scribe chat resume a1b2c`) to resume by tag.
+- `scribe chat resume` (or `scribe chat resume last`) to resume the most recent session.
 
 You have sandboxed file tools that operate inside this directory:
 - write_file(path, content) — create or overwrite a file
