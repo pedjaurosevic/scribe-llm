@@ -237,9 +237,18 @@ class ScribeTUI:
 
             if self._confirm("Continue where we left off?"):
                 self.console.print("[success]✓[/success] Continuing session")
+                self._resume_from("last")
+                self._show_resume_banner()
             else:
                 self.session.start_session(topic="new_chat")
                 self.console.print("[info]→[/info] Starting fresh")
+                if self.messages and self.messages[0]["role"] == "system":
+                    self.messages[0]["content"] += (
+                        "\n\n## Previous Session Memory\n"
+                        "You have recalled the following summary of the user's previous session:\n"
+                        f"{summary}\n"
+                        "If the user asks about the previous session, refer to this memory."
+                    )
         else:
             self.session.start_session(topic="new_chat")
 

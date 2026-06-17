@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-17
+
+### Added
+- **Agent system manual seed** (`scribe/seed/system.md`): a single source of
+  truth for Scribe's identity and interface model — the writing/research
+  copartner persona, the Scribe Chat vs Scribe Web architecture, the
+  `<doc_content>` formatting protocol and page-split rules. `prompts.py` now
+  loads it (`load_system_md`) as a layer between the constitution and the task
+  prompt via `_with_constitution`.
+- **Previous-session recall in chat and web.** Both the TUI (`tui.py`) and the
+  web WebSocket chat (`web.py`) inject a summary of the user's previous session
+  (`recall_previous_session`) into the system prompt, so Scribe can answer
+  questions about what was done last time. The home page also receives the
+  summary.
+- **Session transcripts documented in the prompt.** The system prompt now tells
+  Scribe where past sessions live (`sessions/…`) and how the user resumes them
+  (`scribe chat resume [TAG]`).
+
+### Changed
+- **Web Book Studio editor overhaul** (`editor.html`): A4-style floating pages
+  with automatic pagination (chevron nav + `Page X of Y`), Editor / Preview /
+  HTML view modes, refined typography (Ubuntu Mono / Courier Prime), Apple-thin
+  hover scrollbars, and a streaming "thinking" cat animation.
+- **Document writing protocol.** When the model should write into the document
+  it wraps the body in `<doc_content>…</doc_content>`; otherwise it replies in
+  the chatbox to discuss or confirm (`_compose_writing_prompt`).
+- **English-only UI strings.** Remaining Serbian strings in the web export flow
+  and print view (`print.html`) are translated to English for the public build.
+
 ## [0.6.0] - 2026-06-16
 
 ### Added
