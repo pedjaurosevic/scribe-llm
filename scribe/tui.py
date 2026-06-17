@@ -859,8 +859,10 @@ class ScribeTUI:
             f"[dim]Base URL[/dim]  [accent]{self.config.base_url}[/accent]\n"
             f"[dim]Model[/dim]     {self.config.model}\n"
             f"[dim]API key[/dim]   {key_state}\n\n"
-            "[accent]1[/accent] llama.cpp  [dim]— local server, no API key, GBNF tool grammar[/dim]\n"
-            "[accent]2[/accent] API        [dim]— OpenAI-compatible endpoint + key (cloud or remote)[/dim]"
+            "[accent]1[/accent] llama.cpp  "
+            "[dim]— local server, no API key, GBNF tool grammar[/dim]\n"
+            "[accent]2[/accent] API        "
+            "[dim]— OpenAI-compatible endpoint + key (cloud or remote)[/dim]"
         )
         return Panel(body, title="[scribe]Model backend[/scribe]",
                      border_style="scribe", box=ROUNDED, padding=(1, 2))
@@ -890,7 +892,8 @@ class ScribeTUI:
             self.console.print("[dim]→ Canceled (no model).[/dim]")
             return
         key = self.console.input(
-            "  [dim]API key (stored in your local config; or leave empty to use SCRIBE_API_KEY)[/dim] [dim]›[/dim] "
+            "  [dim]API key (stored in your local config; or leave empty to use "
+            "SCRIBE_API_KEY)[/dim] [dim]›[/dim] "
         ).strip() or "not-needed"
         # Cloud backends do not support GBNF grammar; fall back to plain parsing.
         self._apply_backend(
