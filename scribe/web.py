@@ -159,9 +159,11 @@ async def logout():
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Serve the document editor UI (dark Google-Docs style)."""
+    session_summary = recall_previous_session(sme_service)
     return templates.TemplateResponse("editor.html", {
         "request": request,
         "model_name": adapter.get_model_name(),
+        "session_summary": session_summary,
     })
 
 
@@ -258,7 +260,7 @@ async def export_epub(doc_id: str):
     if not store.exists(doc_id):
         return PlainTextResponse("Not found", status_code=404)
     if shutil.which("pandoc") is None:
-        return PlainTextResponse("pandoc nije instaliran na sistemu.", status_code=501)
+        return PlainTextResponse("pandoc is not installed on the system.", status_code=501)
 
     doc = store.load(doc_id)
     md = store.assemble_epub_markdown(doc_id)
@@ -280,7 +282,7 @@ async def export_epub(doc_id: str):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         detail = getattr(e, "stderr", b"")
         msg = detail.decode("utf-8", "replace") if isinstance(detail, bytes) else str(e)
-        return PlainTextResponse(f"pandoc greška: {msg}", status_code=500)
+        return PlainTextResponse(f"pandoc error: {msg}", status_code=500)
 
     return FileResponse(
         str(epub_path),
@@ -465,14 +467,19 @@ def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> st
     The model answer is streamed verbatim into the document, so we ask for the
     raw markdown body only — no chat-style preamble, no meta commentary.
     """
-    unit = "poglavlja" if mode == "book" else "dokumenta"
+    unit = "chapter" if mode == "book" else "document"
     parts = []
     if doc_context.strip():
-        parts.append(f"[Trenutni sadržaj {unit}]:\n{doc_context.strip()}")
-    parts.append(f"[Zadatak]: {instruction}")
+        parts.append(f"[Current {unit} content]:\n{doc_context.strip()}")
+    parts.append(f"[User Instruction/Question]: {instruction}")
     parts.append(
-        "Odgovori ISKLJUČIVO tekstom (markdown) koji treba da stoji u "
-        f"{unit}, bez uvodnih fraza, pozdrava ili komentara o tome šta radiš."
+        f"You are helping the user edit this {unit}.\n"
+        f"If the user wants you to write, edit, update, or rewrite the content of the {unit}, "
+        f"you MUST wrap the entire updated markdown content for the {unit} inside `<doc_content>...</doc_content>` tags. "
+        "Do not include any introductory phrases, greetings, or commentary inside the `<doc_content>` tags.\n"
+        "However, if the user is asking a question, discussing, explaining, or if you are not sure whether "
+        "they want to write directly to the document/chapter, do NOT use `<doc_content>` tags. Instead, reply in the chatbox "
+        "to discuss or ask for confirmation."
     )
     return "\n\n".join(parts)
 
@@ -487,14 +494,24 @@ async def websocket_chat(websocket: WebSocket):
 
     await manager.connect(websocket)
 
+    session_summary = recall_previous_session(sme_service)
+    system_content = get_system_prompt(
+        config.reasoning,
+        workspace=str(WORKSPACE_DIR),
+        max_thinking_words=config.max_thinking_words,
+        mode=config.reasoning_mode,
+    )
+    if session_summary and "No previous session found" not in session_summary:
+        system_content += (
+            "\n\n## Previous Session Memory\n"
+            "You have recalled the following summary of the user's previous session:\n"
+            f"{session_summary}\n"
+            "If the user asks about the previous session, refer to this memory."
+        )
+
     messages = [{
         "role": "system",
-        "content": get_system_prompt(
-            config.reasoning,
-            workspace=str(WORKSPACE_DIR),
-            max_thinking_words=config.max_thinking_words,
-            mode=config.reasoning_mode,
-        ),
+        "content": system_content,
     }]
 
     # Per-connection reasoning state, toggled live with the /reasoning command
@@ -530,14 +547,14 @@ async def websocket_chat(websocket: WebSocket):
                             "<think> block, then give a SHORT final answer in "
                             "the user's language."
                         )
-                        note = "✓ Reasoning ON — model razmišlja pre odgovora."
+                        note = "✓ Reasoning ON — model thinks before responding."
                     else:
                         directive = (
                             "Reasoning is now OFF. Do NOT produce a <think> "
                             "block or any step-by-step reasoning. Answer "
                             "directly and concisely in the user's language."
                         )
-                        note = "→ Reasoning OFF — model odgovara direktno."
+                        note = "→ Reasoning OFF — model answers directly."
                     messages.append({"role": "system", "content": directive})
                     await websocket.send_json(
                         {"type": "chunk", "content": note, "full": note}
@@ -547,6 +564,14 @@ async def websocket_chat(websocket: WebSocket):
 
                 doc_context = event.get("doc_context", "")
                 mode = event.get("mode", "free")
+                
+                # Skill detection (e.g. deep-research)
+                should_use_skill, skill_name = skills_executor.should_use_skill(user_content)
+                if should_use_skill and skill_name:
+                    result = skills_executor.execute_skill(skill_name, {"task": user_content})
+                    if result.success:
+                        user_content = f"{user_content}\n\n{result.output}"
+
                 if doc_context or mode == "book":
                     model_input = _compose_writing_prompt(user_content, doc_context, mode)
                 else:
@@ -696,8 +721,8 @@ async def websocket_terminal(websocket: WebSocket):
     if not _PTY_AVAILABLE:
         # Native Windows: no PTY. Tell the client instead of crashing.
         await websocket.send_bytes(
-            b"\r\n\x1b[33mIntegrisani terminal nije podrzan na ovoj platformi "
-            b"(treba POSIX PTY: Linux, macOS ili WSL).\x1b[0m\r\n"
+            b"\r\n\x1b[33mIntegrated terminal is not supported on this platform "
+            b"(requires POSIX PTY: Linux, macOS or WSL).\x1b[0m\r\n"
         )
         await websocket.close()
         return

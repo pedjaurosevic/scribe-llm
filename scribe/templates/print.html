@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>{{ title }}</title>
@@ -30,13 +30,13 @@
 </head>
 <body>
     <div class="toolbar">
-        <button onclick="window.print()">Sačuvaj kao PDF (Print)</button>
+        <button onclick="window.print()">Save as PDF (Print)</button>
     </div>
     <div class="paper" id="paper"></div>
     <script>
         const md = {{ markdown | tojson }};
         document.getElementById('paper').innerHTML = marked.parse(md);
-        // Pusti render da se smiri, pa otvori print dialog.
+        // Let rendering settle, then open print dialog.
         window.addEventListener('load', () => setTimeout(() => window.print(), 400));
     </script>
 </body>
