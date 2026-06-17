@@ -14,6 +14,7 @@ from __future__ import annotations
 
 # Silence warning from torchao about incompatible PyTorch version
 import logging
+
 logging.getLogger("torchao").setLevel(logging.ERROR)
 
 import json
