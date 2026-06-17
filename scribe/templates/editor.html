@@ -1,40 +1,113 @@
 <!DOCTYPE html>
-<html lang="sr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scribe — Book Studio</title>
+    <title>Scribe — IDE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/gruvbox-dark.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
     <style>
         :root {
             --bg: #1e1e1e;            /* editor bg */
             --bg-panel: #252526;      /* side panels */
-            --bg-bar: #333333;        /* title/activity bars */
+            --bg-bar: #2d2d2d;        /* top menu bar */
             --bg-input: #3c3c3c;
             --bg-page: #1e1e1e;
-            --border: #3c3c3c;
+            --border: #2b2b2b;
             --gutter: #2d2d2d;
             --gutter-hover: #5a8f86;
             --text: #d4d4d4;
             --text-dim: #858585;
-            --accent: #8fd1c0;        /* soft pale turquoise-green */
-            --accent-deep: #6fae9e;   /* slightly deeper, for borders/hover */
+            --accent: #8fd1c0;        /* soft pale green */
+            --accent-glow: rgba(143, 209, 192, 0.15);
             --accent2: #569cd6;       /* blue */
             --warning: #dcdcaa;
             --error: #f48771;
-            --statusbar: #3f6f66;     /* muted teal status bar */
+            --statusbar: #007acc;     /* VSCode blue */
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        /* Minimalist scrollbars (Apple-like) */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            transition: background 0.15s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+        }
         html, body { height: 100%; }
         body {
-            font-family: 'Segoe UI', -apple-system, Roboto, Ubuntu, sans-serif;
+            font-family: 'Ubuntu Mono', monospace;
             background: var(--bg); color: var(--text);
             display: flex; flex-direction: column; height: 100vh; overflow: hidden;
         }
+
+        /* Top Menu Bar */
+        .topbar {
+            height: 38px; background: var(--bg-bar); display: flex; align-items: center;
+            justify-content: space-between; padding: 0 .8rem; flex: 0 0 auto;
+            border-bottom: 1px solid #1a1a1a; font-size: .82rem;
+            position: relative; z-index: 1000;
+        }
+        .topbar .menu-left { display: flex; align-items: center; gap: 0.2rem; }
+        .topbar .menu-item { position: relative; display: inline-block; }
+        .topbar .menu-btn {
+            background: transparent; border: none; color: var(--text-dim);
+            padding: 0.35rem 0.65rem; font-size: 0.8rem; cursor: pointer; border-radius: 4px;
+        }
+        .topbar .menu-btn:hover { background: var(--bg-input); color: var(--text); }
+        .topbar .dropdown-content {
+            display: none; position: absolute; left: 0; top: 100%;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            min-width: 170px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            border-radius: 4px; z-index: 1001; margin-top: 2px;
+        }
+        .topbar .menu-item:hover .dropdown-content { display: block; }
+        .topbar .dropdown-content a {
+            color: var(--text); padding: 0.5rem 0.8rem; text-decoration: none;
+            display: block; font-size: 0.78rem;
+        }
+        .topbar .dropdown-content a:hover { background: #094771; color: #fff; }
+        .topbar .menu-divider { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+
+        /* Centered Active Tab Display */
+        .topbar .center-tab {
+            background: var(--bg); border: 1px solid var(--border); border-bottom: none;
+            height: 38px; display: flex; align-items: center; padding: 0 1.2rem;
+            border-radius: 6px 6px 0 0; font-size: 0.8rem; color: var(--accent);
+            margin-top: 4px; gap: 0.4rem; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* Right Side Actions */
+        .topbar .right { display: flex; align-items: center; gap: 0.6rem; color: var(--text-dim); }
+        .topbar a.backend-btn { color: var(--text-dim); text-decoration: none; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem; }
+        .topbar a.backend-btn:hover { background: var(--bg-input); color: var(--accent); }
+        
+        .layout-btn {
+            background: transparent; border: none; color: var(--text-dim); cursor: pointer;
+            padding: 0.3rem; display: flex; align-items: center; justify-content: center; border-radius: 4px;
+        }
+        .layout-btn:hover { color: var(--text); background: var(--bg-input); }
+        .layout-btn.active { color: var(--accent); }
+        .layout-btn svg { width: 16px; height: 16px; fill: currentColor; }
 
         /* Middle region: activity bar + workbench */
         .mid { flex: 1 1 auto; display: flex; min-height: 0; }
@@ -52,24 +125,14 @@
         .activitybar .act.active { color: #fff; border-left-color: var(--accent); }
         .activitybar .spacer { flex: 1; }
 
-        /* Top bar */
-        .topbar {
-            height: 36px; background: var(--bg-bar); display: flex; align-items: center;
-            justify-content: space-between; padding: 0 .8rem; flex: 0 0 auto;
-            border-bottom: 1px solid #1a1a1a; font-size: .8rem;
-        }
-        .topbar .brand { color: var(--accent); font-weight: 600; letter-spacing: .02rem; }
-        .topbar .right { display: flex; align-items: center; gap: 1rem; color: var(--text-dim); }
-        .topbar a { color: var(--text-dim); text-decoration: none; }
-        .topbar a:hover { color: var(--accent2); }
-
         /* Three-pane workbench */
         .workbench {
             flex: 1 1 auto; display: grid; min-height: 0;
-            grid-template-columns: 1fr 6px 1fr 6px 1fr;
+            grid-template-columns: 1fr 2px 1fr 2px 1fr;
+            transition: grid-template-columns 0.15s ease-out;
         }
-        .gutter { background: var(--gutter); cursor: col-resize; }
-        .gutter:hover, .gutter.dragging { background: var(--gutter-hover); }
+        .gutter { background: var(--border); cursor: col-resize; z-index: 10; transition: background 0.1s; }
+        .gutter:hover, .gutter.dragging { background: var(--accent); }
 
         .pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
         .pane-head {
@@ -106,6 +169,7 @@
         .doc-item .del { color: var(--text-dim); opacity: 0; }
         .doc-item:hover .del { opacity: 1; }
         .doc-item .del:hover { color: var(--error); }
+        
         .toc-chapter {
             padding: .3rem .45rem .3rem .9rem; border-radius: 4px; cursor: pointer;
             font-size: .8rem; color: var(--text-dim);
@@ -113,6 +177,7 @@
         }
         .toc-chapter:hover { background: var(--bg-input); }
         .toc-chapter.active { color: #fff; background: #094771; }
+        
         .toc-btn {
             width: 100%; margin-top: .35rem; background: transparent; color: var(--text-dim);
             border: 1px dashed var(--border); border-radius: 4px; padding: .35rem; cursor: pointer; font-size: .74rem;
@@ -136,7 +201,7 @@
         /* Model backend modal */
         .modal-backdrop {
             position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none;
-            align-items: center; justify-content: center; z-index: 50;
+            align-items: center; justify-content: center; z-index: 5000;
         }
         .modal-backdrop.open { display: flex; }
         .modal {
@@ -172,7 +237,7 @@
         }
 
         /* Editor pane */
-        .editor-pane { background: var(--bg); }
+        .editor-pane { background: var(--bg); display: flex; flex-direction: column; height: 100%; position: relative; }
         .doc-toolbar { display: flex; align-items: center; gap: .4rem; width: 100%; }
         .doc-toolbar input.title {
             flex: 1; background: transparent; border: none; color: var(--text);
@@ -183,56 +248,224 @@
             border-radius: 4px; padding: .2rem .5rem; cursor: pointer; font-size: .7rem; text-transform: none; letter-spacing: 0;
         }
         .doc-toolbar button:hover { border-color: var(--accent2); color: var(--accent2); }
-        .page-wrap { padding: 1.5rem 1rem; display: flex; justify-content: center; }
+        .pane.editor .pane-body {
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .page-wrap {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            box-sizing: border-box;
+            position: relative;
+        }
         .page {
-            width: 100%; max-width: 760px; background: var(--bg-page);
-            border: 1px solid var(--border); border-radius: 6px;
-            box-shadow: 0 2px 24px rgba(0,0,0,.4); min-height: 65vh; padding: 2.5rem 3rem;
+            width: calc((100vh - 160px) * 0.707);
+            max-width: 95%;
+            height: calc(100vh - 160px);
+            max-height: 95%;
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 4px 24px rgba(0,0,0,.5);
+            padding: 3.5rem 4rem 4.5rem;
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         .page textarea {
-            width: 100%; min-height: 55vh; background: transparent; border: none; resize: none;
-            color: var(--text); font-size: 1.02rem; line-height: 1.8; outline: none;
-            font-family: 'Georgia', 'Iowan Old Style', serif;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            resize: none;
+            color: var(--text);
+            font-size: 1.02rem;
+            line-height: 1.8;
+            outline: none;
+            overflow: hidden;
+            font-family: 'Ubuntu Mono', monospace;
         }
-        .page .preview { font-size: 1.02rem; line-height: 1.8; }
-        .page .preview h1, .page .preview h2, .page .preview h3 { color: var(--accent2); margin: 1.1rem 0 .5rem; }
-        .page .preview p { margin: .75rem 0; }
-        .page .preview pre { background: #141414; padding: 1rem; border-radius: 6px; overflow-x: auto; }
-        .page .preview code { font-family: 'Fira Code', monospace; font-size: .9em; }
-        .empty-state { color: var(--text-dim); text-align: center; margin-top: 18vh; line-height: 1.7; }
+        /* When it is a book, the editor and preview contents use Courier Prime (typewriter) */
+        body.is-book .page textarea,
+        body.is-book .preview-content {
+            font-family: 'Courier Prime', monospace;
+        }
+        /* When it is NOT a book, use Ubuntu Mono */
+        body:not(.is-book) .page textarea,
+        body:not(.is-book) .preview-content {
+            font-family: 'Ubuntu Mono', monospace;
+        }
+        
+        .preview-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .preview-content {
+            flex: 1;
+            overflow: hidden;
+            font-size: 1.02rem;
+            line-height: 1.8;
+        }
+        .preview-content h1, .preview-content h2, .preview-content h3 { color: var(--accent2); margin: 1.1rem 0 .5rem; }
+        .preview-content p { margin: .75rem 0; }
+        .preview-content pre { background: #141414; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+        .preview-content code { font-family: 'Ubuntu Mono', monospace; font-size: .9em; }
+        
+        .page-footer {
+            position: absolute;
+            bottom: 1.2rem;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            font-family: 'Ubuntu Mono', monospace;
+            user-select: none;
+            z-index: 10;
+        }
+        .page-footer button {
+            background: none !important;
+            border: none !important;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 0.2rem 0.6rem;
+            font-family: inherit;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .page-footer button:hover {
+            color: var(--accent);
+            transform: scale(1.25);
+        }
+        .page-num-indicator {
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .page-num-indicator:hover {
+            color: var(--text);
+            text-decoration: underline;
+        }
+        .empty-state { color: var(--text-dim); text-align: center; line-height: 1.7; font-size: 0.9rem; margin: auto; }
 
-        /* Assistant pane */
-        .assistant { background: var(--bg-panel); }
-        .assistant .pane-body { display: flex; flex-direction: column; }
+        /* Assistant pane (Modern Chat Bubbles) */
+        .assistant { background: var(--bg-panel); border-left: 1px solid var(--border); }
+        .assistant .pane-body { display: flex; flex-direction: column; height: 100%; }
         .chat-log {
-            flex: 1 1 auto; overflow-y: auto; padding: .6rem .7rem; font-size: .8rem;
-            color: var(--text-dim); display: flex; flex-direction: column; gap: .35rem;
+            flex: 1 1 auto; overflow-y: auto; padding: .8rem; font-size: .85rem;
+            display: flex; flex-direction: column; gap: 1rem;
         }
-        .chat-log .cmd { color: var(--text); }
-        .chat-log .cmd::before { content: "› "; color: var(--accent); }
-        .chat-log .info::before { content: "• "; color: var(--accent2); }
-        .chat-input-area { flex: 0 0 auto; border-top: 1px solid var(--border); padding: .6rem .7rem; }
+        
+        .chat-msg { display: flex; flex-direction: column; max-width: 90%; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .chat-msg.user { align-self: flex-end; }
+        .chat-msg.assistant { align-self: flex-start; width: 90%; }
+        
+        .chat-msg .msg-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.72rem; color: var(--text-dim); margin-bottom: 0.3rem; padding: 0 0.2rem;
+        }
+        .chat-msg.user .msg-meta { justify-content: flex-end; }
+        
+        .chat-msg .msg-sender { font-weight: 600; }
+        .chat-msg .apply-btn {
+            background: rgba(86, 156, 214, 0.15); border: 1px solid var(--accent2);
+            color: var(--accent2); padding: 0.1rem 0.4rem; border-radius: 4px;
+            font-size: 0.68rem; cursor: pointer; transition: all 0.15s; margin-left: 0.5rem;
+        }
+        .chat-msg .apply-btn:hover { background: var(--accent2); color: #fff; }
+        
+        .chat-msg .msg-content {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; padding: 0.75rem; line-height: 1.6; color: var(--text);
+            word-break: break-word;
+        }
+        .chat-msg.user .msg-content {
+            background: #2d2d2d; border-color: #444;
+        }
+        .chat-msg.assistant .msg-content {
+            border-left: 3px solid var(--accent);
+        }
+
+        .chat-msg .msg-content p { margin: 0.5rem 0; }
+        .chat-msg .msg-content p:first-child { margin-top: 0; }
+        .chat-msg .msg-content p:last-child { margin-bottom: 0; }
+        .chat-msg .msg-content pre { background: #181818; padding: 0.6rem; border-radius: 4px; overflow-x: auto; margin: 0.5rem 0; }
+        .chat-msg .msg-content code { font-family: 'Fira Code', monospace; font-size: 0.82rem; background: rgba(0,0,0,0.2); padding: 0.1rem 0.3rem; border-radius: 3px; }
+        .chat-msg .msg-content pre code { background: transparent; padding: 0; }
+        .chat-msg .msg-content h1, .chat-msg .msg-content h2, .chat-msg .msg-content h3 { font-size: 1rem; color: var(--accent2); margin: 0.8rem 0 0.4rem; }
+
+        /* Thinking details styling */
+        .thinking {
+            background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-left: 3px solid #ffc600;
+            border-radius: 6px; padding: 0.5rem; margin-bottom: 0.4rem; font-size: 0.78rem;
+        }
+        .thinking summary { cursor: pointer; color: var(--text-dim); font-size: 0.72rem; outline: none; user-select: none; }
+        .thinking-content { white-space: pre-wrap; font-family: 'Fira Code', monospace; color: var(--text-dim); margin-top: 0.4rem; line-height: 1.4; }
+
+        /* Tool call logs */
+        .tool-call-log {
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-left: 3px solid var(--accent2);
+            border-radius: 6px; padding: 0.4rem; margin-bottom: 0.4rem; font-size: 0.75rem; font-family: 'Fira Code', monospace;
+        }
+        .tool-details summary { cursor: pointer; color: var(--accent2); outline: none; }
+        .tool-args { color: var(--text-dim); margin-top: 0.2rem; }
+        .tool-result { color: var(--accent); margin-top: 0.2rem; }
+
+        .chat-input-area { flex: 0 0 auto; border-top: 1px solid var(--border); padding: .7rem; background: var(--bg-panel); }
         .chat-input-area textarea {
-            width: 100%; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
-            color: var(--text); padding: .55rem .7rem; resize: none; outline: none; font-size: .9rem;
-            font-family: inherit; min-height: 60px; max-height: 160px;
+            width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text); padding: .55rem .7rem; resize: none; outline: none; font-size: .85rem;
+            font-family: inherit; min-height: 50px; max-height: 140px;
         }
-        .chat-controls { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+        .chat-input-area textarea::placeholder { color: var(--text-dim); }
+        
+        .chat-controls { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .5rem; }
+        .chat-controls .left-ctrls { display: flex; align-items: center; gap: 0.5rem; }
         .chat-controls .mode-pill {
             font-size: .68rem; color: var(--text-dim); padding: .2rem .5rem;
-            border: 1px solid var(--border); border-radius: 999px;
+            border: 1px solid var(--border); border-radius: 999px; background: var(--bg);
         }
-        .chat-controls button {
-            margin-left: auto; background: var(--accent); color: #08201b; border: none; border-radius: 6px;
-            padding: .45rem 1rem; font-weight: 700; cursor: pointer; font-size: .82rem;
+        .chat-controls .autowrite-wrap { display: flex; align-items: center; gap: 0.25rem; font-size: 0.7rem; color: var(--text-dim); }
+        .chat-controls button.send-btn {
+            background: var(--accent); color: #08201b; border: none; border-radius: 6px;
+            padding: .45rem .9rem; font-weight: 700; cursor: pointer; font-size: .8rem;
         }
-        .chat-controls button:disabled { opacity: .5; cursor: not-allowed; }
+        .chat-controls button.send-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .chat-controls button.clear-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+            padding: .45rem .7rem; border-radius: 6px; cursor: pointer; font-size: .8rem;
+        }
+        .chat-controls button.clear-btn:hover { border-color: var(--error); color: var(--error); }
 
-        /* Integrated terminal panel (bottom, VSCode-style, toggleable) */
-        .terminal-panel { flex: 0 0 auto; display: none; flex-direction: column; background: #181818; }
+        /* Integrated terminal panel (Inside Middle Pane) */
+        .terminal-panel {
+            flex: 0 0 auto; display: none; flex-direction: column; background: #181818;
+            border-top: 2px solid var(--border); width: 100%; z-index: 10;
+        }
         .terminal-panel.open { display: flex; }
-        .term-resize { height: 5px; cursor: row-resize; background: var(--gutter); }
-        .term-resize:hover, .term-resize.dragging { background: var(--gutter-hover); }
+        .term-resize { height: 5px; cursor: row-resize; background: var(--border); }
+        .term-resize:hover, .term-resize.dragging { background: var(--accent); }
         .term-head {
             height: 28px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
             padding: 0 .7rem; background: var(--bg-panel); border-bottom: 1px solid var(--border);
@@ -250,127 +483,235 @@
         .statusbar {
             height: 22px; flex: 0 0 auto; background: var(--statusbar); color: #fff;
             display: flex; align-items: center; gap: 1rem; padding: 0 .8rem; font-size: .72rem;
+            z-index: 1000;
         }
         .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
         .statusbar .dot.offline { background: var(--error); }
         .statusbar .sp { margin-left: auto; }
+        .statusbar .stat-item { display: flex; align-items: center; gap: 0.3rem; }
+        .statusbar .stat-clickable { cursor: pointer; }
+        .statusbar .stat-clickable:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <div class="topbar">
-        <span class="brand">✦ Scribe Book Studio</span>
+        <div class="menu-left">
+            <div class="menu-item">
+                <button class="menu-btn">File</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="createDoc('doc'); return false;">New Document</a>
+                    <a href="#" onclick="createDoc('book'); return false;">New Book</a>
+                    <a href="#" onclick="doSave(); return false;">Save (Ctrl+S)</a>
+                    <hr class="menu-divider">
+                    <a href="/logout">Logout</a>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn">Edit</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="document.execCommand('undo'); return false;">Undo</a>
+                    <a href="#" onclick="document.execCommand('redo'); return false;">Redo</a>
+                    <hr class="menu-divider">
+                    <a href="#" onclick="togglePreview(); return false;">Toggle Preview</a>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn">Selection</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="document.getElementById('editor').select(); return false;">Select All</a>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn">View</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="toggleSidebar(); return false;">Toggle Sidebar</a>
+                    <a href="#" onclick="toggleAssistant(); return false;">Toggle Assistant</a>
+                    <a href="#" onclick="toggleTerminal(); return false;">Toggle Terminal</a>
+                    <hr class="menu-divider">
+                    <a href="#" onclick="resetLayout(); return false;">Reset Layout</a>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn">Terminal</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="toggleTerminal(); return false;">Toggle Terminal (Ctrl+`)</a>
+                    <a href="#" onclick="resetTerminal(); return false;">New Terminal</a>
+                </div>
+            </div>
+            <div class="menu-item">
+                <button class="menu-btn">Help</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="openBackend(); return false;">Model Backend Settings</a>
+                    <a href="https://github.com/pedjaurosevic/scribe-ai" target="_blank">Scribe GitHub</a>
+                    <hr class="menu-divider">
+                    <a href="#" onclick="alert('Scribe IDE v1.0.0'); return false;">About Scribe</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="center-tab" id="centerTab" style="display:none">
+            <span class="ico">📄</span>
+            <span id="tabFileName">Untitled</span>
+        </div>
+
         <div class="right">
-            <a href="#" onclick="openBackend();return false;" title="Izaberi model / backend">⚙ <span id="topModel">{{ model_name }}</span></a>
-            <a href="#" onclick="resetLayout();return false;" title="Vrati jednake trećine">⟲ raspored</a>
-            <a href="/chat">chat ↗</a>
+            <a href="#" class="backend-btn" onclick="openBackend();return false;" title="Change model / backend">⚙ <span id="topModel">{{ model_name }}</span></a>
+            
+            <button class="layout-btn active" id="layoutBtnSidebar" onclick="toggleSidebar()" title="Toggle Sidebar Explorer">
+                <svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+            <button class="layout-btn" id="layoutBtnTerminal" onclick="toggleTerminal()" title="Toggle Panel Terminal">
+                <svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="10" x2="14" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+            <button class="layout-btn active" id="layoutBtnAssistant" onclick="toggleAssistant()" title="Toggle Secondary Sidebar Assistant">
+                <svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="2" x2="10" y2="14" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
         </div>
     </div>
 
     <div class="mid">
-    <div class="activitybar">
-        <div class="act active" title="Explorer">▤</div>
-        <div class="act" title="Terminal (Ctrl+`)" onclick="toggleTerminal()">▢</div>
-        <div class="spacer"></div>
-        <div class="act" title="Asistent">✦</div>
-    </div>
-    <div class="workbench" id="workbench">
-        <!-- Pane 1: Explorer -->
-        <section class="pane explorer">
-            <div class="pane-head"><span>Explorer</span></div>
-            <div class="pane-body">
-                <div class="side-label" style="display:flex;justify-content:space-between;align-items:center">
-                    <span>📁 Files (workspace)</span>
-                    <button class="toc-btn" style="width:auto;margin:0;padding:.1rem .4rem" onclick="loadFileTree()" title="Osveži">⟲</button>
+        <div class="activitybar">
+            <div class="act active" id="actSidebar" title="Explorer" onclick="toggleSidebar()">▤</div>
+            <div class="act" id="actTerminal" title="Terminal (Ctrl+`)" onclick="toggleTerminal()">▢</div>
+            <div class="spacer"></div>
+            <div class="act active" id="actAssistant" title="Assistant" onclick="toggleAssistant()">✦</div>
+        </div>
+        
+        <div class="workbench" id="workbench">
+            <!-- Pane 1: Explorer -->
+            <section class="pane explorer">
+                <div class="pane-head"><span>Explorer</span></div>
+                <div class="pane-body">
+                    <div class="side-label" style="display:flex;justify-content:space-between;align-items:center">
+                        <span>📁 Files (workspace)</span>
+                        <button class="toc-btn" style="width:auto;margin:0;padding:.1rem .4rem" onclick="loadFileTree()" title="Refresh">⟲</button>
+                    </div>
+                    <div class="tree" id="fileTree"></div>
+                    <div class="new-btns" style="margin-top:1rem">
+                        <button onclick="createDoc('doc')">＋ Document</button>
+                        <button onclick="createDoc('book')">＋ Book</button>
+                    </div>
+                    <div class="side-label">📚 Documents & Books</div>
+                    <div id="docList"></div>
+                    <div id="tocSection" style="display:none">
+                        <div class="side-label">Table of Contents (TOC)</div>
+                        <div id="tocList"></div>
+                        <button class="toc-btn" onclick="addChapter()">＋ Chapter</button>
+                        <button class="toc-btn" onclick="generateToc()">✦ Suggest TOC with Model</button>
+                    </div>
                 </div>
-                <div class="tree" id="fileTree"></div>
-                <div class="new-btns" style="margin-top:1rem">
-                    <button onclick="createDoc('doc')">＋ Dokument</button>
-                    <button onclick="createDoc('book')">＋ Knjiga</button>
-                </div>
-                <div class="side-label">📚 Dokumenti / Knjige</div>
-                <div id="docList"></div>
-                <div id="tocSection" style="display:none">
-                    <div class="side-label">Sadržaj (TOC)</div>
-                    <div id="tocList"></div>
-                    <button class="toc-btn" onclick="addChapter()">＋ poglavlje</button>
-                    <button class="toc-btn" onclick="generateToc()">✦ Generiši TOC modelom</button>
-                </div>
-            </div>
-        </section>
+            </section>
 
-        <div class="gutter" data-gutter="0"></div>
+            <div class="gutter" data-gutter="0"></div>
 
-        <!-- Pane 2: Editor -->
-        <section class="pane editor-pane">
-            <div class="pane-head">
-                <div class="doc-toolbar" id="docToolbar" style="display:none">
-                    <input class="title" id="docTitle" placeholder="Naslov…">
-                    <button onclick="togglePreview()" id="previewBtn">Pregled</button>
-                    <button onclick="exportDoc('md')">MD</button>
-                    <button onclick="exportDoc('epub')">EPUB</button>
-                    <button onclick="exportDoc('pdf')">PDF</button>
+            <!-- Pane 2: Editor -->
+            <section class="pane editor-pane">
+                <div class="pane-head">
+                    <div class="doc-toolbar" id="docToolbar" style="display:none">
+                        <input class="title" id="docTitle" placeholder="Title…">
+                        <button onclick="togglePreview()" id="previewBtn">Preview</button>
+                        <button onclick="toggleHtmlView()" id="htmlBtn">HTML View</button>
+                        <button onclick="exportDoc('md')">MD</button>
+                        <button onclick="exportDoc('html')">HTML</button>
+                        <button onclick="exportDoc('epub')">EPUB</button>
+                        <button onclick="exportDoc('pdf')">PDF</button>
+                    </div>
+                    <span id="editorIdle">Editor</span>
                 </div>
-                <span id="editorIdle">Editor</span>
-            </div>
-            <div class="pane-body">
-                <div class="page-wrap">
-                    <div class="page" id="page">
+                <div class="pane-body">
+                    <div class="page-wrap" id="pageWrap">
+                        <!-- Empty state -->
                         <div class="empty-state" id="emptyState">
-                            Napravi <b>Knjigu</b> levo, generiši TOC, pa piši poglavlje po poglavlje.<br>
-                            Komandu modelu pošalji desno sa <b>Ctrl+Enter</b> — tekst se upisuje ovde.
+                            Create a <b>Book</b> or <b>Document</b> on the left sidebar, or open a workspace file.<br>
+                            Send instructions to the assistant on the right panel using <b>Ctrl+Enter</b>.<br>
+                            Responses can be applied straight into the file editor.
                         </div>
-                        <textarea id="editor" style="display:none" placeholder="Piši ovde…"></textarea>
-                        <div class="preview" id="preview" style="display:none"></div>
+
+                        <!-- Edit Page (Single page sheet, no scrollbar) -->
+                        <div class="page edit-page" id="editPage" style="display:none">
+                            <textarea id="editor" placeholder="Write here…"></textarea>
+                            <div class="page-footer">
+                                <button class="page-nav-btn" onclick="prevPage(event)" title="Previous Page">‹</button>
+                                <span class="page-num-indicator" onclick="selectPagePrompt()">Page <span id="pageCurrentNum">1</span> of <span id="pageTotalNum">1</span></span>
+                                <button class="page-nav-btn" onclick="nextPage(event)" title="Next Page">›</button>
+                                <button class="page-add-btn" onclick="addPage(event)" title="Add Page">＋</button>
+                                <button class="page-del-btn" onclick="deleteCurrentPage(event)" title="Delete Page">✕</button>
+                            </div>
+                        </div>
+
+                        <!-- Preview Page -->
+                        <div class="page preview-page" id="preview" style="display:none">
+                            <!-- Injected dynamically: preview-content and page-footer -->
+                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
+                
+                <!-- Terminal panel inside Editor Pane -->
+                <div class="terminal-panel" id="terminalPanel">
+                    <div class="term-resize" id="termResize"></div>
+                    <div class="term-head">
+                        <span class="tabs">● bash — terminal</span>
+                        <span class="term-actions">
+                            <button onclick="resetTerminal()" title="New Shell">⟲</button>
+                            <button onclick="toggleTerminal()" title="Close Terminal (Ctrl+`)">✕</button>
+                        </span>
+                    </div>
+                    <div class="term-body"><div id="terminal"></div></div>
+                </div>
+            </section>
 
-        <div class="gutter" data-gutter="1"></div>
+            <div class="gutter" data-gutter="1"></div>
 
-        <!-- Pane 3: Assistant -->
-        <section class="pane assistant">
-            <div class="pane-head"><span>Asistent</span></div>
-            <div class="pane-body">
-                <div class="chat-log" id="chatLog"></div>
-                <div class="chat-input-area">
-                    <textarea id="cmdInput" placeholder="Reci modelu šta da napiše…&#10;(Ctrl+Enter za slanje)"></textarea>
-                    <div class="chat-controls">
-                        <span class="mode-pill" id="modePill">slobodno</span>
-                        <button id="sendBtn" onclick="sendCommand()">➤ Piši</button>
+            <!-- Pane 3: Assistant -->
+            <section class="pane assistant">
+                <div class="pane-head"><span>Assistant</span></div>
+                <div class="pane-body">
+                    <div class="chat-log" id="chatLog">
+                        {% if session_summary and "No previous session found" not in session_summary %}
+                        <div class="chat-msg assistant" style="align-self:stretch;max-width:100%">
+                            <div class="msg-meta"><span class="msg-sender">✦ Scribe (Session Recall)</span></div>
+                            <div class="msg-content" style="border-left:3px solid var(--warning);background:rgba(220,220,170,0.05);color:var(--text-dim)">
+                                <p><strong>Previous session summary:</strong></p>
+                                <pre style="white-space:pre-wrap;font-family:inherit;font-size:0.85rem;margin-top:0.5rem;color:var(--text)">{{ session_summary }}</pre>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="chat-input-area">
+                        <textarea id="cmdInput" placeholder="Ask Scribe what to write…&#10;(Ctrl+Enter to send)"></textarea>
+                        <div class="chat-controls">
+                            <div class="left-ctrls">
+                                <span class="mode-pill" id="modePill">free chat</span>
+                                <div class="autowrite-wrap">
+                                    <input type="checkbox" id="autoWriteCheck" checked>
+                                    <label for="autoWriteCheck">Auto-write</label>
+                                </div>
+                            </div>
+                            <div class="right-ctrls" style="display: flex; gap: 0.4rem;">
+                                <button class="clear-btn" onclick="clearChat()">Clear</button>
+                                <button class="send-btn" id="sendBtn" onclick="sendCommand()">➤ Enter</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
-    </div>
+            </section>
+        </div>
     </div><!-- /.mid -->
 
-    <div class="terminal-panel" id="terminalPanel">
-        <div class="term-resize" id="termResize"></div>
-        <div class="term-head">
-            <span class="tabs">● bash — terminal</span>
-            <span class="term-actions">
-                <button onclick="resetTerminal()" title="Novi shell">⟲</button>
-                <button onclick="toggleTerminal()" title="Zatvori (Ctrl+`)">✕</button>
-            </span>
-        </div>
-        <div class="term-body"><div id="terminal"></div></div>
-    </div>
-
     <div class="statusbar">
-        <span><span class="dot" id="statusDot"></span> <span id="statusText">…</span></span>
-        <span id="sbDoc">nema dokumenta</span>
-        <span style="cursor:pointer" onclick="toggleTerminal()" title="Ctrl+`">▢ Terminal</span>
-        <span class="sp" id="sbMode">slobodno</span>
-        <span id="sbSave">spremno</span>
+        <span class="stat-item"><span class="dot" id="statusDot"></span> <span id="statusText">Connecting...</span></span>
+        <span class="stat-item" id="sbDoc">No document open</span>
+        <span class="stat-item stat-clickable" onclick="toggleTerminal()" title="Ctrl+`">▢ Terminal</span>
+        <span class="sp stat-item" id="sbMode">free chat</span>
+        <span class="stat-item" id="sbSave">Ready</span>
     </div>
 
     <!-- Model / backend switcher -->
     <div class="modal-backdrop" id="backendModal">
         <div class="modal">
             <div class="modal-head">
-                <span class="t">⚙ Model backend</span>
-                <button onclick="closeBackend()" title="Zatvori">✕</button>
+                <span class="t">⚙ Model Backend</span>
+                <button onclick="closeBackend()" title="Close">✕</button>
             </div>
             <div class="modal-body">
                 <div class="tabs">
@@ -380,21 +721,21 @@
                 <div id="paneLocal">
                     <label>Base URL</label>
                     <input id="beLocalUrl" placeholder="http://127.0.0.1:18083/v1">
-                    <div class="hint">Lokalni llama.cpp server. Bez API ključa, GBNF tool-grammar radi.</div>
+                    <div class="hint">Local llama.cpp server. No API key needed, GBNF tool-grammar is supported.</div>
                 </div>
                 <div id="paneApi" style="display:none">
                     <label>Base URL</label>
                     <input id="beApiUrl" placeholder="https://openrouter.ai/api/v1">
                     <label>Model</label>
-                    <input id="beApiModel" placeholder="npr. deepseek-chat">
-                    <label>API ključ</label>
-                    <input id="beApiKey" type="password" placeholder="čuva se u lokalnom configu">
-                    <div class="hint">Bilo koji OpenAI-kompatibilan provajder (OpenRouter, Groq, DeepSeek…). Na cloud-u se GBNF gasi.</div>
+                    <input id="beApiModel" placeholder="e.g. deepseek-chat">
+                    <label>API Key</label>
+                    <input id="beApiKey" type="password" placeholder="Saved in local config">
+                    <div class="hint">Any OpenAI-compatible provider (OpenRouter, Groq, DeepSeek…). GBNF grammar is disabled for cloud APIs.</div>
                 </div>
             </div>
             <div class="modal-foot">
                 <span class="cur" id="beCurrent">…</span>
-                <button class="save" onclick="saveBackend()">Sačuvaj i poveži</button>
+                <button class="save" onclick="saveBackend()">Save and Connect</button>
             </div>
         </div>
     </div>
@@ -405,22 +746,80 @@
 
         let ws = null, isConnected = false, isGenerating = false;
         let currentDoc = null, currentChapterId = null, currentFile = null;
-        let previewing = false, saveTimer = null;
+        let viewMode = 'edit'; let saveTimer = null;
         let streamBase = "", pendingToc = false, tocBuffer = "";
+        let docPages = [''];
+        let currentPageIndex = 0;
 
-        // --- Resizable three-pane layout (Terminator-style gutters) -------
+        // --- Layout Panels Toggle & Resizing ------------------------------
         const WB = $('workbench');
         const LAYOUT_KEY = 'scribe.layout.cols';
-        function applyCols(cols) { WB.style.gridTemplateColumns = `${cols[0]}fr 6px ${cols[1]}fr 6px ${cols[2]}fr`; }
-        function loadLayout() {
-            try { const s = JSON.parse(localStorage.getItem(LAYOUT_KEY)); if (Array.isArray(s) && s.length === 3) applyCols(s); } catch (e) {}
+        let sidebarOpen = true;
+        let assistantOpen = true;
+        let colsBeforeCollapse = [1, 1, 1]; // remembers widths when uncollapsed
+
+        function applyCols(cols) {
+            WB.style.gridTemplateColumns = `${cols[0]}fr 2px ${cols[1]}fr 2px ${cols[2]}fr`;
         }
-        function resetLayout() { localStorage.removeItem(LAYOUT_KEY); applyCols([1, 1, 1]); }
+
+        function loadLayout() {
+            try {
+                const s = JSON.parse(localStorage.getItem(LAYOUT_KEY));
+                if (Array.isArray(s) && s.length === 3) {
+                    colsBeforeCollapse = s;
+                }
+            } catch (e) {}
+            updateLayout();
+        }
+
+        function resetLayout() {
+            localStorage.removeItem(LAYOUT_KEY);
+            colsBeforeCollapse = [1, 1, 1];
+            sidebarOpen = true;
+            assistantOpen = true;
+            updateLayout();
+        }
+
         function currentCols() {
             const parts = getComputedStyle(WB).gridTemplateColumns.split(' ').map(parseFloat);
-            // [c1, gutter, c2, gutter, c3] in px → keep the three pane widths
             return [parts[0], parts[2], parts[4]];
         }
+
+        function updateLayout() {
+            const pane1 = document.querySelector('.pane.explorer');
+            const gutter1 = document.querySelector('.gutter[data-gutter="0"]');
+            const pane3 = document.querySelector('.pane.assistant');
+            const gutter2 = document.querySelector('.gutter[data-gutter="1"]');
+
+            let col1 = sidebarOpen ? `${colsBeforeCollapse[0]}fr` : '0fr';
+            let gut1 = sidebarOpen ? '2px' : '0px';
+            let col2 = `${colsBeforeCollapse[1]}fr`;
+            let gut2 = assistantOpen ? '2px' : '0px';
+            let col3 = assistantOpen ? `${colsBeforeCollapse[2]}fr` : '0fr';
+
+            pane1.style.display = sidebarOpen ? 'flex' : 'none';
+            gutter1.style.display = sidebarOpen ? 'block' : 'none';
+            pane3.style.display = assistantOpen ? 'flex' : 'none';
+            gutter2.style.display = assistantOpen ? 'block' : 'none';
+
+            WB.style.gridTemplateColumns = `${col1} ${gut1} ${col2} ${gut2} ${col3}`;
+
+            $('layoutBtnSidebar').classList.toggle('active', sidebarOpen);
+            $('actSidebar').classList.toggle('active', sidebarOpen);
+            $('layoutBtnAssistant').classList.toggle('active', assistantOpen);
+            $('actAssistant').classList.toggle('active', assistantOpen);
+        }
+
+        function toggleSidebar() {
+            sidebarOpen = !sidebarOpen;
+            updateLayout();
+        }
+
+        function toggleAssistant() {
+            assistantOpen = !assistantOpen;
+            updateLayout();
+        }
+
         document.querySelectorAll('.gutter').forEach(g => {
             g.addEventListener('mousedown', (e) => {
                 e.preventDefault();
@@ -431,12 +830,18 @@
                 const right = left + 1;
                 const startLeft = cols[left], startRight = cols[right];
                 g.classList.add('dragging');
+                
                 function onMove(ev) {
                     const dx = ev.clientX - startX;
                     const nl = Math.max(120, startLeft + dx);
                     const nr = Math.max(120, startRight - dx);
                     cols[left] = nl; cols[right] = nr;
-                    applyCols(cols);
+                    
+                    colsBeforeCollapse[0] = cols[0];
+                    colsBeforeCollapse[1] = cols[1];
+                    colsBeforeCollapse[2] = cols[2];
+                    
+                    applyCols(colsBeforeCollapse);
                 }
                 function onUp() {
                     document.removeEventListener('mousemove', onMove);
@@ -453,31 +858,371 @@
         function connect() {
             const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${proto}//${location.host}/ws/chat`);
-            ws.onopen = () => { isConnected = true; $('statusDot').classList.remove('offline'); $('statusText').textContent = 'povezan'; };
-            ws.onclose = () => { isConnected = false; $('statusDot').classList.add('offline'); $('statusText').textContent = 'nije povezan'; setTimeout(connect, 3000); };
-            ws.onerror = () => { $('statusDot').classList.add('offline'); $('statusText').textContent = 'greška'; };
+            ws.onopen = () => {
+                isConnected = true;
+                $('statusDot').classList.remove('offline');
+                $('statusText').textContent = 'Connected';
+            };
+            ws.onclose = () => {
+                isConnected = false;
+                $('statusDot').classList.add('offline');
+                $('statusText').textContent = 'Disconnected';
+                setTimeout(connect, 3000);
+            };
+            ws.onerror = () => {
+                $('statusDot').classList.add('offline');
+                $('statusText').textContent = 'Error';
+            };
             ws.onmessage = (e) => handleWs(JSON.parse(e.data));
         }
+
         function handleWs(data) {
             switch (data.type) {
+                case 'status':
+                    showTypingIndicator();
+                    break;
+                case 'thinking':
+                    hideTypingIndicator();
+                    updateThinking(data.full);
+                    break;
+                case 'tool':
+                    hideTypingIndicator();
+                    collapseThinking();
+                    addToolCall(data);
+                    break;
                 case 'chunk':
-                    if (pendingToc) tocBuffer = data.full; else applyStream(data.full);
+                    hideTypingIndicator();
+                    collapseThinking();
+                    updateLastMessage(data.full);
+                    if ($('autoWriteCheck').checked) {
+                        if (pendingToc) tocBuffer = data.full; else applyStream(data.full);
+                    }
                     break;
                 case 'done':
-                    if (pendingToc) finishToc(tocBuffer);
-                    else { logInfo('✓ upisano u dokument'); scheduleSave(); }
-                    isGenerating = false; $('sendBtn').disabled = false;
+                    hideTypingIndicator();
+                    finalizeStreaming();
+                    if (pendingToc) {
+                        finishToc(tocBuffer);
+                    } else if ($('autoWriteCheck').checked) {
+                        logInfo('✓ Content applied to document');
+                        checkAllPagesOverflow(0, () => {
+                            currentPageIndex = 0;
+                            loadPage(0);
+                            scheduleSave();
+                        });
+                    }
+                    isGenerating = false;
+                    $('sendBtn').disabled = false;
                     break;
                 case 'error':
-                    logInfo('⚠ ' + data.content); isGenerating = false; $('sendBtn').disabled = false; pendingToc = false;
+                    hideTypingIndicator();
+                    logInfo('⚠ ' + data.content);
+                    isGenerating = false;
+                    $('sendBtn').disabled = false;
+                    pendingToc = false;
+                    break;
+                case 'cleared':
+                    $('chatLog').innerHTML = '';
                     break;
             }
         }
+
         function applyStream(full) {
+            if (full.includes('<doc_content>')) {
+                const startIdx = full.indexOf('<doc_content>') + 13;
+                const endIdx = full.includes('</doc_content>') ? full.indexOf('</doc_content>') : full.length;
+                const docText = full.substring(startIdx, endIdx);
+                
+                docPages = docText.split('\n---\n');
+                if (docPages.length === 0 || (docPages.length === 1 && docPages[0] === '')) {
+                    docPages = [''];
+                }
+                currentPageIndex = Math.min(currentPageIndex, docPages.length - 1);
+                loadPage(currentPageIndex);
+                if (viewMode === 'preview') renderPreview();
+                else if (viewMode === 'html') renderHtmlView();
+            }
+        }
+
+        // --- Assistant / Chat Log ----------------------------------------
+        function addMessage(role, content, thinking = '') {
+            const log = $('chatLog');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-msg ${role}`;
+            
+            let html = `
+                <div class="msg-meta">
+                    <span class="msg-sender">${role === 'user' ? 'You' : '✦ Scribe'}</span>
+                    ${role === 'assistant' ? `<button class="apply-btn" onclick="applyMsgToEditor(this)">Apply to Editor</button>` : ''}
+                </div>
+            `;
+            
+            if (thinking) {
+                html += `
+                    <details class="thinking" open>
+                        <summary>Thinking Process</summary>
+                        <div class="thinking-content">${escapeHtml(thinking)}</div>
+                    </details>
+                `;
+            }
+            
+            html += `<div class="msg-content">${parseMarkdown(content)}</div>`;
+            msgDiv.innerHTML = html;
+            log.appendChild(msgDiv);
+            log.scrollTop = log.scrollHeight;
+            return msgDiv;
+        }
+
+        function addStreamingMessage() {
+            const log = $('chatLog');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-msg assistant';
+            msgDiv.id = 'streamingMessage';
+            msgDiv.innerHTML = `
+                <div class="msg-meta">
+                    <span class="msg-sender">✦ Scribe</span>
+                    <button class="apply-btn" onclick="applyMsgToEditor(this)">Apply to Editor</button>
+                </div>
+                <details class="thinking" id="streamingThinking" style="display:none" open>
+                    <summary>Thinking Process</summary>
+                    <div class="thinking-content"></div>
+                </details>
+                <div class="tool-calls" id="streamingTools"></div>
+                <div class="msg-content stream-content"></div>
+            `;
+            log.appendChild(msgDiv);
+            log.scrollTop = log.scrollHeight;
+            return msgDiv;
+        }
+
+        function updateLastMessage(content) {
+            const streaming = document.getElementById('streamingMessage');
+            if (streaming) {
+                streaming.querySelector('.msg-content').innerHTML = parseMarkdown(content);
+                $('chatLog').scrollTop = $('chatLog').scrollHeight;
+            }
+        }
+
+        function updateThinking(content) {
+            const thinking = document.getElementById('streamingThinking');
+            if (thinking) {
+                thinking.style.display = 'block';
+                thinking.querySelector('.thinking-content').textContent = content;
+                $('chatLog').scrollTop = $('chatLog').scrollHeight;
+            }
+        }
+
+        function collapseThinking() {
+            const thinking = document.getElementById('streamingThinking');
+            if (thinking && thinking.open) thinking.open = false;
+        }
+
+        function addToolCall(data) {
+            const tools = document.getElementById('streamingTools');
+            if (!tools) return;
+            const div = document.createElement('div');
+            div.className = 'tool-call-log';
+            div.innerHTML = `
+                <details class="tool-details">
+                    <summary>🔧 Tool Call: ${escapeHtml(data.name)}</summary>
+                    <div class="tool-args">Arguments: ${escapeHtml(JSON.stringify(data.args))}</div>
+                    <div class="tool-result">Result: ${escapeHtml(data.result)}</div>
+                </details>
+            `;
+            tools.appendChild(div);
+            $('chatLog').scrollTop = $('chatLog').scrollHeight;
+            
+            // Reload file if currently edited file is modified by model tool execution
+            if (currentFile && data.name === 'write_file' && data.args && data.args.path === currentFile) {
+                openFile(currentFile);
+            }
+        }
+
+        function finalizeStreaming() {
+            const msg = document.getElementById('streamingMessage');
+            if (msg) msg.removeAttribute('id');
+            const thinking = document.getElementById('streamingThinking');
+            if (thinking) {
+                thinking.open = false;
+                thinking.removeAttribute('id');
+            }
+            const tools = document.getElementById('streamingTools');
+            if (tools) tools.removeAttribute('id');
+        }
+
+        function showTypingIndicator() {
+            const log = $('chatLog');
+            const div = document.createElement('div');
+            div.className = 'chat-msg assistant';
+            div.id = 'typingIndicator';
+            div.innerHTML = `
+                <div class="msg-meta"><span class="msg-sender">✦ Scribe</span></div>
+                <div class="msg-content" style="padding:0.6rem 0.8rem; display: flex; align-items: center; overflow: hidden; position: relative;">
+                    <svg class="chaton-fat" viewBox="0 0 100 60" width="55" height="33" style="margin-right: 14px; flex-shrink: 0; animation: catLifeCycle 6s linear infinite;">
+                        <style>
+                            @keyframes catLifeCycle {
+                                0% { transform: translate(120px, -60px) scale(0); opacity: 0; }
+                                12% { transform: translate(50px, -30px) scale(0.9) rotate(-15deg); opacity: 1; }
+                                15% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+                                65% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+                                75% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+                                88% { transform: translate(-140px, 60px) scale(0.4) rotate(-30deg); opacity: 0; }
+                                100% { transform: translate(-140px, 60px) scale(0) rotate(-30deg); opacity: 0; }
+                            }
+                            @keyframes catWaddle {
+                                0%, 15%, 65%, 75%, 88%, 100% { transform: translateY(0) rotate(0deg); }
+                                20%, 30%, 40%, 50%, 60% { transform: translateY(-1.5px) rotate(-3deg); }
+                                25%, 35%, 45%, 55% { transform: translateY(0px) rotate(3deg); }
+                                78%, 84% { transform: translateY(-2px) rotate(-6deg); }
+                                81%, 87% { transform: translateY(0px) rotate(6deg); }
+                            }
+                            @keyframes legSwingLeft {
+                                0%, 15%, 65%, 75%, 88%, 100% { transform: rotate(0deg); }
+                                20%, 30%, 40%, 50%, 60% { transform: rotate(-25deg); }
+                                25%, 35%, 45%, 55% { transform: rotate(25deg); }
+                                78%, 84% { transform: rotate(-40deg); }
+                                81%, 87% { transform: rotate(40deg); }
+                            }
+                            @keyframes legSwingRight {
+                                0%, 15%, 65%, 75%, 88%, 100% { transform: rotate(0deg); }
+                                20%, 30%, 40%, 50%, 60% { transform: rotate(25deg); }
+                                25%, 35%, 45%, 55% { transform: rotate(-25deg); }
+                                78%, 84% { transform: rotate(40deg); }
+                                81%, 87% { transform: rotate(-40deg); }
+                            }
+                            @keyframes tailWiggle {
+                                0%, 15%, 65%, 75%, 88%, 100% { transform: rotate(0deg); }
+                                22%, 37%, 52% { transform: rotate(-12deg); }
+                                30%, 45%, 60% { transform: rotate(6deg); }
+                                78%, 84% { transform: rotate(-20deg); }
+                                81%, 87% { transform: rotate(15deg); }
+                            }
+                            .cat-body-group {
+                                animation: catWaddle 6s linear infinite;
+                                transform-origin: 50px 40px;
+                            }
+                            .cat-leg-front-left {
+                                animation: legSwingLeft 6s linear infinite;
+                                transform-origin: 36px 42px;
+                            }
+                            .cat-leg-front-right {
+                                animation: legSwingRight 6s linear infinite;
+                                transform-origin: 44px 42px;
+                            }
+                            .cat-leg-back-left {
+                                animation: legSwingRight 6s linear infinite;
+                                transform-origin: 56px 42px;
+                            }
+                            .cat-leg-back-right {
+                                animation: legSwingLeft 6s linear infinite;
+                                transform-origin: 64px 42px;
+                            }
+                            .cat-tail-path {
+                                animation: tailWiggle 6s linear infinite;
+                                transform-origin: 70px 28px;
+                            }
+                        </style>
+                        <g fill="#8fd1c0">
+                            <!-- Tail -->
+                            <path class="cat-tail-path" d="M 70 30 C 78 32 82 22 80 12 C 79 9 82 6 85 9 C 85 13 81 30 70 34 Z" />
+                            
+                            <!-- Tiny stumpy legs -->
+                            <rect class="cat-leg-back-right" x="62" y="42" width="4" height="8" rx="2" />
+                            <rect class="cat-leg-back-left" x="54" y="42" width="4" height="8" rx="2" />
+                            <rect class="cat-leg-front-right" x="42" y="42" width="4" height="8" rx="2" />
+                            <rect class="cat-leg-front-left" x="34" y="42" width="4" height="8" rx="2" />
+
+                            <!-- Massive round body and small head group -->
+                            <g class="cat-body-group">
+                                <!-- Completely fat round body (circle) -->
+                                <circle cx="50" cy="27" r="21" />
+                                <!-- Small head merging into body -->
+                                <circle cx="31" cy="22" r="8" />
+                                <!-- Tiny ears -->
+                                <polygon points="24,16 23,7 31,14" />
+                                <polygon points="31,14 38,7 37,16" />
+                            </g>
+                        </g>
+                    </svg>
+                    <div>
+                        <span style="color:var(--text-dim); font-size:0.9rem;">Scribe is writing...</span>
+                    </div>
+                </div>
+            `;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        function applyMsgToEditor(btn) {
+            const msgDiv = btn.closest('.chat-msg');
+            const contentDiv = msgDiv.querySelector('.msg-content');
+            
+            const codeBlocks = contentDiv.querySelectorAll('pre code');
+            let textToApply = "";
+            if (codeBlocks.length > 0) {
+                textToApply = Array.from(codeBlocks).map(cb => cb.innerText).join('\n\n');
+            } else {
+                textToApply = contentDiv.innerText;
+            }
+            
             const ed = $('editor');
-            ed.value = streamBase + (streamBase ? "\n\n" : "") + full;
-            ed.scrollTop = ed.scrollHeight;
-            if (previewing) renderPreview();
+            
+            // Check if the text contains a full document block
+            if (textToApply.includes('<doc_content>')) {
+                const startIdx = textToApply.indexOf('<doc_content>') + 13;
+                const endIdx = textToApply.includes('</doc_content>') ? textToApply.indexOf('</doc_content>') : textToApply.length;
+                const docText = textToApply.substring(startIdx, endIdx);
+                
+                docPages = docText.split('\n---\n');
+                if (docPages.length === 0 || (docPages.length === 1 && docPages[0] === '')) {
+                    docPages = [''];
+                }
+                checkAllPagesOverflow(0, () => {
+                    currentPageIndex = 0;
+                    loadPage(0);
+                    if (viewMode === 'preview') renderPreview();
+                    else if (viewMode === 'html') renderHtmlView();
+                    scheduleSave();
+                });
+                logInfo('✓ Applied document content to editor');
+            } else {
+                // Otherwise, insert it as a snippet at the current cursor position
+                const start = ed.selectionStart;
+                const end = ed.selectionEnd;
+                const val = ed.value;
+                ed.value = val.substring(0, start) + textToApply + val.substring(end);
+                ed.focus();
+                ed.selectionStart = start + textToApply.length;
+                ed.selectionEnd = start + textToApply.length;
+                saveCurrentPageData();
+                checkAllPagesOverflow(currentPageIndex, () => {
+                    if (viewMode === 'preview') renderPreview();
+                    else if (viewMode === 'html') renderHtmlView();
+                    scheduleSave();
+                });
+                logInfo('✓ Applied snippet to current page');
+            }
+        }
+
+        function parseMarkdown(text) {
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                            return hljs.highlight(code, { language: lang }).value;
+                        }
+                        return code;
+                    },
+                    breaks: true
+                });
+                return marked.parse(text);
+            }
+            return text;
         }
 
         // --- Explorer / doc list ------------------------------------------
@@ -487,32 +1232,41 @@
             documents.forEach(d => {
                 const div = document.createElement('div');
                 div.className = 'doc-item' + (currentDoc && d.id === currentDoc.id ? ' active' : '');
-                div.innerHTML = `<span><span class="ico">${d.type === 'book' ? '▤' : '▦'}</span> ${escapeHtml(d.title)}</span><span class="del" title="obriši">✕</span>`;
+                div.innerHTML = `<span><span class="ico">${d.type === 'book' ? '▤' : '▦'}</span> ${escapeHtml(d.title)}</span><span class="del" title="Delete">✕</span>`;
                 div.querySelector('span').onclick = () => openDoc(d.id);
                 div.querySelector('.del').onclick = (e) => { e.stopPropagation(); deleteDoc(d.id, d.title); };
                 list.appendChild(div);
             });
         }
+
         async function createDoc(type) {
-            const title = prompt(type === 'book' ? 'Naslov knjige:' : 'Naslov dokumenta:', type === 'book' ? 'Nova knjiga' : 'Nov dokument');
+            const title = prompt(type === 'book' ? 'Book Title:' : 'Document Title:', type === 'book' ? 'New Book' : 'New Document');
             if (title === null) return;
             const r = await fetch('/api/docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, type }) });
             const meta = await r.json();
             await loadDocList(); openDoc(meta.id);
         }
+
         async function deleteDoc(id, title) {
-            if (!confirm(`Obrisati "${title}"? Ovo se ne može vratiti.`)) return;
+            if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
             await fetch('/api/docs/' + id, { method: 'DELETE' });
             if (currentDoc && currentDoc.id === id) { currentDoc = null; showEmpty(); }
             loadDocList();
         }
+
         async function openDoc(id) {
             const r = await fetch('/api/docs/' + id);
             if (!r.ok) return;
             currentDoc = await r.json(); currentChapterId = null; currentFile = null;
             $('docToolbar').style.display = 'flex'; $('editorIdle').style.display = 'none';
             $('previewBtn').style.display = '';
+            $('htmlBtn').style.display = '';
             $('emptyState').style.display = 'none'; $('docTitle').value = currentDoc.title;
+            
+            // Set tab display
+            $('centerTab').style.display = 'flex';
+            $('tabFileName').textContent = currentDoc.title;
+
             if (currentDoc.type === 'book') {
                 $('tocSection').style.display = 'block'; renderToc();
                 if (currentDoc.chapters.length) selectChapter(currentDoc.chapters[0].id); else setEditor('');
@@ -522,15 +1276,34 @@
             updateModePill(); loadDocList();
             $('sbDoc').textContent = (currentDoc.type === 'book' ? '▤ ' : '▦ ') + currentDoc.title;
         }
+
         function showEmpty() {
             $('docToolbar').style.display = 'none'; $('editorIdle').style.display = 'inline';
-            $('tocSection').style.display = 'none'; $('editor').style.display = 'none';
+            $('tocSection').style.display = 'none'; $('editPage').style.display = 'none';
             $('preview').style.display = 'none'; $('emptyState').style.display = 'block';
-            $('sbDoc').textContent = 'nema dokumenta';
+            $('sbDoc').textContent = 'No document open';
+            $('centerTab').style.display = 'none';
+            document.body.classList.remove('is-book');
         }
+
         function setEditor(text) {
-            previewing = false; $('editor').style.display = 'block'; $('preview').style.display = 'none';
-            $('emptyState').style.display = 'none'; $('previewBtn').textContent = 'Pregled'; $('editor').value = text;
+            viewMode = 'edit';
+            const isBook = currentDoc && currentDoc.type === 'book';
+            document.body.classList.toggle('is-book', isBook);
+
+            $('editPage').style.display = 'block';
+            $('preview').style.display = 'none';
+            $('emptyState').style.display = 'none';
+            $('previewBtn').textContent = 'Preview';
+            $('htmlBtn').textContent = 'HTML View';
+            
+            // Parse pages
+            docPages = (text || '').split('\n---\n');
+            if (docPages.length === 0 || (docPages.length === 1 && docPages[0] === '')) {
+                docPages = [''];
+            }
+            currentPageIndex = 0;
+            loadPage(0);
         }
 
         // --- Book TOC -----------------------------------------------------
@@ -544,99 +1317,388 @@
                 list.appendChild(div);
             });
         }
+
         function selectChapter(chId) {
             const ch = currentDoc.chapters.find(c => c.id === chId);
             if (!ch) return;
             currentChapterId = chId; setEditor(ch.content || ''); renderToc(); updateModePill();
+            $('tabFileName').textContent = `${currentDoc.title} - ${ch.title}`;
         }
+
         async function addChapter() {
             if (!currentDoc) return;
-            const title = prompt('Naslov poglavlja:');
+            const title = prompt('Chapter Title:');
             if (!title) return;
             await fetch(`/api/docs/${currentDoc.id}/chapters`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
             await openDoc(currentDoc.id);
         }
+
         function generateToc() {
             if (!currentDoc) return;
-            const topic = prompt('O čemu je knjiga? (model predlaže poglavlja)', currentDoc.title);
+            const topic = prompt('What is the book about? (model will suggest chapters)', currentDoc.title);
             if (!topic) return;
             pendingToc = true; tocBuffer = ''; isGenerating = true; $('sendBtn').disabled = true;
-            logCmd('Generiši TOC: ' + topic);
-            const instruction = `Predloži tabelu sadržaja za knjigu "${topic}". Izlistaj 6-12 naslova poglavlja, svaki u svom redu, bez numeracije i bez ikakvog drugog teksta.`;
+            logCmd('Generate TOC: ' + topic);
+            const instruction = `Suggest a table of contents for a book about "${topic}". List 6-12 chapter titles, each on its own line, without numbering and without any other text.`;
             ws.send(JSON.stringify({ type: 'message', content: instruction, mode: 'free' }));
         }
+
         async function finishToc(text) {
             const titles = text.split('\n').map(l => l.replace(/^\s*(\d+[\.\)]|[-*#>•]+)\s*/, '').trim()).filter(Boolean);
-            if (!titles.length) { logInfo('TOC prazan — pokušaj ponovo.'); pendingToc = false; return; }
+            if (!titles.length) { logInfo('TOC empty — please try again.'); pendingToc = false; return; }
             await fetch(`/api/docs/${currentDoc.id}/chapters`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ titles }) });
-            pendingToc = false; logInfo(`✓ TOC: ${titles.length} poglavlja`); await openDoc(currentDoc.id);
+            pendingToc = false; logInfo(`✓ TOC generated: ${titles.length} chapters`); await openDoc(currentDoc.id);
         }
 
         // --- Saving -------------------------------------------------------
-        function scheduleSave() { clearTimeout(saveTimer); $('sbSave').textContent = '✎ menja se…'; saveTimer = setTimeout(doSave, 800); }
+        function scheduleSave() { clearTimeout(saveTimer); $('sbSave').textContent = '✎ Saving…'; saveTimer = setTimeout(doSave, 800); }
         function doSave() { if (currentFile) saveFile(); else saveDoc(); }
+
         async function saveFile() {
             if (!currentFile) return;
+            saveCurrentPageData();
+            const fullContent = docPages.join('\n---\n');
             const r = await fetch('/api/file', {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: currentFile, content: $('editor').value }),
+                body: JSON.stringify({ path: currentFile, content: fullContent }),
             });
-            $('sbSave').textContent = r.ok ? '✓ sačuvano' : '⚠ greška pri snimanju';
-        }
-        async function saveDoc() {
-            if (!currentDoc) return;
-            const body = { title: $('docTitle').value };
-            if (currentDoc.type === 'book' && currentChapterId) { body.chapter_id = currentChapterId; body.content = $('editor').value; }
-            else if (currentDoc.type === 'doc') { body.content = $('editor').value; }
-            await fetch('/api/docs/' + currentDoc.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-            if (currentDoc.type === 'doc') currentDoc.content = $('editor').value;
-            else if (currentChapterId) { const ch = currentDoc.chapters.find(c => c.id === currentChapterId); if (ch) ch.content = $('editor').value; }
-            $('sbSave').textContent = '✓ sačuvano';
+            $('sbSave').textContent = r.ok ? '✓ Saved' : '⚠ Error saving';
         }
 
-        // --- Preview ------------------------------------------------------
-        function togglePreview() {
-            previewing = !previewing;
-            $('editor').style.display = previewing ? 'none' : 'block';
-            $('preview').style.display = previewing ? 'block' : 'none';
-            $('previewBtn').textContent = previewing ? 'Uredi' : 'Pregled';
-            if (previewing) renderPreview();
+        async function saveDoc() {
+            if (!currentDoc) return;
+            saveCurrentPageData();
+            const fullContent = docPages.join('\n---\n');
+            const body = { title: $('docTitle').value };
+            if (currentDoc.type === 'book' && currentChapterId) { body.chapter_id = currentChapterId; body.content = fullContent; }
+            else if (currentDoc.type === 'doc') { body.content = fullContent; }
+            await fetch('/api/docs/' + currentDoc.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (currentDoc.type === 'doc') currentDoc.content = fullContent;
+            else if (currentChapterId) { const ch = currentDoc.chapters.find(c => c.id === currentChapterId); if (ch) ch.content = fullContent; }
+            $('sbSave').textContent = '✓ Saved';
         }
-        function renderPreview() { $('preview').innerHTML = marked.parse($('editor').value || ''); }
+
+        // --- Single Page Pagination & Navigation --------------------------
+        function saveCurrentPageData() {
+            if (docPages && typeof currentPageIndex === 'number') {
+                docPages[currentPageIndex] = $('editor').value || '';
+            }
+        }
+
+        function loadPage(index) {
+            currentPageIndex = Math.max(0, Math.min(index, docPages.length - 1));
+            
+            // Set editor content
+            $('editor').value = docPages[currentPageIndex] || '';
+            
+            // Update footer page numbers in editPage
+            const curNumSpan = $('pageCurrentNum');
+            const totNumSpan = $('pageTotalNum');
+            if (curNumSpan) curNumSpan.textContent = currentPageIndex + 1;
+            if (totNumSpan) totNumSpan.textContent = docPages.length;
+            
+            autoResizeEditor();
+        }
+
+        function prevPage(e) {
+            if (e) e.stopPropagation();
+            if (currentPageIndex > 0) {
+                saveCurrentPageData();
+                loadPage(currentPageIndex - 1);
+                if (viewMode === 'preview') renderPreview();
+                else if (viewMode === 'html') renderHtmlView();
+            }
+        }
+
+        function nextPage(e) {
+            if (e) e.stopPropagation();
+            saveCurrentPageData();
+            if (currentPageIndex < docPages.length - 1) {
+                loadPage(currentPageIndex + 1);
+                if (viewMode === 'preview') renderPreview();
+                else if (viewMode === 'html') renderHtmlView();
+            } else if (viewMode === 'edit') {
+                // In edit mode, add a new page if next clicked on last page
+                addPage();
+            }
+        }
+
+        function addPage(e) {
+            if (e) e.stopPropagation();
+            saveCurrentPageData();
+            docPages.splice(currentPageIndex + 1, 0, '');
+            loadPage(currentPageIndex + 1);
+            scheduleSave();
+        }
+
+        function deleteCurrentPage(e) {
+            if (e) e.stopPropagation();
+            if (docPages.length <= 1) {
+                docPages = [''];
+                loadPage(0);
+                scheduleSave();
+                return;
+            }
+            if (confirm(`Delete current page (${currentPageIndex + 1})?`)) {
+                docPages.splice(currentPageIndex, 1);
+                currentPageIndex = Math.max(0, currentPageIndex - 1);
+                loadPage(currentPageIndex);
+                scheduleSave();
+            }
+        }
+
+        function selectPagePrompt() {
+            const pageStr = prompt(`Go to page (1-${docPages.length}):`, currentPageIndex + 1);
+            if (pageStr) {
+                const pageNum = parseInt(pageStr, 10);
+                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= docPages.length) {
+                    saveCurrentPageData();
+                    loadPage(pageNum - 1);
+                    if (viewMode === 'preview') renderPreview();
+                    else if (viewMode === 'html') renderHtmlView();
+                }
+            }
+        }
+
+        function checkPageOverflow() {
+            checkAllPagesOverflow(currentPageIndex);
+        }
+
+        function checkAllPagesOverflow(startFromIdx = 0, onDone = null) {
+            if (startFromIdx >= docPages.length) {
+                if (onDone) onDone();
+                return;
+            }
+            currentPageIndex = startFromIdx;
+            loadPage(currentPageIndex);
+            
+            setTimeout(() => {
+                const ed = $('editor');
+                if (!ed) return;
+                if (ed.scrollHeight > ed.clientHeight) {
+                    let text = ed.value;
+                    let words = text.split(/(\s+)/);
+                    let overflowedText = "";
+                    while (ed.scrollHeight > ed.clientHeight && words.length > 1) {
+                        const popped = words.pop();
+                        overflowedText = popped + overflowedText;
+                        ed.value = words.join('');
+                    }
+                    saveCurrentPageData();
+                    if (currentPageIndex === docPages.length - 1) {
+                        docPages.push(overflowedText);
+                    } else {
+                        docPages[currentPageIndex + 1] = overflowedText + (docPages[currentPageIndex + 1] || "");
+                    }
+                    checkAllPagesOverflow(currentPageIndex, onDone);
+                } else {
+                    checkAllPagesOverflow(startFromIdx + 1, onDone);
+                }
+            }, 30);
+        }
+
+        // --- Preview & Editor View Controls -------------------------------
+        function autoResizeEditor() {
+            const editor = $('editor');
+            if (editor) {
+                editor.style.height = '100%';
+            }
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            if (viewMode === 'edit') {
+                $('editPage').style.display = 'block';
+                $('preview').style.display = 'none';
+                $('previewBtn').textContent = 'Preview';
+                $('htmlBtn').textContent = 'HTML View';
+                loadPage(currentPageIndex);
+            } else if (viewMode === 'preview') {
+                $('editPage').style.display = 'none';
+                $('preview').style.display = 'block';
+                $('previewBtn').textContent = 'Edit';
+                $('htmlBtn').textContent = 'HTML View';
+                renderPreview();
+            } else if (viewMode === 'html') {
+                $('editPage').style.display = 'none';
+                $('preview').style.display = 'block';
+                $('previewBtn').textContent = 'Edit';
+                $('htmlBtn').textContent = 'Edit';
+                renderHtmlView();
+            }
+        }
+
+        function togglePreview() {
+            if (viewMode === 'edit') {
+                setViewMode('preview');
+            } else {
+                setViewMode('edit');
+            }
+        }
+
+        function toggleHtmlView() {
+            if (viewMode === 'html') {
+                setViewMode('edit');
+            } else {
+                setViewMode('html');
+            }
+        }
+
+        function renderPreview() {
+            saveCurrentPageData();
+            const preview = $('preview');
+            if (!preview) return;
+            const content = docPages[currentPageIndex] || '';
+            const html = marked.parse(content);
+            preview.innerHTML = `
+                <div class="preview-content">${html}</div>
+                <div class="page-footer">
+                    <button class="page-nav-btn" onclick="prevPage(event)" title="Previous Page">‹</button>
+                    <span class="page-num-indicator" onclick="selectPagePrompt()">Page <span class="current-num">${currentPageIndex + 1}</span> of <span class="total-num">${docPages.length}</span></span>
+                    <button class="page-nav-btn" onclick="nextPage(event)" title="Next Page">›</button>
+                </div>
+            `;
+        }
+
+        function renderHtmlView() {
+            saveCurrentPageData();
+            const preview = $('preview');
+            if (!preview) return;
+            const content = docPages[currentPageIndex] || '';
+            const html = marked.parse(content);
+            const escapedHtml = escapeHtml(html);
+            preview.innerHTML = `
+                <div class="preview-content">
+                    <pre><code style="white-space: pre-wrap; font-family: 'Fira Code', monospace; font-size: 0.82rem; color: #8fd1c0;">${escapedHtml}</code></pre>
+                </div>
+                <div class="page-footer">
+                    <button class="page-nav-btn" onclick="prevPage(event)" title="Previous Page">‹</button>
+                    <span class="page-num-indicator" onclick="selectPagePrompt()">Page <span class="current-num">${currentPageIndex + 1}</span> of <span class="total-num">${docPages.length}</span></span>
+                    <button class="page-nav-btn" onclick="nextPage(event)" title="Next Page">›</button>
+                </div>
+            `;
+        }
 
         // --- Commands -----------------------------------------------------
         function updateModePill() {
-            const m = (currentDoc && currentDoc.type === 'book') ? 'knjiga · poglavlje' : 'slobodno';
+            const m = (currentDoc && currentDoc.type === 'book') ? 'Book Chapter' : 'free chat';
             $('modePill').textContent = m; $('sbMode').textContent = m;
         }
+
         function sendCommand() {
             const input = $('cmdInput'); const text = input.value.trim();
             if (!text || !isConnected || isGenerating || (!currentDoc && !currentFile)) {
-                if (!currentDoc && !currentFile) logInfo('Prvo otvori fajl ili napravi dokument.');
+                if (!currentDoc && !currentFile) logInfo('Please open a file or create a document first.');
                 return;
             }
-            if (previewing) togglePreview();
-            streamBase = $('editor').value.trim();
+            if (viewMode !== 'edit') setViewMode('edit');
+            streamBase = docPages.join('\n---\n'); // Use the full text including all pages for doc context
             const mode = (currentDoc && currentDoc.type === 'book') ? 'book' : 'free';
             isGenerating = true; $('sendBtn').disabled = true;
-            logCmd(text); input.value = '';
+            addMessage('user', text);
+            input.value = '';
+            addStreamingMessage();
             ws.send(JSON.stringify({ type: 'message', content: text, doc_context: streamBase, mode }));
         }
+
         async function exportDoc(fmt) {
             if (!currentDoc) return;
             await saveDoc();
-            if (fmt === 'md') window.location = `/api/docs/${currentDoc.id}/export.md`;
-            else if (fmt === 'epub') window.location = `/api/docs/${currentDoc.id}/export.epub`;
-            else if (fmt === 'pdf') window.open(`/print/${currentDoc.id}`, '_blank');
+            if (fmt === 'md') {
+                window.location = `/api/docs/${currentDoc.id}/export.md`;
+            } else if (fmt === 'epub') {
+                window.location = `/api/docs/${currentDoc.id}/export.epub`;
+            } else if (fmt === 'pdf') {
+                window.open(`/print/${currentDoc.id}`, '_blank');
+            } else if (fmt === 'html') {
+                const title = $('docTitle').value || 'Untitled';
+                const fullMarkdown = docPages.join('\n---\n');
+                const htmlContent = marked.parse(fullMarkdown);
+                const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Ubuntu+Mono&family=Courier+Prime&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #080808;
+            color: #d4d4d4;
+            font-family: 'Outfit', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 3rem 1.5rem;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+        h1, h2, h3, h4 {
+            color: #8fd1c0;
+            margin-top: 2rem;
+        }
+        h1 {
+            border-bottom: 1px solid #1f2926;
+            padding-bottom: 0.5rem;
+        }
+        a {
+            color: #c792ea;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        code {
+            font-family: 'Ubuntu Mono', monospace;
+            background: #141414;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #141414;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid #1f2926;
+        }
+        pre code {
+            background: transparent;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 3px solid #8fd1c0;
+            margin: 1.5rem 0;
+            padding-left: 1rem;
+            color: #a0a0a0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>${title}</h1>
+        ${htmlContent}
+    </div>
+</body>
+</html>`;
+                const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
         }
 
         // --- Helpers ------------------------------------------------------
-        function logCmd(t) { addLog('cmd', t); }
-        function logInfo(t) { addLog('info', t); }
-        function addLog(cls, t) {
-            const log = $('chatLog'); const div = document.createElement('div');
-            div.className = cls; div.textContent = t; log.appendChild(div); log.scrollTop = log.scrollHeight;
-        }
+        function logCmd(t) { addMessage('user', t); }
+        function logInfo(t) { addMessage('assistant', t); }
         function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 
         // --- Workspace file tree ------------------------------------------
@@ -644,6 +1706,7 @@
             const root = $('fileTree'); root.innerHTML = '';
             await renderDir('', root);
         }
+
         async function renderDir(path, container) {
             const r = await fetch('/api/files?path=' + encodeURIComponent(path));
             if (!r.ok) { container.innerHTML = '<div class="hint" style="padding:.3rem">…</div>'; return; }
@@ -651,7 +1714,7 @@
             container.innerHTML = '';
             if (!entries.length) {
                 const e = document.createElement('div');
-                e.className = 'hint'; e.style.padding = '.3rem .4rem'; e.textContent = '(prazno)';
+                e.className = 'hint'; e.style.padding = '.3rem .4rem'; e.textContent = '(empty)';
                 container.appendChild(e); return;
             }
             entries.forEach(en => {
@@ -676,23 +1739,29 @@
                 }
             });
         }
+
         async function openFile(path, node) {
             const r = await fetch('/api/file?path=' + encodeURIComponent(path));
-            if (!r.ok) { logInfo('⚠ ne mogu da otvorim fajl'); return; }
+            if (!r.ok) { logInfo('⚠ Cannot open file'); return; }
             const data = await r.json();
             currentFile = path; currentDoc = null; currentChapterId = null;
             document.querySelectorAll('.tree .node.active').forEach(n => n.classList.remove('active'));
             if (node) node.classList.add('active');
+            
             $('tocSection').style.display = 'none';
             $('docToolbar').style.display = 'flex';
             $('editorIdle').style.display = 'none';
             $('docTitle').value = path;
+            
+            // Set tab display
+            $('centerTab').style.display = 'flex';
+            $('tabFileName').textContent = path.split('/').pop();
+
             // Plain files: export buttons do not apply.
             $('previewBtn').style.display = 'none';
-            ['MD', 'EPUB', 'PDF'].forEach(() => {});
             setEditor(data.content);
             $('sbDoc').textContent = '📄 ' + path;
-            $('modePill').textContent = 'fajl'; $('sbMode').textContent = 'fajl';
+            $('modePill').textContent = 'file'; $('sbMode').textContent = 'file';
         }
 
         // --- Model backend switcher ---------------------------------------
@@ -704,7 +1773,7 @@
                 $('beCurrent').textContent = `${b.healthy ? '●' : '○'} ${b.model_name} — ${b.base_url}`;
                 if (b.has_key) { backendTab('api'); $('beApiUrl').value = b.base_url; $('beApiModel').value = b.model; }
                 else { backendTab('local'); $('beLocalUrl').value = b.base_url; }
-            } catch (e) { $('beCurrent').textContent = 'status nepoznat'; }
+            } catch (e) { $('beCurrent').textContent = 'status unknown'; }
         }
         function closeBackend() { $('backendModal').classList.remove('open'); }
         function backendTab(kind) {
@@ -722,23 +1791,23 @@
                 payload.base_url = $('beApiUrl').value.trim();
                 payload.model = $('beApiModel').value.trim();
                 payload.api_key = $('beApiKey').value.trim();
-                if (!payload.base_url || !payload.model) { $('beCurrent').textContent = '⚠ unesi Base URL i Model'; return; }
+                if (!payload.base_url || !payload.model) { $('beCurrent').textContent = '⚠ Enter Base URL and Model'; return; }
             }
-            $('beCurrent').textContent = '… povezujem';
+            $('beCurrent').textContent = '… connecting';
             const r = await fetch('/api/backend', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
             });
             const b = await r.json();
-            if (!r.ok) { $('beCurrent').textContent = '⚠ ' + (b.error || 'greška'); return; }
+            if (!r.ok) { $('beCurrent').textContent = '⚠ ' + (b.error || 'error'); return; }
             $('topModel').textContent = b.model_name;
             $('beCurrent').textContent = `${b.healthy ? '●' : '○'} ${b.model_name} — ${b.base_url}`;
-            logInfo(`✓ backend: ${b.model_name} (${b.base_url})`);
+            logInfo(`✓ Model backend switched to: ${b.model_name} (${b.base_url})`);
             setTimeout(closeBackend, 700);
         }
         $('backendModal').addEventListener('click', (e) => { if (e.target.id === 'backendModal') closeBackend(); });
 
         // --- Wiring -------------------------------------------------------
-        $('editor').addEventListener('input', scheduleSave);
+        $('editor').addEventListener('input', () => { saveCurrentPageData(); checkPageOverflow(); scheduleSave(); });
         $('docTitle').addEventListener('input', scheduleSave);
         $('cmdInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendCommand(); }
@@ -771,7 +1840,7 @@
                 if (e.data instanceof ArrayBuffer) term.write(new Uint8Array(e.data));
                 else term.write(e.data);
             };
-            termWs.onclose = () => { term && term.write('\r\n\x1b[31m[shell zatvoren]\x1b[0m\r\n'); };
+            termWs.onclose = () => { term && term.write('\r\n\x1b[31m[shell closed]\x1b[0m\r\n'); };
         }
 
         function fitTerminal() {
@@ -787,8 +1856,10 @@
             const panel = $('terminalPanel');
             termOpen = !termOpen;
             panel.classList.toggle('open', termOpen);
+            $('layoutBtnTerminal').classList.toggle('active', termOpen);
+            $('actTerminal').classList.toggle('active', termOpen);
             if (termOpen) {
-                const h = parseInt(localStorage.getItem(TH_KEY)) || 240;
+                const h = parseInt(localStorage.getItem(TH_KEY)) || 220;
                 panel.style.height = h + 'px';
                 ensureTerminal();
                 setTimeout(() => { fitTerminal(); term.focus(); }, 50);
@@ -808,7 +1879,7 @@
                 e.preventDefault(); handle.classList.add('dragging');
                 const startY = e.clientY, startH = panel.offsetHeight;
                 function onMove(ev) {
-                    const h = Math.max(120, Math.min(window.innerHeight - 150, startH + (startY - ev.clientY)));
+                    const h = Math.max(100, Math.min(window.innerHeight - 150, startH + (startY - ev.clientY)));
                     panel.style.height = h + 'px'; fitTerminal();
                 }
                 function onUp() {
@@ -826,6 +1897,7 @@
         // Ctrl+` toggles the terminal, just like VSCode.
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && (e.key === '`' || e.code === 'Backquote')) { e.preventDefault(); toggleTerminal(); }
+            if (e.ctrlKey && e.key === 's') { e.preventDefault(); doSave(); }
         });
 
         loadLayout();
