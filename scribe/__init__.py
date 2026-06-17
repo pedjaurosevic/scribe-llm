@@ -5,6 +5,10 @@ Universal TUI agent that connects to any llama.cpp server and uses
 RAG + semantic memory to research, write, and remember across sessions.
 """
 
+# Silence warning from torchao about incompatible PyTorch version
+import logging
+logging.getLogger("torchao").setLevel(logging.ERROR)
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 
