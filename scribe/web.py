@@ -475,11 +475,13 @@ def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> st
     parts.append(
         f"You are helping the user edit this {unit}.\n"
         f"If the user wants you to write, edit, update, or rewrite the content of the {unit}, "
-        f"you MUST wrap the entire updated markdown content for the {unit} inside `<doc_content>...</doc_content>` tags. "
-        "Do not include any introductory phrases, greetings, or commentary inside the `<doc_content>` tags.\n"
-        "However, if the user is asking a question, discussing, explaining, or if you are not sure whether "
-        "they want to write directly to the document/chapter, do NOT use `<doc_content>` tags. Instead, reply in the chatbox "
-        "to discuss or ask for confirmation."
+        f"you MUST wrap the entire updated markdown content for the {unit} inside "
+        "`<doc_content>...</doc_content>` tags. "
+        "Do not include any introductory phrases, greetings, or commentary inside the "
+        "`<doc_content>` tags.\n"
+        "However, if the user is asking a question, discussing, explaining, or if you are "
+        "not sure whether they want to write directly to the document/chapter, do NOT use "
+        "`<doc_content>` tags. Instead, reply in the chatbox to discuss or ask for confirmation."
     )
     return "\n\n".join(parts)
 
@@ -564,7 +566,7 @@ async def websocket_chat(websocket: WebSocket):
 
                 doc_context = event.get("doc_context", "")
                 mode = event.get("mode", "free")
-                
+
                 # Skill detection (e.g. deep-research)
                 should_use_skill, skill_name = skills_executor.should_use_skill(user_content)
                 if should_use_skill and skill_name:
