@@ -303,6 +303,9 @@ class ScribeTUI:
             sys.stdout.write(f"\033[{rows}A\033[J")
             sys.stdout.flush()
 
+        # Header mirrors Scribe's own "▌ Scribe" so each turn reads as a titled
+        # message; "You" matches the web chat's sender label.
+        self.console.print("  [user]▌[/user] [user]You[/user]")
         bubble = Padding(Text(text, style="user.msg"), (0, 1),
                          style="user.msg", expand=False)
         self.console.print(Padding(bubble, (0, 0, 0, 2)))

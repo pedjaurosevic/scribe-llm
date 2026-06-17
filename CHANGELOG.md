@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`You` header in `scribe chat`.** Each user turn in the TUI now prints a
+  `▌ You` title above the message bubble, mirroring Scribe's own `▌ Scribe`
+  header (the web chat already labels turns `You` / `✦ Scribe`).
+
+### Changed
+- **Web editor: two view modes + Export menu.** The document toolbar now shows
+  just **Preview** (rendered) and **Raw MD** (markdown source); the file export
+  formats (Markdown, HTML, EPUB, PDF) moved into an **Export ▾** dropdown. The
+  standalone raw-HTML-source view was removed.
+- **Web status bar** recolored from VSCode blue to the turquoise-green accent
+  used by the Write button.
+- **Streaming indicator** is now an animated **quill pen writing lines** instead
+  of the waddling cat.
+
 ## [0.7.0] - 2026-06-17
 
 ### Added
