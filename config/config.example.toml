@@ -102,7 +102,7 @@ approved_sender = ""
 # intake stays OFF (sending still works).
 secret = ""
 
-# Poll cadence for `scribe mail watch`, in seconds.
+# Poll cadence for `scribe-llm mail watch`, in seconds.
 poll_interval = 30
 
 # Provider servers (Gmail defaults shown).

@@ -22,7 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   summary.
 - **Session transcripts documented in the prompt.** The system prompt now tells
   Scribe where past sessions live (`sessions/…`) and how the user resumes them
-  (`scribe chat resume [TAG]`).
+  (`scribe-llm chat resume [TAG]`).
 
 ### Changed
 - **Web Book Studio editor overhaul** (`editor.html`): A4-style floating pages
@@ -73,11 +73,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.4.2] - 2026-06-16
 
 ### Added
-- **PDF ingestion for RAG** (`pypdf`): `scribe rag` can now extract text from
+- **PDF ingestion for RAG** (`pypdf`): `scribe-llm rag` can now extract text from
   `.pdf` files. Added `pypdf` to the dependencies.
 
 ### Fixed
-- **`scribe --version` now reports the real version.** `__version__` is read
+- **`scribe-llm --version` now reports the real version.** `__version__` is read
   from the installed distribution metadata (`scribe-llm`) instead of a
   hard-coded string that had drifted to `0.3.0`.
 - **Robust RAG chunking** (`memory/rag.py`): oversized paragraphs are split
@@ -86,7 +86,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.4.1] - 2026-06-16
 
 ### Fixed
-- **`scribe web` now runs on native Windows.** The integrated terminal's
+- **`scribe-llm web` now runs on native Windows.** The integrated terminal's
   POSIX-only imports (`pty`/`termios`/`fcntl`) were unconditional, so
   `import scribe.web` crashed on Windows. They are now guarded; the terminal
   degrades gracefully where no PTY is available, while the editor, chat and
@@ -114,7 +114,7 @@ format for the knowledge Scribe distills.
   section per chapter + title page) and PDF (browser print view).
 - **Integrated terminal** (`/ws/terminal`): a real login shell in a PTY bridged
   to xterm.js, toggled with `Ctrl+\``, PIN-gated like the rest of the UI.
-- **Open Knowledge Format wiki**: `scribe wiki distill` now stores pages as OKF
+- **Open Knowledge Format wiki**: `scribe-llm wiki distill` now stores pages as OKF
   markdown — YAML frontmatter (`type/title/description/tags/timestamp/source`),
   `index.md` + `log.md`, inter-page links. `ensure_frontmatter` backfills a
   valid block when the model omits one. SME/RAG are framed as derived indexes
@@ -151,18 +151,18 @@ projects (Synap, Konok, ExoLab, CANYON) and Odysseus, folded into Scribe.
   by default; new `rag ask` (grounded Q&A) and `rag reindex`.
 - **Citation grounding** (`scribe/prompts.py`): numbered sources, mandatory
   `[n]` citations, `[CONTRADICTION]` tagging, refusal outside the sources.
-- **SPI grounding metric** (`scribe/evolve/spi.py`) and **`scribe bench`**:
+- **SPI grounding metric** (`scribe/evolve/spi.py`) and **`scribe-llm bench`**:
   deterministic Source-Presence Index over a checksum-locked grounded suite.
 - **ORORO traces** (`scribe/trace.py`): append-only canonical-JSON event log
-  per session; `scribe trace`.
-- **Status contract** (`scribe/status.py`): machine-readable `scribe status --json`.
-- **Project vaults** (`scribe/vault.py`): `scribe init` for isolated per-project
+  per session; `scribe-llm trace`.
+- **Status contract** (`scribe/status.py`): machine-readable `scribe-llm status --json`.
+- **Project vaults** (`scribe/vault.py`): `scribe-llm init` for isolated per-project
   RAG/SME stores.
 - **WorldModel** (`scribe/worldmodel.py`): a persona always injected into the
-  system prompt; `scribe remember`.
+  system prompt; `scribe-llm remember`.
 - **Pulse & Diary** (`scribe/pulse.py`): heartbeat log and nightly reflection.
 - **Model discovery & blind compare** (`scribe/discovery.py`, `scribe/compare.py`):
-  `scribe discover` and `scribe compare`.
+  `scribe-llm discover` and `scribe-llm compare`.
 
 ### Changed
 - `LLMAdapter` gained `thinking_mode` and `tool_grammar`; `_with_thinking`
@@ -198,15 +198,15 @@ projects (Synap, Konok, ExoLab, CANYON) and Odysseus, folded into Scribe.
 - Initial public release.
 - Universal LLM adapter for any OpenAI-compatible (llama.cpp) endpoint.
 - Rich-based TUI with a streaming chat, plus an experimental Textual full-screen UI.
-- FastAPI web UI (`scribe web`).
+- FastAPI web UI (`scribe-llm web`).
 - Cross-session memory via the Semantic Memory Engine (SME).
 - RAG over a local document library (multilingual-e5 embeddings + LanceDB).
 - Modular skills: deep-research, writer, wiki-memory.
 - Sandboxed workspace file tools (read / write / list, scoped to the workspace).
 - Email bridge: send notifications and accept commands from one approved
   address, using only the Python standard library.
-- Held-out fitness suite (`scribe evolve eval`).
+- Held-out fitness suite (`scribe-llm evolve eval`).
 
-[Unreleased]: https://github.com/pedjaurosevic/scribe-ai/compare/v0.2.1...HEAD
-[0.2.1]: https://github.com/pedjaurosevic/scribe-ai/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/pedjaurosevic/scribe-ai/releases/tag/v0.2.0
+[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/pedjaurosevic/scribe-llm/releases/tag/v0.2.0

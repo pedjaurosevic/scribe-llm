@@ -26,7 +26,7 @@ removes the hope:
 2. **Cite or refuse.** Grounded Q&A maps every claim to a numbered source
    `[n]`, tags `[CONTRADICTION]` when sources disagree, and refuses to answer
    outside the sources instead of hallucinating.
-3. **Grounding is measured.** `scribe bench` reports a deterministic
+3. **Grounding is measured.** `scribe-llm bench` reports a deterministic
    Source-Presence Index over a checksum-locked held-out suite. On Gemma 4 12B
    it scores SPI 1.00 — and you can re-run it on your own model.
 
@@ -42,11 +42,11 @@ removes the hope:
 ## Try it in 2 minutes
 
 ```bash
-git clone https://github.com/pedjaurosevic/scribe-ai && cd scribe-ai
+git clone https://github.com/pedjaurosevic/scribe-llm && cd scribe-llm
 ./scripts/install.sh
-scribe discover          # find your local model server
-scribe chat              # start talking
-scribe bench             # see the grounding number for yourself
+scribe-llm discover          # find your local model server
+scribe-llm chat              # start talking
+scribe-llm bench             # see the grounding number for yourself
 ```
 
 ## Honest limitations (state these, don't hide them)
@@ -77,5 +77,5 @@ the auto-repair path, and the SPI bench. Code-heavy, honest about tradeoffs.
 2. Scribe builds a GBNF grammar from your tool schemas — a malformed tool call
    becomes grammatically impossible on llama.cpp. [demo gif]
 3. Every answer cites its source [n] or refuses. No silent hallucination.
-4. And it's measured: `scribe bench` → SPI 1.00 on Gemma 4 12B. Run it yourself.
-5. Local-first, ~7k lines, 250+ tests, MIT. github.com/pedjaurosevic/scribe-ai
+4. And it's measured: `scribe-llm bench` → SPI 1.00 on Gemma 4 12B. Run it yourself.
+5. Local-first, ~7k lines, 250+ tests, MIT. github.com/pedjaurosevic/scribe-llm

@@ -68,7 +68,7 @@ This is your personal Scribe workspace. The agent reads and writes files here
 - `wiki/`     — durable notes Scribe maintains across sessions
 - `notes/`    — scratch space
 - `sessions/` — full Markdown transcript of every chat session (auto-written,
-  searchable with `scribe session search "query"`)
+  searchable with `scribe-llm session search "query"`)
 
 Nothing here is committed to the Scribe source repo.
 EOF
@@ -76,4 +76,4 @@ EOF
 fi
 
 echo "Installation complete!"
-echo "Run 'scribe --help' to get started."
+echo "Run 'scribe-llm --help' to get started."

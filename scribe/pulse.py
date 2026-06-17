@@ -2,11 +2,11 @@
 Pulse and Diary — lightweight continuity (from Konok).
 
 Pulse: an append-only heartbeat log (`~/.scribe/pulse.jsonl`). A systemd timer
-(or cron) calls `scribe pulse` on an interval; each beat records that the agent
+(or cron) calls `scribe-llm pulse` on an interval; each beat records that the agent
 and its server are alive, with a one-line status. The log is the agent's proof
 that time passed between sessions.
 
-Diary: a nightly reflection. `scribe diary` reads the day's session
+Diary: a nightly reflection. `scribe-llm diary` reads the day's session
 transcripts and asks the model to write a short Markdown reflection to
 `~/.scribe/diary/<date>.md`. Opt-in, cheap, and human-readable.
 

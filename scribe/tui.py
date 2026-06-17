@@ -1188,9 +1188,9 @@ class ScribeTUI:
                 f"  [dim]Session saved as[/dim] [accent]#{tag}[/accent]"
                 f"[dim]. Continue it with:[/dim]"
             )
-            self.console.print(f"  [command]scribe chat resume {tag}[/command]")
+            self.console.print(f"  [command]scribe-llm chat resume {tag}[/command]")
             self.console.print(
-                "  [dim]or just[/dim] [command]scribe chat resume[/command] "
+                "  [dim]or just[/dim] [command]scribe-llm chat resume[/command] "
                 "[dim]for the most recent.[/dim]"
             )
             self.console.print()
