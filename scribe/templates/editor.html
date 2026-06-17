@@ -30,7 +30,7 @@
             --accent2: #569cd6;       /* blue */
             --warning: #dcdcaa;
             --error: #f48771;
-            --statusbar: #007acc;     /* VSCode blue */
+            --statusbar: #8fd1c0;     /* turquoise green (matches Write button) */
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         /* Minimalist scrollbars (Apple-like) */
@@ -247,7 +247,20 @@
             background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border);
             border-radius: 4px; padding: .2rem .5rem; cursor: pointer; font-size: .7rem; text-transform: none; letter-spacing: 0;
         }
-        .doc-toolbar button:hover { border-color: var(--accent2); color: var(--accent2); }
+        .doc-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+        .doc-toolbar button.active { background: var(--accent); color: #08201b; border-color: var(--accent); font-weight: 600; }
+        /* Export dropdown (document export formats) */
+        .export-menu { position: relative; display: inline-block; }
+        .export-menu .export-content {
+            display: none; position: absolute; right: 0; top: 100%; margin-top: 3px;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            min-width: 150px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-radius: 4px; z-index: 1001;
+        }
+        .export-menu.open .export-content { display: block; }
+        .export-menu .export-content a {
+            color: var(--text); padding: .45rem .7rem; text-decoration: none; display: block; font-size: .72rem;
+        }
+        .export-menu .export-content a:hover { background: var(--accent); color: #08201b; }
         .pane.editor .pane-body {
             overflow: hidden;
             display: flex;
@@ -481,11 +494,11 @@
 
         /* Status bar */
         .statusbar {
-            height: 22px; flex: 0 0 auto; background: var(--statusbar); color: #fff;
+            height: 22px; flex: 0 0 auto; background: var(--statusbar); color: #08201b;
             display: flex; align-items: center; gap: 1rem; padding: 0 .8rem; font-size: .72rem;
             z-index: 1000;
         }
-        .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+        .statusbar .dot { width: 7px; height: 7px; border-radius: 50%; background: #08201b; display: inline-block; }
         .statusbar .dot.offline { background: var(--error); }
         .statusbar .sp { margin-left: auto; }
         .statusbar .stat-item { display: flex; align-items: center; gap: 0.3rem; }
@@ -609,12 +622,17 @@
                 <div class="pane-head">
                     <div class="doc-toolbar" id="docToolbar" style="display:none">
                         <input class="title" id="docTitle" placeholder="Title…">
-                        <button onclick="togglePreview()" id="previewBtn">Preview</button>
-                        <button onclick="toggleHtmlView()" id="htmlBtn">HTML View</button>
-                        <button onclick="exportDoc('md')">MD</button>
-                        <button onclick="exportDoc('html')">HTML</button>
-                        <button onclick="exportDoc('epub')">EPUB</button>
-                        <button onclick="exportDoc('pdf')">PDF</button>
+                        <button onclick="setViewMode('preview')" id="previewBtn">Preview</button>
+                        <button onclick="setViewMode('edit')" id="rawBtn">Raw MD</button>
+                        <div class="export-menu" id="exportMenu">
+                            <button class="export-btn" onclick="toggleExportMenu(event)">Export ▾</button>
+                            <div class="export-content" id="exportContent">
+                                <a href="#" onclick="exportDoc('md'); return false;">Markdown (.md)</a>
+                                <a href="#" onclick="exportDoc('html'); return false;">HTML (.html)</a>
+                                <a href="#" onclick="exportDoc('epub'); return false;">EPUB (.epub)</a>
+                                <a href="#" onclick="exportDoc('pdf'); return false;">PDF (.pdf)</a>
+                            </div>
+                        </div>
                     </div>
                     <span id="editorIdle">Editor</span>
                 </div>
@@ -940,7 +958,6 @@
                 currentPageIndex = Math.min(currentPageIndex, docPages.length - 1);
                 loadPage(currentPageIndex);
                 if (viewMode === 'preview') renderPreview();
-                else if (viewMode === 'html') renderHtmlView();
             }
         }
 
@@ -1058,90 +1075,43 @@
             div.innerHTML = `
                 <div class="msg-meta"><span class="msg-sender">✦ Scribe</span></div>
                 <div class="msg-content" style="padding:0.6rem 0.8rem; display: flex; align-items: center; overflow: hidden; position: relative;">
-                    <svg class="chaton-fat" viewBox="0 0 100 60" width="55" height="33" style="margin-right: 14px; flex-shrink: 0; animation: catLifeCycle 6s linear infinite;">
+                    <svg class="quill-anim" viewBox="0 0 64 36" width="56" height="32" style="margin-right: 14px; flex-shrink: 0;">
                         <style>
-                            @keyframes catLifeCycle {
-                                0% { transform: translate(120px, -60px) scale(0); opacity: 0; }
-                                12% { transform: translate(50px, -30px) scale(0.9) rotate(-15deg); opacity: 1; }
-                                15% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
-                                65% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
-                                75% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
-                                88% { transform: translate(-140px, 60px) scale(0.4) rotate(-30deg); opacity: 0; }
-                                100% { transform: translate(-140px, 60px) scale(0) rotate(-30deg); opacity: 0; }
+                            /* Already-written faint lines */
+                            .ink-active {
+                                stroke-dasharray: 42; stroke-dashoffset: 42;
+                                animation: inkWrite 1.8s ease-in-out infinite;
                             }
-                            @keyframes catWaddle {
-                                0%, 15%, 65%, 75%, 88%, 100% { transform: translateY(0) rotate(0deg); }
-                                20%, 30%, 40%, 50%, 60% { transform: translateY(-1.5px) rotate(-3deg); }
-                                25%, 35%, 45%, 55% { transform: translateY(0px) rotate(3deg); }
-                                78%, 84% { transform: translateY(-2px) rotate(-6deg); }
-                                81%, 87% { transform: translateY(0px) rotate(6deg); }
+                            @keyframes inkWrite {
+                                0%   { stroke-dashoffset: 42; opacity: 1; }
+                                70%  { stroke-dashoffset: 0;  opacity: 1; }
+                                92%  { stroke-dashoffset: 0;  opacity: 1; }
+                                100% { stroke-dashoffset: 0;  opacity: 0; }
                             }
-                            @keyframes legSwingLeft {
-                                0%, 15%, 65%, 75%, 88%, 100% { transform: rotate(0deg); }
-                                20%, 30%, 40%, 50%, 60% { transform: rotate(-25deg); }
-                                25%, 35%, 45%, 55% { transform: rotate(25deg); }
-                                78%, 84% { transform: rotate(-40deg); }
-                                81%, 87% { transform: rotate(40deg); }
+                            .quill {
+                                transform-origin: 8px 24px;
+                                animation: quillGlide 1.8s ease-in-out infinite;
                             }
-                            @keyframes legSwingRight {
-                                0%, 15%, 65%, 75%, 88%, 100% { transform: rotate(0deg); }
-                                20%, 30%, 40%, 50%, 60% { transform: rotate(25deg); }
-                                25%, 35%, 45%, 55% { transform: rotate(-25deg); }
-                                78%, 84% { transform: rotate(40deg); }
-                                81%, 87% { transform: rotate(-40deg); }
-                            }
-                            @keyframes tailWiggle {
-                                0%, 15%, 65%, 75%, 88%, 100% { transform: rotate(0deg); }
-                                22%, 37%, 52% { transform: rotate(-12deg); }
-                                30%, 45%, 60% { transform: rotate(6deg); }
-                                78%, 84% { transform: rotate(-20deg); }
-                                81%, 87% { transform: rotate(15deg); }
-                            }
-                            .cat-body-group {
-                                animation: catWaddle 6s linear infinite;
-                                transform-origin: 50px 40px;
-                            }
-                            .cat-leg-front-left {
-                                animation: legSwingLeft 6s linear infinite;
-                                transform-origin: 36px 42px;
-                            }
-                            .cat-leg-front-right {
-                                animation: legSwingRight 6s linear infinite;
-                                transform-origin: 44px 42px;
-                            }
-                            .cat-leg-back-left {
-                                animation: legSwingRight 6s linear infinite;
-                                transform-origin: 56px 42px;
-                            }
-                            .cat-leg-back-right {
-                                animation: legSwingLeft 6s linear infinite;
-                                transform-origin: 64px 42px;
-                            }
-                            .cat-tail-path {
-                                animation: tailWiggle 6s linear infinite;
-                                transform-origin: 70px 28px;
+                            @keyframes quillGlide {
+                                0%   { transform: translate(0px, 0px) rotate(-3deg); }
+                                70%  { transform: translate(38px, 0px) rotate(-3deg); }
+                                72%  { transform: translate(0px, -1px) rotate(-3deg); opacity: .6; }
+                                100% { transform: translate(0px, 0px) rotate(-3deg); opacity: 1; }
                             }
                         </style>
-                        <g fill="#8fd1c0">
-                            <!-- Tail -->
-                            <path class="cat-tail-path" d="M 70 30 C 78 32 82 22 80 12 C 79 9 82 6 85 9 C 85 13 81 30 70 34 Z" />
-                            
-                            <!-- Tiny stumpy legs -->
-                            <rect class="cat-leg-back-right" x="62" y="42" width="4" height="8" rx="2" />
-                            <rect class="cat-leg-back-left" x="54" y="42" width="4" height="8" rx="2" />
-                            <rect class="cat-leg-front-right" x="42" y="42" width="4" height="8" rx="2" />
-                            <rect class="cat-leg-front-left" x="34" y="42" width="4" height="8" rx="2" />
-
-                            <!-- Massive round body and small head group -->
-                            <g class="cat-body-group">
-                                <!-- Completely fat round body (circle) -->
-                                <circle cx="50" cy="27" r="21" />
-                                <!-- Small head merging into body -->
-                                <circle cx="31" cy="22" r="8" />
-                                <!-- Tiny ears -->
-                                <polygon points="24,16 23,7 31,14" />
-                                <polygon points="31,14 38,7 37,16" />
-                            </g>
+                        <!-- previously written lines (faint) -->
+                        <path d="M10 11 H44" stroke="#8fd1c0" stroke-width="2" stroke-linecap="round" opacity="0.28" fill="none"/>
+                        <path d="M10 18 H38" stroke="#8fd1c0" stroke-width="2" stroke-linecap="round" opacity="0.28" fill="none"/>
+                        <!-- the line currently being written -->
+                        <path class="ink-active" d="M10 26 H48" stroke="#8fd1c0" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+                        <!-- the quill that does the writing -->
+                        <g class="quill">
+                            <!-- feather -->
+                            <path d="M6 4 C 20 8, 24 17, 13 25 L 8 28 Z" fill="#8fd1c0"/>
+                            <!-- feather spine -->
+                            <path d="M8 28 L 18 12" stroke="#0f2a23" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+                            <!-- nib -->
+                            <path d="M8 28 L 10 24" stroke="#8fd1c0" stroke-width="2.2" stroke-linecap="round"/>
                         </g>
                     </svg>
                     <div>
@@ -1186,7 +1156,6 @@
                     currentPageIndex = 0;
                     loadPage(0);
                     if (viewMode === 'preview') renderPreview();
-                    else if (viewMode === 'html') renderHtmlView();
                     scheduleSave();
                 });
                 logInfo('✓ Applied document content to editor');
@@ -1202,7 +1171,6 @@
                 saveCurrentPageData();
                 checkAllPagesOverflow(currentPageIndex, () => {
                     if (viewMode === 'preview') renderPreview();
-                    else if (viewMode === 'html') renderHtmlView();
                     scheduleSave();
                 });
                 logInfo('✓ Applied snippet to current page');
@@ -1260,7 +1228,7 @@
             currentDoc = await r.json(); currentChapterId = null; currentFile = null;
             $('docToolbar').style.display = 'flex'; $('editorIdle').style.display = 'none';
             $('previewBtn').style.display = '';
-            $('htmlBtn').style.display = '';
+            $('rawBtn').style.display = ''; $('exportMenu').style.display = '';
             $('emptyState').style.display = 'none'; $('docTitle').value = currentDoc.title;
             
             // Set tab display
@@ -1294,9 +1262,9 @@
             $('editPage').style.display = 'block';
             $('preview').style.display = 'none';
             $('emptyState').style.display = 'none';
-            $('previewBtn').textContent = 'Preview';
-            $('htmlBtn').textContent = 'HTML View';
-            
+            $('previewBtn').classList.remove('active');
+            $('rawBtn').classList.add('active');
+
             // Parse pages
             docPages = (text || '').split('\n---\n');
             if (docPages.length === 0 || (docPages.length === 1 && docPages[0] === '')) {
@@ -1406,7 +1374,6 @@
                 saveCurrentPageData();
                 loadPage(currentPageIndex - 1);
                 if (viewMode === 'preview') renderPreview();
-                else if (viewMode === 'html') renderHtmlView();
             }
         }
 
@@ -1416,7 +1383,6 @@
             if (currentPageIndex < docPages.length - 1) {
                 loadPage(currentPageIndex + 1);
                 if (viewMode === 'preview') renderPreview();
-                else if (viewMode === 'html') renderHtmlView();
             } else if (viewMode === 'edit') {
                 // In edit mode, add a new page if next clicked on last page
                 addPage();
@@ -1455,7 +1421,6 @@
                     saveCurrentPageData();
                     loadPage(pageNum - 1);
                     if (viewMode === 'preview') renderPreview();
-                    else if (viewMode === 'html') renderHtmlView();
                 }
             }
         }
@@ -1505,44 +1470,31 @@
             }
         }
 
+        // Two view modes only: 'preview' (rendered HTML) and 'edit' (raw markdown).
         function setViewMode(mode) {
+            if (mode === 'html') mode = 'preview';   // legacy guard — HTML-source view removed
             viewMode = mode;
-            if (viewMode === 'edit') {
-                $('editPage').style.display = 'block';
-                $('preview').style.display = 'none';
-                $('previewBtn').textContent = 'Preview';
-                $('htmlBtn').textContent = 'HTML View';
-                loadPage(currentPageIndex);
-            } else if (viewMode === 'preview') {
-                $('editPage').style.display = 'none';
-                $('preview').style.display = 'block';
-                $('previewBtn').textContent = 'Edit';
-                $('htmlBtn').textContent = 'HTML View';
-                renderPreview();
-            } else if (viewMode === 'html') {
-                $('editPage').style.display = 'none';
-                $('preview').style.display = 'block';
-                $('previewBtn').textContent = 'Edit';
-                $('htmlBtn').textContent = 'Edit';
-                renderHtmlView();
-            }
+            const onPreview = (viewMode === 'preview');
+            $('editPage').style.display = onPreview ? 'none' : 'block';
+            $('preview').style.display = onPreview ? 'block' : 'none';
+            $('previewBtn').classList.toggle('active', onPreview);
+            $('rawBtn').classList.toggle('active', !onPreview);
+            if (onPreview) renderPreview(); else loadPage(currentPageIndex);
         }
 
         function togglePreview() {
-            if (viewMode === 'edit') {
-                setViewMode('preview');
-            } else {
-                setViewMode('edit');
-            }
+            setViewMode(viewMode === 'edit' ? 'preview' : 'edit');
         }
 
-        function toggleHtmlView() {
-            if (viewMode === 'html') {
-                setViewMode('edit');
-            } else {
-                setViewMode('html');
-            }
+        function toggleExportMenu(e) {
+            if (e) e.stopPropagation();
+            $('exportMenu').classList.toggle('open');
         }
+        // Close the export menu when clicking elsewhere.
+        document.addEventListener('click', function (e) {
+            const m = $('exportMenu');
+            if (m && !m.contains(e.target)) m.classList.remove('open');
+        });
 
         function renderPreview() {
             saveCurrentPageData();
@@ -1552,25 +1504,6 @@
             const html = marked.parse(content);
             preview.innerHTML = `
                 <div class="preview-content">${html}</div>
-                <div class="page-footer">
-                    <button class="page-nav-btn" onclick="prevPage(event)" title="Previous Page">‹</button>
-                    <span class="page-num-indicator" onclick="selectPagePrompt()">Page <span class="current-num">${currentPageIndex + 1}</span> of <span class="total-num">${docPages.length}</span></span>
-                    <button class="page-nav-btn" onclick="nextPage(event)" title="Next Page">›</button>
-                </div>
-            `;
-        }
-
-        function renderHtmlView() {
-            saveCurrentPageData();
-            const preview = $('preview');
-            if (!preview) return;
-            const content = docPages[currentPageIndex] || '';
-            const html = marked.parse(content);
-            const escapedHtml = escapeHtml(html);
-            preview.innerHTML = `
-                <div class="preview-content">
-                    <pre><code style="white-space: pre-wrap; font-family: 'Fira Code', monospace; font-size: 0.82rem; color: #8fd1c0;">${escapedHtml}</code></pre>
-                </div>
                 <div class="page-footer">
                     <button class="page-nav-btn" onclick="prevPage(event)" title="Previous Page">‹</button>
                     <span class="page-num-indicator" onclick="selectPagePrompt()">Page <span class="current-num">${currentPageIndex + 1}</span> of <span class="total-num">${docPages.length}</span></span>
@@ -1757,8 +1690,9 @@
             $('centerTab').style.display = 'flex';
             $('tabFileName').textContent = path.split('/').pop();
 
-            // Plain files: export buttons do not apply.
+            // Plain files: preview/export do not apply — raw editing only.
             $('previewBtn').style.display = 'none';
+            $('rawBtn').style.display = 'none'; $('exportMenu').style.display = 'none';
             setEditor(data.content);
             $('sbDoc').textContent = '📄 ' + path;
             $('modePill').textContent = 'file'; $('sbMode').textContent = 'file';
