@@ -5,6 +5,11 @@ Universal TUI agent that connects to any llama.cpp server and uses
 RAG + semantic memory to research, write, and remember across sessions.
 """
 
+# Silence warning from torchao about incompatible PyTorch version
+import logging
+
+logging.getLogger("torchao").setLevel(logging.ERROR)
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 
@@ -13,9 +18,9 @@ try:
         # `scribe-llm --version` always matches pyproject.toml / PyPI.
         __version__ = version("scribe-llm")
     except PackageNotFoundError:
-        __version__ = "0.6.0"
+        __version__ = "0.8.0"
 except ImportError:  # pragma: no cover
-    __version__ = "0.6.0"
+    __version__ = "0.8.0"
 
 __author__ = "Peterofovik"
 

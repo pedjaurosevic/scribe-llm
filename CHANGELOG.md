@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-17
+
 ### Added
 - **`You` header in `scribe chat`.** Each user turn in the TUI now prints a
   `▌ You` title above the message bubble, mirroring Scribe's own `▌ Scribe`
@@ -222,6 +224,8 @@ projects (Synap, Konok, ExoLab, CANYON) and Odysseus, folded into Scribe.
   address, using only the Python standard library.
 - Held-out fitness suite (`scribe-llm evolve eval`).
 
-[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.6.0...v0.7.0
 [0.2.1]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/pedjaurosevic/scribe-llm/releases/tag/v0.2.0

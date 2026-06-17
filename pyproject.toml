@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scribe-llm"
-version = "0.7.0"
+version = "0.8.0"
 description = "Universal TUI agent for autonomous research and writing, powered by llama.cpp"
 readme = "README.md"
 license = "MIT"
@@ -75,6 +75,9 @@ select = ["E", "F", "W", "I", "N", "UP"]
 # cli.py configures the locale and reconfigures stdio before importing the rest
 # of the package, so its imports intentionally come after that setup block.
 "scribe/cli.py" = ["E402"]
+# __init__.py silences the torchao warning before the heavy ML imports, and its
+# submodule imports come last to avoid circular imports.
+"scribe/__init__.py" = ["E402"]
 # grammar.py embeds a literal GBNF JSON grammar; its string-rule line cannot be
 # wrapped without changing the grammar.
 "scribe/grammar.py" = ["E501"]
