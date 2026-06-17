@@ -6,7 +6,7 @@ name: Publish to PyPI
 # One-time setup on PyPI (https://pypi.org/manage/account/publishing/):
 #   Add a "pending publisher" for project `scribe-llm` with:
 #     Owner:           pedjaurosevic
-#     Repository:      scribe-ai
+#     Repository:      scribe-llm
 #     Workflow name:   publish.yml
 #     Environment:     pypi
 # After the first successful run the project exists and the publisher is permanent.

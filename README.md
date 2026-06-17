@@ -2,7 +2,7 @@
 
 🌐 English · [简体中文](README.zh-CN.md)
 
-[![CI](https://github.com/pedjaurosevic/scribe-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/pedjaurosevic/scribe-ai/actions/workflows/ci.yml)
+[![CI](https://github.com/pedjaurosevic/scribe-llm/actions/workflows/ci.yml/badge.svg)](https://github.com/pedjaurosevic/scribe-llm/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -19,7 +19,7 @@ Three properties that hold by construction, not by prompt-tuning:
 2. **Answers cite their sources, or say they can't.** Grounded Q&A maps every
    claim to a numbered source `[n]`, tags `[CONTRADICTION]` when sources
    disagree, and refuses to answer outside the sources. ([scribe/prompts.py](scribe/prompts.py))
-3. **Grounding is measured, not asserted.** `scribe bench` reports a
+3. **Grounding is measured, not asserted.** `scribe-llm bench` reports a
    deterministic Source-Presence Index (SPI) over a checksum-locked held-out
    suite — on Gemma 4 12B it scores **SPI 1.00**. ([scribe/evolve/spi.py](scribe/evolve/spi.py))
 
@@ -32,22 +32,22 @@ Three properties that hold by construction, not by prompt-tuning:
 > model's *judgment* (it can still pick the wrong tool — it just can't emit a
 > malformed one).
 
-📖 Full overview on the [project site](https://pedjaurosevic.github.io/scribe-ai/).
+📖 Full overview on the [project site](https://pedjaurosevic.github.io/scribe-llm/).
 
 ## Features
 
 - **Universal LLM Adapter** — llama.cpp, Ollama, LM Studio, or any OpenAI-compatible cloud API (OpenRouter, Groq, ...) — see [docs/providers.md](docs/providers.md)
 - **GBNF Tool Enforcement** — grammar-constrained tool calls on llama.cpp; auto-repair when a model emits a malformed call
 - **Grounded Q&A** — hybrid retrieval (FTS5 + vectors, RRF) with mandatory citations and contradiction tagging
-- **Quality Gate** — `scribe bench` runs a judge-scored fitness suite and the deterministic SPI grounding metric
+- **Quality Gate** — `scribe-llm bench` runs a judge-scored fitness suite and the deterministic SPI grounding metric
 - **Safe Code Mode** — `/code` with a destructive-command gate, Python AST gate, bubblewrap sandbox, and git checkpoint/rollback
 - **Internet Research** — `web_search` + `web_fetch` tools; DuckDuckGo out of the box, Brave with a key
 - **Writing Agent** — deep-research and writer skills for books, papers and reports, with sandboxed workspace file tools
 - **Book Studio (web)** — dark, VSCode-style web editor: three resizable panes, an integrated terminal, model-drafted table of contents, chapter-by-chapter writing, and Markdown / EPUB / PDF export
-- **Open Knowledge Format** — `scribe wiki distill` curates sessions into portable [OKF](docs/open-knowledge-format.md) markdown (YAML frontmatter + `index.md`/`log.md` + links); SME/RAG are derived indexes over the files
+- **Open Knowledge Format** — `scribe-llm wiki distill` curates sessions into portable [OKF](docs/open-knowledge-format.md) markdown (YAML frontmatter + `index.md`/`log.md` + links); SME/RAG are derived indexes over the files
 - **Persistent Self** — a WorldModel persona injected into every prompt, plus pulse heartbeat and nightly diary
-- **Observability** — ORORO session traces and a machine-readable `scribe status --json` contract
-- **Project Vaults** — `scribe init` gives a directory its own isolated RAG/SME stores
+- **Observability** — ORORO session traces and a machine-readable `scribe-llm status --json` contract
+- **Project Vaults** — `scribe-llm init` gives a directory its own isolated RAG/SME stores
 - **Model Discovery & Blind Compare** — auto-find local servers; A/B two models without bias
 - **Cross-Session Memory** — SME (Semantic Memory Engine) for seamless session continuity
 - **Email Bridge** — get results by email and send commands from one approved address (stdlib only)
@@ -57,15 +57,15 @@ Three properties that hold by construction, not by prompt-tuning:
 
 ### From PyPI
 ```bash
-pip install scribe-llm       # provides the `scribe` command
+pip install scribe-llm       # provides the `scribe-llm` command (alias: `scb`)
 ```
-> The PyPI distribution is named `scribe-llm` (the import package and CLI stay `scribe`).
+> The PyPI distribution is named `scribe-llm`; the CLI command is `scribe-llm` (short alias `scb`). The import package stays `scribe`.
 
 ### From source (🐧 Linux / 🍎 macOS)
 ```bash
 # Clone the repository
-git clone https://github.com/pedjaurosevic/scribe-ai.git
-cd scribe-ai
+git clone https://github.com/pedjaurosevic/scribe-llm.git
+cd scribe-llm
 
 # Run the install script: installs the package (editable), creates the
 # config, and scaffolds ~/scribe-workspace.
@@ -73,7 +73,7 @@ cd scribe-ai
 ```
 
 ### 🪟 Windows (WSL)
-`scribe chat` and the `scribe web` Book Studio run on native Windows too; only
+`scribe-llm chat` and the `scribe-llm web` Book Studio run on native Windows too; only
 the web UI's **integrated terminal** needs a POSIX PTY (it degrades gracefully
 without one). For the full experience, run Scribe via **WSL (Windows Subsystem
 for Linux)**.
@@ -100,7 +100,7 @@ pip install -e .
 
 2. Start Scribe:
 ```bash
-scribe chat
+scribe-llm chat
 ```
 
 3. Scribe will automatically recall your last session and ask if you want to continue.
@@ -134,36 +134,36 @@ a recipe for **Gemma 4 12B with 128k context on a 12 GB GPU**:
 ## CLI Commands
 
 ```bash
-scribe chat                    # Interactive TUI chat (streaming by default)
-scribe chat --textual          # Full-screen Textual UI (experimental)
-scribe chat --resume TAG       # Resume a past session (no TAG = last one)
-scribe web                     # Book Studio web UI at http://localhost:8765 (localhost-only by default)
-scribe web --host 0.0.0.0      # Expose on the network (prints a warning — the UI has a shell terminal)
+scribe-llm chat                    # Interactive TUI chat (streaming by default)
+scribe-llm chat --textual          # Full-screen Textual UI (experimental)
+scribe-llm chat --resume TAG       # Resume a past session (no TAG = last one)
+scribe-llm web                     # Book Studio web UI at http://localhost:8765 (localhost-only by default)
+scribe-llm web --host 0.0.0.0      # Expose on the network (prints a warning — the UI has a shell terminal)
 
-scribe memory recall "query"  # Recall from semantic memory
-scribe rag search "query"     # Hybrid search (FTS5 + vectors); --semantic-only to opt out
-scribe rag ask "question"     # Grounded Q&A — answers cite sources or refuse
-scribe rag reindex             # Rebuild the lexical (FTS5) index
-scribe session last            # Show last session
-scribe session list            # List all sessions
-scribe session search "query" # Full-text search across all session transcripts
+scribe-llm memory recall "query"  # Recall from semantic memory
+scribe-llm rag search "query"     # Hybrid search (FTS5 + vectors); --semantic-only to opt out
+scribe-llm rag ask "question"     # Grounded Q&A — answers cite sources or refuse
+scribe-llm rag reindex             # Rebuild the lexical (FTS5) index
+scribe-llm session last            # Show last session
+scribe-llm session list            # List all sessions
+scribe-llm session search "query" # Full-text search across all session transcripts
 
-scribe init [DIR]              # Create a project-local vault (config + ./.scribe)
-scribe discover [--tailscale]  # Find OpenAI-compatible model servers
-scribe compare "q" --a M1 --b M2  # Blind A/B two models on one prompt
-scribe bench [--fitness|--spi] # Quality gate: judge fitness + SPI grounding
-scribe trace [ID] [--json]     # Show a session's ORORO trace
+scribe-llm init [DIR]              # Create a project-local vault (config + ./.scribe)
+scribe-llm discover [--tailscale]  # Find OpenAI-compatible model servers
+scribe-llm compare "q" --a M1 --b M2  # Blind A/B two models on one prompt
+scribe-llm bench [--fitness|--spi] # Quality gate: judge fitness + SPI grounding
+scribe-llm trace [ID] [--json]     # Show a session's ORORO trace
 
-scribe pulse                   # Record one heartbeat (wire to a systemd timer)
-scribe diary                   # Reflect on today's sessions
-scribe remember "fact"        # Add a durable fact to the WorldModel
+scribe-llm pulse                   # Record one heartbeat (wire to a systemd timer)
+scribe-llm diary                   # Reflect on today's sessions
+scribe-llm remember "fact"        # Add a durable fact to the WorldModel
 
-scribe config show             # Show current config
-scribe status [--json]         # System status (--json = machine-readable contract)
-scribe evolve eval             # Run the held-out fitness suite (Phase 0)
+scribe-llm config show             # Show current config
+scribe-llm status [--json]         # System status (--json = machine-readable contract)
+scribe-llm evolve eval             # Run the held-out fitness suite (Phase 0)
 
-scribe mail send "Subj" "Body" # Email yourself a notification
-scribe mail watch              # Accept commands by email (see below)
+scribe-llm mail send "Subj" "Body" # Email yourself a notification
+scribe-llm mail watch              # Accept commands by email (see below)
 ```
 
 ## Email bridge
@@ -182,8 +182,8 @@ secret = "pick-a-token"             # must appear in command subjects
 ```bash
 export SCRIBE_EMAIL_PASSWORD="your-gmail-app-password"   # never in the config file
 
-scribe mail send "Done" "The report is ready."   # send a notification
-scribe mail watch                                 # poll inbox, run commands, reply
+scribe-llm mail send "Done" "The report is ready."   # send a notification
+scribe-llm mail watch                                 # poll inbox, run commands, reply
 ```
 
 To run a command, email yourself with the secret in the subject:

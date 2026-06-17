@@ -45,7 +45,7 @@ model = "gemma2"
 ```
 然后启动 Scribe：
 ```bash
-scribe chat
+scribe-llm chat
 ```
 
 ---

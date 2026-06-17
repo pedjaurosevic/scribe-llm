@@ -2,12 +2,12 @@
 Scribe CLI - Command line interface.
 
 Usage:
-    scribe chat                    # Start interactive TUI chat
-    scribe memory recall QUERY    # Recall from SME
-    scribe session last           # Show last session
-    scribe status                # Check system status
-    scribe rag search QUERY      # Search documents
-    scribe rag ingest FILE      # Add document to RAG
+    scribe-llm chat                    # Start interactive TUI chat
+    scribe-llm memory recall QUERY    # Recall from SME
+    scribe-llm session last           # Show last session
+    scribe-llm status                # Check system status
+    scribe-llm rag search QUERY      # Search documents
+    scribe-llm rag ingest FILE      # Add document to RAG
 """
 
 from __future__ import annotations
@@ -220,12 +220,12 @@ def trace(ctx, session_id, as_json):
 def chat(ctx, textual, resume, subargs):
     """Start the interactive TUI chat session.
 
-    Resume a session:  scribe chat resume [TAG]
+    Resume a session:  scribe-llm chat resume [TAG]
     (no TAG resumes the most recent session).
     """
     config = ctx.obj["config"]
 
-    # Friendly form:  scribe chat resume [TAG]
+    # Friendly form:  scribe-llm chat resume [TAG]
     if subargs and subargs[0].lower() == "resume":
         resume = subargs[1] if len(subargs) > 1 else "last"
 

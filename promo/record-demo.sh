@@ -7,7 +7,7 @@
 #
 #   1. tool calls that can't break   — GBNF grammar produces a valid call
 #   2. cite or refuse                — grounded answers cite [n] / refuse
-#   3. grounding is measured         — scribe bench reports a deterministic SPI
+#   3. grounding is measured         — scribe-llm bench reports a deterministic SPI
 #
 # USAGE
 #   ./promo/record-demo.sh            play the demo in this terminal
@@ -100,12 +100,12 @@ BANNER
   run "python3 promo/_demo_grammar.py"
 
   scene "2 + 3 — answers cite sources, and grounding is measured"
-  say "scribe bench runs a checksum-locked suite: answerable tasks must cite"
+  say "scribe-llm bench runs a checksum-locked suite: answerable tasks must cite"
   say "their sources [n], impossible ones must be refused. SPI is deterministic."
   run "$SCRIBE bench --spi"
 
   scene "Try it yourself"
-  say "git clone https://github.com/pedjaurosevic/scribe-ai"
+  say "git clone https://github.com/pedjaurosevic/scribe-llm"
   say "Local-first · ~7k lines · 250+ tests · MIT"
   sleep 2
 }

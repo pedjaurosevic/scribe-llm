@@ -6,8 +6,8 @@ the aim is a simple, dependable local-LLM agent, not a heavy framework.
 ## Development setup
 
 ```bash
-git clone https://github.com/pedjaurosevic/scribe-ai.git
-cd scribe-ai
+git clone https://github.com/pedjaurosevic/scribe-llm.git
+cd scribe-llm
 pip install -e ".[dev]"
 ```
 

@@ -48,12 +48,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://pedjaurosevic.github.io/scribe-ai/"
-Repository = "https://github.com/pedjaurosevic/scribe-ai"
-Issues = "https://github.com/pedjaurosevic/scribe-ai/issues"
+Homepage = "https://pedjaurosevic.github.io/scribe-llm/"
+Repository = "https://github.com/pedjaurosevic/scribe-llm"
+Issues = "https://github.com/pedjaurosevic/scribe-llm/issues"
 
 [project.scripts]
-scribe = "scribe.cli:main"
+scribe-llm = "scribe.cli:main"
+scb = "scribe.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["scribe"]

@@ -171,8 +171,8 @@ Your working directory on this machine is:
 
 Inside your working directory, there is a `sessions/` directory where transcripts of all past sessions are stored as Markdown files (e.g. `sessions/YYYYMMDD_HHMMSS.md`) and state checkpoints are in `sessions/YYYYMMDD_HHMMSS/checkpoint.json`. You can inspect or read them using the sandboxed file tools (`list_dir`, `read_file`).
 Users can resume any past session from their terminal using:
-- `scribe chat resume [TAG]` (e.g., `scribe chat resume a1b2c`) to resume by tag.
-- `scribe chat resume` (or `scribe chat resume last`) to resume the most recent session.
+- `scribe-llm chat resume [TAG]` (e.g., `scribe-llm chat resume a1b2c`) to resume by tag.
+- `scribe-llm chat resume` (or `scribe-llm chat resume last`) to resume the most recent session.
 
 You have sandboxed file tools that operate inside this directory:
 - write_file(path, content) — create or overwrite a file

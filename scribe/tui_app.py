@@ -3,7 +3,7 @@ Scribe — full-screen Textual UI (experimental, "Crush-like" layout).
 
 Pure Python (Textual is built on Rich; no Node.js/Go). Launch with:
 
-    scribe chat --textual
+    scribe-llm chat --textual
 
 The classic Rich/scroll UI in `tui.py` stays the default and keeps the full
 tool-calling /code flow; this app focuses on the look: a docked title bar, a
@@ -411,5 +411,5 @@ class ScribeApp(App):
 
 
 def run_app(config: ScribeConfig | None = None) -> None:
-    """Entry point for `scribe chat --textual`."""
+    """Entry point for `scribe-llm chat --textual`."""
     ScribeApp(config).run()

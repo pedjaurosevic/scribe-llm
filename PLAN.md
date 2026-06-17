@@ -487,7 +487,7 @@ Rich biblioteka za:
 **Exit Criteria Faze 1:**
 - `python3 -c "from scribe.llm_adapter import LLMAdapter; print('OK')"` radi
 - Može se povezati na bilo koji `llama-server` endpoint
-- `scribe --help` prikazuje dostupne komande
+- `scribe-llm --help` prikazuje dostupne komande
 
 ---
 
@@ -504,8 +504,8 @@ Rich biblioteka za:
 | Checkpoint System | 🔲 TODO | JSON snapshot posle svakog koraka |
 
 **Exit Criteria Faze 2:**
-- `scribe memory --search "tema"` vraća relevantne sesije
-- `scribe rag --ingest ./dokument.pdf` dodaje dokument u RAG
+- `scribe-llm memory --search "tema"` vraća relevantne sesije
+- `scribe-llm rag --ingest ./dokument.pdf` dodaje dokument u RAG
 - `scribe checkpoint --save` čuva trenutno stanje
 - **Auto-recall at session start** — new session automatically shows "Last time you worked on [X]..."
 
@@ -541,7 +541,7 @@ Rich biblioteka za:
 | Checkpoint recovery | 🔲 TODO | Nastavak prekinutog zadatka |
 
 **Exit Criteria Faze 4:**
-- `scribe run --task "duuga lista podzadataka"` radi satima bez padanja
+- `scribe-llm run --task "duuga lista podzadataka"` radi satima bez padanja
 - Posle restart, `scribe resume` nastavlja tamo gde je stao
 - Drift detekcija prepoznaje kad model odstupi i restartuje sesiju
 
@@ -593,8 +593,8 @@ scribe/
 
 1. **One-command install:**
    ```bash
-   pip install scribe-ai
-   scribe init  # Wizard: set llama-server URL, model, port
+   pip install scribe-llm
+   scribe-llm init  # Wizard: set llama-server URL, model, port
    ```
 
 2. **Migracija sa Kon-a:**
@@ -604,12 +604,12 @@ scribe/
 
 3. **Remote server support:**
    ```bash
-   SCRIBE_BASE_URL=http://remote:18083 scribe chat
+   SCRIBE_BASE_URL=http://remote:18083 scribe-llm chat
    ```
 
 4. **Dokumentacija:**
    - Quick start u README
-   - `scribe --help` za CLI reference
+   - `scribe-llm --help` za CLI reference
    - `scribe skills list` za dostupne skills
    - Wiki za advanced usage
 
@@ -619,19 +619,19 @@ scribe/
 
 ```bash
 # Osnovne komande
-scribe chat                    # Interaktivni chat
-scribe chat --stream           # Streaming odgovori
-scribe chat --model gemma-3    # Specifičan model
+scribe-llm chat                    # Interaktivni chat
+scribe-llm chat --stream           # Streaming odgovori
+scribe-llm chat --model gemma-3    # Specifičan model
 
 # Istraživanje
 scribe research "tema"         # Autonomous deep research
-scribe web "pitanje"          # Brza web pretraga
-scribe rag --search "query"    # Pretraga dokumenata
-scribe rag --ingest ./file.pdf # Dodaj dokument
+scribe-llm web "pitanje"          # Brza web pretraga
+scribe-llm rag --search "query"    # Pretraga dokumenata
+scribe-llm rag --ingest ./file.pdf # Dodaj dokument
 
 # Pamćenje
-scribe memory --recall "tema"  # Pretraži prethodne sesije
-scribe memory --export        # Export SME baze
+scribe-llm memory --recall "tema"  # Pretraži prethodne sesije
+scribe-llm memory --export        # Export SME baze
 
 # Pisanje
 scribe write "naslov"         # Generiši strukturu knjige
@@ -644,9 +644,9 @@ scribe resume <id>            # Nastavi od checkpoint-a
 scribe skills --list          # Lista dostupnih skill-ova
 
 # Konfiguracija
-scribe config --show          # Prikaži trenutnu konfiguraciju
-scribe config --set base_url  # Postavi novu vrednost
-scribe config --edit          # Otvori config u editoru
+scribe-llm config --show          # Prikaži trenutnu konfiguraciju
+scribe-llm config --set base_url  # Postavi novu vrednost
+scribe-llm config --edit          # Otvori config u editoru
 ```
 
 ---
@@ -706,12 +706,12 @@ SCRIBE_CONFIG=./config.toml            # Custom config path
 
 ### Faza 1 (Core)
 - [ ] `import scribe; scribe.LLMAdapter("http://127.0.0.1:18083/v1").complete([{"role":"user","content":"Hi"}])` vraća odgovor
-- [ ] `scribe --help` prikazuje sve komande
+- [ ] `scribe-llm --help` prikazuje sve komande
 - [ ] Može se povezati na remote endpoint
 
 ### Faza 2 (Memory)
-- [ ] `scribe memory --recall "deep learning"` vraća relevantne sesije iz SME
-- [ ] `scribe rag --ingest ./book.pdf` dodaje i pretraga vraća tačne rezultate
+- [ ] `scribe-llm memory --recall "deep learning"` vraća relevantne sesije iz SME
+- [ ] `scribe-llm rag --ingest ./book.pdf` dodaje i pretraga vraća tačne rezultate
 - [ ] Checkpoint se čuva u JSON fajl
 
 ### Faza 3 (Skills)

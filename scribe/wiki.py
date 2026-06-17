@@ -44,7 +44,7 @@ MAX_SESSION_CHARS = 16_000
 
 INDEX_SKELETON = """# WIKI Index
 
-Kurirano znanje destilovano iz sesija (`scribe wiki distill`).
+Kurirano znanje destilovano iz sesija (`scribe-llm wiki distill`).
 
 ## Pages
 """
@@ -238,7 +238,7 @@ def rebuild_index(wiki: Path) -> None:
     lines = [
         "# WIKI Index",
         "",
-        "Kurirano znanje destilovano iz sesija (`scribe wiki distill`).",
+        "Kurirano znanje destilovano iz sesija (`scribe-llm wiki distill`).",
         "",
         "## Pages",
         "",
@@ -253,7 +253,7 @@ def rebuild_index(wiki: Path) -> None:
 def append_log(wiki: Path, entry: str) -> None:
     """Append one dated line to log.md — the OKF chronological history."""
     path = wiki / LOG_FILE
-    header = "# WIKI Log\n\nHronološka istorija destilacije (`scribe wiki distill`).\n"
+    header = "# WIKI Log\n\nHronološka istorija destilacije (`scribe-llm wiki distill`).\n"
     existing = ""
     if path.exists():
         try:

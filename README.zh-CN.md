@@ -2,7 +2,7 @@
 
 🌐 [English](README.md) · 简体中文
 
-[![CI](https://github.com/pedjaurosevic/scribe-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/pedjaurosevic/scribe-ai/actions/workflows/ci.yml)
+[![CI](https://github.com/pedjaurosevic/scribe-llm/actions/workflows/ci.yml/badge.svg)](https://github.com/pedjaurosevic/scribe-llm/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -29,8 +29,8 @@
 ### 🐧 Linux
 ```bash
 # 克隆仓库
-git clone https://github.com/pedjaurosevic/scribe-ai.git
-cd scribe-ai
+git clone https://github.com/pedjaurosevic/scribe-llm.git
+cd scribe-llm
 
 # 运行安装脚本：以可编辑模式安装包、创建配置，
 # 并搭建 ~/scribe-workspace 工作区骨架。
@@ -62,7 +62,7 @@ pip install -e .
 
 2. 启动 Scribe：
 ```bash
-scribe chat
+scribe-llm chat
 ```
 
 3. Scribe 会自动回忆你的上一次会话，并询问是否继续。
@@ -96,23 +96,23 @@ export SCRIBE_API_KEY=sk-...                       # 仅云服务商需要
 ## CLI 命令
 
 ```bash
-scribe chat                    # 交互式 TUI 聊天（默认流式输出）
-scribe chat --textual          # 全屏 Textual UI（实验性）
-scribe chat --resume TAG       # 恢复过去的会话（不带 TAG = 最近一次）
-scribe web                     # Web UI，地址 http://localhost:8765
+scribe-llm chat                    # 交互式 TUI 聊天（默认流式输出）
+scribe-llm chat --textual          # 全屏 Textual UI（实验性）
+scribe-llm chat --resume TAG       # 恢复过去的会话（不带 TAG = 最近一次）
+scribe-llm web                     # Web UI，地址 http://localhost:8765
 
-scribe memory recall "query"  # 从语义记忆中回忆
-scribe rag search "query"     # 对已导入的文档进行语义搜索
-scribe session last            # 显示最近一次会话
-scribe session list            # 列出所有会话
-scribe session search "query" # 对所有会话转录进行全文搜索
+scribe-llm memory recall "query"  # 从语义记忆中回忆
+scribe-llm rag search "query"     # 对已导入的文档进行语义搜索
+scribe-llm session last            # 显示最近一次会话
+scribe-llm session list            # 列出所有会话
+scribe-llm session search "query" # 对所有会话转录进行全文搜索
 
-scribe config show             # 显示当前配置
-scribe status                  # 检查系统状态
-scribe evolve eval             # 运行 held-out 适应度测试集（Phase 0）
+scribe-llm config show             # 显示当前配置
+scribe-llm status                  # 检查系统状态
+scribe-llm evolve eval             # 运行 held-out 适应度测试集（Phase 0）
 
-scribe mail send "Subj" "Body" # 给自己发送邮件通知
-scribe mail watch              # 通过邮件接收命令（见下文）
+scribe-llm mail send "Subj" "Body" # 给自己发送邮件通知
+scribe-llm mail watch              # 通过邮件接收命令（见下文）
 ```
 
 ## 邮件桥
@@ -131,8 +131,8 @@ secret = "pick-a-token"             # 必须出现在命令邮件的主题中
 ```bash
 export SCRIBE_EMAIL_PASSWORD="your-gmail-app-password"   # 切勿写进配置文件
 
-scribe mail send "Done" "The report is ready."   # 发送一条通知
-scribe mail watch                                 # 轮询收件箱、执行命令、回复
+scribe-llm mail send "Done" "The report is ready."   # 发送一条通知
+scribe-llm mail watch                                 # 轮询收件箱、执行命令、回复
 ```
 
 要执行命令，请给自己发一封主题中带有密钥的邮件：

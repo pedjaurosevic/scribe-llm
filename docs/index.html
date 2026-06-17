@@ -203,7 +203,7 @@
         <a href="#features">Features</a>
         <a href="#commands">Commands</a>
         <a href="providers.md">Docs</a>
-        <a href="https://github.com/pedjaurosevic/scribe-ai">GitHub</a>
+        <a href="https://github.com/pedjaurosevic/scribe-llm">GitHub</a>
         <a href="index.zh.html">简体中文</a>
       </nav>
       <button class="theme-toggle" type="button" id="themeToggle" aria-label="Switch to dark theme" aria-pressed="false">
@@ -221,7 +221,7 @@
       <h1>Scribe helps you research, write, and work with code from a local workspace.</h1>
       <p class="lead">Use Scribe with a local llama.cpp, Ollama, or LM Studio server, or point it at a cloud API on weaker hardware. It keeps sessions, files, RAG, and memory in plain local folders.</p>
       <div class="actions">
-        <a class="btn primary" href="https://github.com/pedjaurosevic/scribe-ai">View on GitHub</a>
+        <a class="btn primary" href="https://github.com/pedjaurosevic/scribe-llm">View on GitHub</a>
         <a class="btn" href="#install">Install</a>
         <a class="btn" href="providers.md">Provider guide</a>
       </div>
@@ -236,13 +236,13 @@
         <span class="light"></span><span class="light"></span><span class="light"></span>
         <span>scribe quick start</span>
       </div>
-<pre><code><span class="prompt">$</span> git clone https://github.com/pedjaurosevic/scribe-ai.git
-<span class="prompt">$</span> cd scribe-ai && ./scripts/install.sh
-<span class="prompt">$</span> scribe config show
+<pre><code><span class="prompt">$</span> git clone https://github.com/pedjaurosevic/scribe-llm.git
+<span class="prompt">$</span> cd scribe-llm && ./scripts/install.sh
+<span class="prompt">$</span> scribe-llm config show
 base_url: http://127.0.0.1:18083/v1
 workspace: ~/scribe-workspace
 
-<span class="prompt">$</span> scribe chat
+<span class="prompt">$</span> scribe-llm chat
 <span class="comment"># Work with files, sessions, RAG, and tools
 # inside your local Scribe workspace.</span></code></pre>
     </div>
@@ -260,16 +260,16 @@ workspace: ~/scribe-workspace
     <div class="split">
       <div class="panel">
         <h3>Source install</h3>
-<pre><code>git clone https://github.com/pedjaurosevic/scribe-ai.git
-cd scribe-ai
+<pre><code>git clone https://github.com/pedjaurosevic/scribe-llm.git
+cd scribe-llm
 ./scripts/install.sh
-scribe --version</code></pre>
+scribe-llm --version</code></pre>
       </div>
       <div class="panel">
         <h3>PyPI install</h3>
 <pre><code>python3 -m pip install scribe-llm
-scribe --help
-scribe chat</code></pre>
+scribe-llm --help
+scribe-llm chat</code></pre>
       </div>
     </div>
   </div>
@@ -311,7 +311,7 @@ tool_grammar = "off"</code></pre>
 <pre><code>export SCRIBE_BASE_URL="https://api.deepseek.com"
 export SCRIBE_MODEL="your-deepseek-model"
 export SCRIBE_API_KEY="..."
-scribe chat</code></pre>
+scribe-llm chat</code></pre>
       </div>
     </div>
   </div>
@@ -361,14 +361,14 @@ scribe chat</code></pre>
   <div class="container">
     <h2>Common commands</h2>
     <div class="commands" style="margin-top:20px">
-      <div class="command"><code>scribe chat</code><span>interactive terminal chat</span></div>
-      <div class="command"><code>scribe web</code><span>localhost Book Studio</span></div>
-      <div class="command"><code>scribe discover</code><span>find local model servers</span></div>
-      <div class="command"><code>scribe status --json</code><span>machine-readable status</span></div>
-      <div class="command"><code>scribe rag search</code><span>search indexed documents</span></div>
-      <div class="command"><code>scribe init</code><span>create a project vault</span></div>
-      <div class="command"><code>scribe compare</code><span>blind A/B model test</span></div>
-      <div class="command"><code>scribe bench</code><span>quality and grounding checks</span></div>
+      <div class="command"><code>scribe-llm chat</code><span>interactive terminal chat</span></div>
+      <div class="command"><code>scribe-llm web</code><span>localhost Book Studio</span></div>
+      <div class="command"><code>scribe-llm discover</code><span>find local model servers</span></div>
+      <div class="command"><code>scribe-llm status --json</code><span>machine-readable status</span></div>
+      <div class="command"><code>scribe-llm rag search</code><span>search indexed documents</span></div>
+      <div class="command"><code>scribe-llm init</code><span>create a project vault</span></div>
+      <div class="command"><code>scribe-llm compare</code><span>blind A/B model test</span></div>
+      <div class="command"><code>scribe-llm bench</code><span>quality and grounding checks</span></div>
     </div>
     <div class="callout" style="margin-top:18px">
       Keep cloud API keys in environment variables or a local config that is not committed. The source repo is public; your workspace and secrets are local state.
@@ -379,7 +379,7 @@ scribe chat</code></pre>
 <footer>
   <div class="container footer-line">
     <span>Scribe - MIT licensed - built by <a href="https://github.com/pedjaurosevic">Pedja Urosevic</a></span>
-    <span><a href="https://github.com/pedjaurosevic/scribe-ai">Source</a> | <a href="providers.md">Providers</a> | <a href="open-knowledge-format.md">Open Knowledge Format</a></span>
+    <span><a href="https://github.com/pedjaurosevic/scribe-llm">Source</a> | <a href="providers.md">Providers</a> | <a href="open-knowledge-format.md">Open Knowledge Format</a></span>
   </div>
 </footer>
 <script>

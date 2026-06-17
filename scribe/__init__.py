@@ -10,7 +10,7 @@ try:
 
     try:
         # Single source of truth: the installed distribution's version, so
-        # `scribe --version` always matches pyproject.toml / PyPI.
+        # `scribe-llm --version` always matches pyproject.toml / PyPI.
         __version__ = version("scribe-llm")
     except PackageNotFoundError:
         __version__ = "0.6.0"

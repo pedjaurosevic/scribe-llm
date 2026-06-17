@@ -1,7 +1,7 @@
 """
-Project-local vault — `scribe init` (idempotent, from ExoLab).
+Project-local vault — `scribe-llm init` (idempotent, from ExoLab).
 
-Running `scribe init` inside a project gives that project its own isolated
+Running `scribe-llm init` inside a project gives that project its own isolated
 Scribe context: a `./config.toml` the config loader already prefers over the
 global one (cwd is the first search path), plus project-local RAG and SME
 stores under `./.scribe/`. Documents ingested here never mix with another
@@ -17,7 +17,7 @@ from pathlib import Path
 VAULT_DIR = ".scribe"
 
 _CONFIG_TEMPLATE = """\
-# Scribe project vault — created by `scribe init`.
+# Scribe project vault — created by `scribe-llm init`.
 # This file wins over ~/.config/scribe/config.toml whenever Scribe is
 # started from this directory.
 

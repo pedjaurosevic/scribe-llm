@@ -9,7 +9,7 @@ way.
 
 ## How the wiki maps to OKF
 
-`scribe wiki distill` turns session transcripts into a knowledge base under
+`scribe-llm wiki distill` turns session transcripts into a knowledge base under
 `<workspace>/WIKI/`:
 
 ```
@@ -66,7 +66,7 @@ built the same way:
 | SME (Semantic Memory Engine) | Derived recall index | LanceDB vectors |
 | RAG | Derived retrieval index | FTS5 + embeddings |
 
-The vector stores are **rebuildable caches** over the markdown — `scribe wiki
+The vector stores are **rebuildable caches** over the markdown — `scribe-llm wiki
 distill` re-syncs changed pages into RAG. Delete the indexes and your knowledge
 is intact; it lives in the files. This is the OKF promise: the knowledge is
 portable across tools, and the index is a swappable implementation detail.

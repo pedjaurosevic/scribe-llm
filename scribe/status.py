@@ -1,5 +1,5 @@
 """
-Machine-readable status contract (`scribe status --json`).
+Machine-readable status contract (`scribe-llm status --json`).
 
 One stable JSON document describing the whole installation: version, server
 reachability, capability flags (grammar enforcement, sandbox), memory/RAG

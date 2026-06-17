@@ -11,7 +11,7 @@ no LLM judge involved:
   SPI is 1.0 when the model refuses, 0.0 when it "answers" anyway. Refusing
   correctly is a grounding skill, not a failure.
 
-Used by `scribe bench` over the checksum-locked grounded suite, giving the
+Used by `scribe-llm bench` over the checksum-locked grounded suite, giving the
 harness a number for the claim "answers cite sources or say they can't".
 """
 
