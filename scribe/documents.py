@@ -25,6 +25,17 @@ from typing import Any
 META_FILE = "meta.json"
 CONTENT_FILE = "content.md"
 CHAPTERS_DIR = "chapters"
+HISTORY_DIR = "history"
+
+# Sentinels the web editor uses to fence user-locked regions; kept in the saved
+# body but stripped from any exported/printed output. Mirror web.LOCK_OPEN/CLOSE.
+LOCK_OPEN = "⟦LOCK⟧"
+LOCK_CLOSE = "⟦/LOCK⟧"
+
+
+def _strip_locks(text: str) -> str:
+    """Remove lock sentinels, leaving the locked text itself intact."""
+    return text.replace(LOCK_OPEN, "").replace(LOCK_CLOSE, "")
 
 
 def _now() -> str:
@@ -192,6 +203,89 @@ class DocumentStore:
         shutil.rmtree(self._dir(doc_id))
         return True
 
+    # --- history / versioning ---------------------------------------------
+    # Every iteration is a JSON snapshot under ``documents/<id>/history/``.
+    # The payload mirrors ``load()`` (content for a doc, chapter bodies for a
+    # book) so a restore is a straight write-back with no guesswork.
+
+    def _history_dir(self, doc_id: str) -> Path:
+        return self._dir(doc_id) / HISTORY_DIR
+
+    def snapshot(self, doc_id: str, label: str = "") -> dict[str, Any] | None:
+        """Save the current state as a timestamped version; return its stamp."""
+        doc = self.load(doc_id)
+        if doc is None:
+            return None
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        hist_dir = self._history_dir(doc_id)
+        hist_dir.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, Any] = {
+            "ts": ts,
+            "label": label.strip(),
+            "type": doc.get("type", "doc"),
+            "title": doc.get("title", "Untitled"),
+        }
+        if doc.get("type") == "book":
+            payload["chapters"] = [
+                {"id": c["id"], "title": c["title"], "content": c.get("content", "")}
+                for c in doc.get("chapters", [])
+            ]
+        else:
+            payload["content"] = doc.get("content", "")
+        # A monotonic suffix keeps two snapshots in the same second distinct.
+        path = hist_dir / f"{ts}.json"
+        n = 1
+        while path.exists():
+            path = hist_dir / f"{ts}-{n}.json"
+            n += 1
+        payload["ts"] = path.stem
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return {"ts": payload["ts"], "label": payload["label"]}
+
+    def list_history(self, doc_id: str) -> list[dict[str, Any]]:
+        """All snapshots, newest first (stamp + label only)."""
+        hist_dir = self._history_dir(doc_id)
+        if not hist_dir.is_dir():
+            return []
+        items: list[dict[str, Any]] = []
+        for snap in hist_dir.glob("*.json"):
+            try:
+                data = json.loads(snap.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            items.append({"ts": data.get("ts", snap.stem), "label": data.get("label", "")})
+        items.sort(key=lambda m: m["ts"], reverse=True)
+        return items
+
+    def get_history(self, doc_id: str, ts: str) -> dict[str, Any] | None:
+        """Load one snapshot's full payload for preview."""
+        path = self._history_dir(doc_id) / f"{ts}.json"
+        if not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def restore(self, doc_id: str, ts: str) -> bool:
+        """Roll the document back to a snapshot.
+
+        The current state is snapshotted first (label ``before restore``) so the
+        rollback itself is reversible.
+        """
+        snap = self.get_history(doc_id, ts)
+        if snap is None or not self.exists(doc_id):
+            return False
+        self.snapshot(doc_id, label="before restore")
+        if snap.get("type") == "book":
+            for ch in snap.get("chapters", []):
+                self.save_chapter(doc_id, ch["id"], ch.get("content", ""))
+        else:
+            self.save_content(doc_id, snap.get("content", ""))
+        return True
+
     # --- export -----------------------------------------------------------
 
     def assemble_markdown(self, doc_id: str) -> str:
@@ -206,9 +300,9 @@ class DocumentStore:
         if doc.get("type") == "book":
             parts = [f"# {doc['title']}\n"]
             for ch in doc.get("chapters", []):
-                parts.append(f"\n## {ch['title']}\n\n{ch['content']}\n")
+                parts.append(f"\n## {ch['title']}\n\n{_strip_locks(ch['content'])}\n")
             return "\n".join(parts)
-        return f"# {doc['title']}\n\n{doc.get('content', '')}\n"
+        return f"# {doc['title']}\n\n{_strip_locks(doc.get('content', ''))}\n"
 
     def assemble_epub_markdown(self, doc_id: str) -> str:
         """Markdown for EPUB: each chapter as ``# Heading`` (H1).
@@ -224,6 +318,6 @@ class DocumentStore:
         if doc.get("type") == "book":
             parts = []
             for ch in doc.get("chapters", []):
-                parts.append(f"# {ch['title']}\n\n{ch['content']}\n")
+                parts.append(f"# {ch['title']}\n\n{_strip_locks(ch['content'])}\n")
             return "\n".join(parts)
-        return f"# {doc['title']}\n\n{doc.get('content', '')}\n"
+        return f"# {doc['title']}\n\n{_strip_locks(doc.get('content', ''))}\n"
