@@ -219,6 +219,8 @@ class TestOKF:
         assert meta["type"] == "insight"
         assert meta["title"] == "Deadlock"
         assert meta["source"] == "sesija abc123"
+        # OKF v0.1 `resource`: URI for the underlying asset (the session).
+        assert meta["resource"] == "scribe://session/abc123"
         assert "# Deadlock" in body
         # Idempotent: already-OKF page is left alone.
         assert ensure_frontmatter(page) is False
@@ -231,7 +233,7 @@ class TestOKF:
         )
         rebuild_index(wiki)
         index = (wiki / "index.md").read_text()
-        assert "[GBNF za alate](pages/x.md)" in index
+        assert "[GBNF za alate](/pages/x.md)" in index
         assert "Tool pozivi preko gramatike." in index
 
     def test_distill_writes_okf_frontmatter_and_log(self, tmp_path, monkeypatch):
@@ -259,9 +261,9 @@ class TestIndexAndRagSync:
         rebuild_index(wiki)
 
         index = (wiki / "index.md").read_text()
-        assert "[Deadlock (Mrtva petlja)](pages/deadlock.md)" in index
+        assert "[Deadlock (Mrtva petlja)](/pages/deadlock.md)" in index
         assert "Stanje u kojem procesi" in index            # hook line
-        assert "[no heading](pages/no-heading.md)" in index  # stem fallback
+        assert "[no heading](/pages/no-heading.md)" in index  # stem fallback
 
     class _FakeRag:
         def __init__(self):
@@ -308,4 +310,4 @@ class TestIndexAndRagSync:
 
         distill(cfg, adapter=_FakeAdapter())
         index = (wiki_dir(cfg) / "index.md").read_text()
-        assert "[Odluke](pages/odluke.md)" in index
+        assert "[Odluke](/pages/odluke.md)" in index

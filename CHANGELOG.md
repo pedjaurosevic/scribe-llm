@@ -6,6 +6,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-18
+
+First stable release. Builds on 0.9.0 with a responsive web layout, reliable
+resource grounding, and full Open Knowledge Format conformance.
+
+### Added
+- **Responsive web layout.** At ~2/3 width the document-toolbar pills collapse
+  to icons (Preview, Raw MD, Lock, History, Export); at ~1/3 width the three
+  panes restack vertically — options on top, the document in the middle, the
+  chat at the bottom — and the file Explorer becomes an on-demand overlay
+  toggled from the activity bar.
+- **Grounded answers from resources.** A new **📚 Sources** button answers a
+  question strictly from the ingested resources (PDF/TXT/MD/EPUB) with inline
+  `[n]` citations, using the proven isolated-grounding path (same as
+  `rag ask`). Works without an open document.
+- **Best-effort grounding during chat/writing.** Regular turns also retrieve
+  relevant resource passages and surface a grounding indicator, when resources
+  are present.
+
+### Changed
+- **Open Knowledge Format conformance (OKF v0.1).** Wiki pages now carry the
+  `resource` URI field (`scribe://session/<id>`) alongside `source`; the index
+  uses **bundle-relative links** (`/pages/<file>.md`); and pages end with a
+  `# Citations` section. `index.md`/`log.md` reserved files and the required
+  `type` field were already in place.
+- **Accent recoloring.** The “Apply to Editor” button, tool-call / grounding
+  cards, and the Auto-write checkbox now use the pale turquoise-green accent
+  (matching the Enter button) instead of blue.
+
 ## [0.9.0] - 2026-06-18
 
 A web-editor focused release: the chat and the document are now clearly

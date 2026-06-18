@@ -37,7 +37,10 @@ PAGES_DIR = "pages"
 # identity, markdown links form the graph, index.md is navigation and log.md is
 # the chronological history. The only required frontmatter field is `type`.
 # SME/RAG are derived indexes over these files, not separate sources of truth.
-OKF_FIELDS = ("type", "title", "description", "tags", "timestamp", "source")
+# Field order follows OKF v0.1: `type` is the only required field; `resource`
+# is OKF's URI identifier for the underlying asset (here, the source session);
+# `source` is kept as a human-readable label for backward compatibility.
+OKF_FIELDS = ("type", "title", "description", "tags", "timestamp", "resource", "source")
 
 # Cap how much of a session is shown to the model.
 MAX_SESSION_CHARS = 16_000
@@ -77,10 +80,15 @@ How to work:
    description: <one sentence>
    tags: [tag1, tag2]
    timestamp: <YYYY-MM-DD>
+   resource: scribe://session/<id>
    source: sesija <id>
    ---
-   Link related pages inline with [Title](other-page.md). Mark each new entry
-   with its source session: `(sesija <id>, tag <tag>)`.
+   Link related pages with bundle-relative markdown links that begin with `/`,
+   e.g. [Title](/other-page.md) — OKF resolves these from the wiki root.
+   End EVERY page with a `# Citations` section that lists sources numbered
+   sequentially, for example:
+   # Citations
+   1. sesija <id>, tag <tag>
 3. Write pages in the language the session was held in.
 
 Finally, answer with ONE short sentence describing what you stored (or SKIP).
@@ -218,12 +226,20 @@ def ensure_frontmatter(page: Path, source: str = "") -> bool:
         meta["description"] = prose
     meta["timestamp"] = datetime.date.today().isoformat()
     src = source or ""
+    session_id = ""
     if not src:
         m = re.search(r"sesija\s+([^\s,)\]]+)", body)
         if m:
             src = f"sesija {m.group(1)}"
+            session_id = m.group(1)
+    else:
+        m = re.search(r"sesija\s+([^\s,)\]]+)", src)
+        session_id = m.group(1) if m else ""
     if src:
         meta["source"] = src
+    # OKF `resource`: a URI identifying the underlying asset (the session).
+    if session_id:
+        meta["resource"] = f"scribe://session/{session_id}"
     page.write_text(dump_frontmatter(meta) + "\n\n" + body.lstrip("\n"), encoding="utf-8")
     return True
 
@@ -245,7 +261,8 @@ def rebuild_index(wiki: Path) -> None:
     ]
     for page in sorted((wiki / PAGES_DIR).glob("*.md")):
         title, hook, _ = _page_meta(page)
-        entry = f"- [{title}]({PAGES_DIR}/{page.name})"
+        # Bundle-relative link (OKF v0.1): resolved from the wiki root.
+        entry = f"- [{title}](/{PAGES_DIR}/{page.name})"
         lines.append(f"{entry} — {hook}" if hook else entry)
     (wiki / INDEX_FILE).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
