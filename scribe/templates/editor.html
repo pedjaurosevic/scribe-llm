@@ -480,11 +480,11 @@
         
         .chat-msg .msg-sender { font-weight: 600; }
         .chat-msg .apply-btn {
-            background: rgba(86, 156, 214, 0.15); border: 1px solid var(--accent2);
-            color: var(--accent2); padding: 0.1rem 0.4rem; border-radius: 4px;
+            background: rgba(143, 209, 192, 0.15); border: 1px solid var(--accent);
+            color: var(--accent); padding: 0.1rem 0.4rem; border-radius: 4px;
             font-size: 0.68rem; cursor: pointer; transition: all 0.15s; margin-left: 0.5rem;
         }
-        .chat-msg .apply-btn:hover { background: var(--accent2); color: #fff; }
+        .chat-msg .apply-btn:hover { background: var(--accent); color: #08201b; }
         
         .chat-msg .msg-content {
             background: var(--bg); border: 1px solid var(--border);
@@ -516,10 +516,10 @@
 
         /* Tool call logs */
         .tool-call-log {
-            background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-left: 3px solid var(--accent2);
+            background: rgba(143, 209, 192, 0.08); border: 1px solid var(--border); border-left: 3px solid var(--accent);
             border-radius: 6px; padding: 0.4rem; margin-bottom: 0.4rem; font-size: 0.75rem; font-family: 'Fira Code', monospace;
         }
-        .tool-details summary { cursor: pointer; color: var(--accent2); outline: none; }
+        .tool-details summary { cursor: pointer; color: var(--accent); outline: none; }
         .tool-args { color: var(--text-dim); margin-top: 0.2rem; }
         .tool-result { color: var(--accent); margin-top: 0.2rem; }
 
@@ -538,6 +538,7 @@
             border: 1px solid var(--border); border-radius: 999px; background: var(--bg);
         }
         .chat-controls .autowrite-wrap { display: flex; align-items: center; gap: 0.25rem; font-size: 0.7rem; color: var(--text-dim); }
+        .chat-controls .autowrite-wrap input[type="checkbox"] { accent-color: var(--accent); }
         .chat-controls button.send-btn {
             background: var(--accent); color: #08201b; border: none; border-radius: 6px;
             padding: .45rem .9rem; font-weight: 700; cursor: pointer; font-size: .8rem;
@@ -548,6 +549,12 @@
             padding: .45rem .7rem; border-radius: 6px; cursor: pointer; font-size: .8rem;
         }
         .chat-controls button.clear-btn:hover { border-color: var(--error); color: var(--error); }
+        .chat-controls button.sources-btn {
+            background: rgba(143,209,192,0.12); border: 1px solid var(--accent); color: var(--accent);
+            padding: .45rem .7rem; border-radius: 6px; cursor: pointer; font-size: .8rem;
+        }
+        .chat-controls button.sources-btn:hover { background: var(--accent); color: #08201b; }
+        .chat-controls button.sources-btn:disabled { opacity: .5; cursor: not-allowed; }
 
         /* Integrated terminal panel (Inside Middle Pane) */
         .terminal-panel {
@@ -582,6 +589,51 @@
         .statusbar .stat-item { display: flex; align-items: center; gap: 0.3rem; }
         .statusbar .stat-clickable { cursor: pointer; }
         .statusbar .stat-clickable:hover { text-decoration: underline; }
+
+        /* Toolbar pills: icon + label + caret, so the label can collapse away
+           on narrow widths while the icon (and tooltip) stay. */
+        .doc-toolbar button .ico { font-size: .9em; }
+        .doc-toolbar button .lbl { margin: 0 .15rem; }
+        .doc-toolbar button .caret { opacity: .65; font-size: .8em; }
+
+        /* ── Responsive ──────────────────────────────────────────────────
+           Two breakpoints: ~2/3 width collapses pill labels to icons; ~1/3
+           width re-stacks the three panes vertically (options · editor · chat). */
+
+        /* 2/3 of a typical screen: pills become icon-only to save room. */
+        @media (max-width: 1080px) {
+            .doc-toolbar button .lbl,
+            .doc-toolbar button .caret { display: none; }
+            .doc-toolbar button .ico { margin: 0; font-size: 1em; }
+            .doc-toolbar .lock-btn,
+            .doc-toolbar .history-btn,
+            .doc-toolbar .export-btn,
+            #previewBtn, #rawBtn { padding: .3rem .45rem; }
+            .doc-toolbar .title { min-width: 0; flex: 1 1 60px; }
+            .chat-controls .mode-pill { max-width: 7rem; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
+        }
+
+        /* 1/3 of a screen: vertical layout. Options on top (editor toolbar),
+           the document in the middle, the chat with the agent at the bottom.
+           The file explorer becomes an on-demand overlay (toggled from the
+           activity bar). */
+        body.narrow .workbench { display: flex !important; flex-direction: column; }
+        body.narrow .gutter { display: none !important; }
+        body.narrow .pane.editor-pane { flex: 1 1 56%; min-height: 0; order: 1; }
+        body.narrow .pane.assistant {
+            flex: 1 1 44%; min-height: 0; order: 2;
+            border-top: 2px solid var(--border);
+        }
+        body.narrow .pane.explorer {
+            position: absolute; top: 0; left: 38px; bottom: 0;
+            width: min(80%, 260px); z-index: 300;
+            box-shadow: 8px 0 28px rgba(0,0,0,.55);
+            border-right: 1px solid var(--border);
+        }
+        body.narrow:not(.show-explorer) .pane.explorer { display: none !important; }
+        body.narrow .terminal-panel { display: none !important; }
+        body.narrow .chat-log { max-height: none; }
     </style>
 </head>
 <body>
@@ -710,10 +762,10 @@
                 <div class="pane-head">
                     <div class="doc-toolbar" id="docToolbar" style="display:none">
                         <input class="title" id="docTitle" placeholder="Title…">
-                        <button onclick="setViewMode('preview')" id="previewBtn">Preview</button>
-                        <button onclick="setViewMode('edit')" id="rawBtn">Raw MD</button>
+                        <button onclick="setViewMode('preview')" id="previewBtn" title="Preview"><span class="ico">👁</span><span class="lbl">Preview</span></button>
+                        <button onclick="setViewMode('edit')" id="rawBtn" title="Raw markdown"><span class="ico">〈〉</span><span class="lbl">Raw MD</span></button>
                         <div class="lock-menu" id="lockMenu">
-                            <button class="lock-btn" onclick="toggleLockMenu(event)" title="Protect text from the model">🔒 Lock ▾</button>
+                            <button class="lock-btn" onclick="toggleLockMenu(event)" title="Lock — protect text from the model"><span class="ico">🔒</span><span class="lbl">Lock</span><span class="caret">▾</span></button>
                             <div class="lock-content" id="lockContent">
                                 <a href="#" onclick="lockSelection(); return false;">Lock selection</a>
                                 <a href="#" onclick="lockPage(); return false;">Lock whole page</a>
@@ -722,7 +774,7 @@
                             </div>
                         </div>
                         <div class="history-menu" id="historyMenu">
-                            <button class="history-btn" onclick="toggleHistoryMenu(event)" title="Version history">⏱ History ▾</button>
+                            <button class="history-btn" onclick="toggleHistoryMenu(event)" title="Version history"><span class="ico">⏱</span><span class="lbl">History</span><span class="caret">▾</span></button>
                             <div class="history-content" id="historyContent">
                                 <a href="#" onclick="saveVersion(); return false;">＋ Save version now</a>
                                 <hr class="menu-divider">
@@ -730,7 +782,7 @@
                             </div>
                         </div>
                         <div class="export-menu" id="exportMenu">
-                            <button class="export-btn" onclick="toggleExportMenu(event)">Export ▾</button>
+                            <button class="export-btn" onclick="toggleExportMenu(event)" title="Export"><span class="ico">⤓</span><span class="lbl">Export</span><span class="caret">▾</span></button>
                             <div class="export-content" id="exportContent">
                                 <a href="#" onclick="exportDoc('md'); return false;">Markdown (.md)</a>
                                 <a href="#" onclick="exportDoc('html'); return false;">HTML (.html)</a>
@@ -812,6 +864,7 @@
                             </div>
                             <div class="right-ctrls" style="display: flex; gap: 0.4rem;">
                                 <button class="clear-btn" onclick="clearChat()">Clear</button>
+                                <button class="sources-btn" id="sourcesBtn" onclick="askSources()" title="Answer strictly from your ingested resources, with citations">📚 Sources</button>
                                 <button class="send-btn" id="sendBtn" onclick="sendCommand()">➤ Enter</button>
                             </div>
                         </div>
@@ -950,6 +1003,9 @@
         }
 
         function updateLayout() {
+            // The stacked narrow layout is owned by CSS (body.narrow); don't
+            // impose desktop grid columns on it.
+            if (document.body.classList.contains('narrow')) return;
             const pane1 = document.querySelector('.pane.explorer');
             const gutter1 = document.querySelector('.gutter[data-gutter="0"]');
             const pane3 = document.querySelector('.pane.assistant');
@@ -975,6 +1031,12 @@
         }
 
         function toggleSidebar() {
+            // In the narrow (1/3) layout the explorer is an overlay, not a column.
+            if (document.body.classList.contains('narrow')) {
+                document.body.classList.toggle('show-explorer');
+                $('actSidebar').classList.toggle('active', document.body.classList.contains('show-explorer'));
+                return;
+            }
             sidebarOpen = !sidebarOpen;
             updateLayout();
         }
@@ -982,6 +1044,22 @@
         function toggleAssistant() {
             assistantOpen = !assistantOpen;
             updateLayout();
+        }
+
+        // Switch between the 3-column desktop layout and the stacked narrow one.
+        // CSS (body.narrow) does the layout; here we just clear the inline grid
+        // styles the desktop layout sets, so they don't fight the media rules.
+        function applyResponsiveMode() {
+            const narrow = window.innerWidth <= 720;
+            const wasNarrow = document.body.classList.contains('narrow');
+            document.body.classList.toggle('narrow', narrow);
+            if (narrow) {
+                WB.style.gridTemplateColumns = '';
+                document.querySelectorAll('.pane, .gutter').forEach(el => { el.style.display = ''; });
+            } else if (wasNarrow) {
+                document.body.classList.remove('show-explorer');
+                updateLayout();
+            }
         }
 
         document.querySelectorAll('.gutter').forEach(g => {
@@ -1087,6 +1165,7 @@
                     }
                     isGenerating = false;
                     $('sendBtn').disabled = false;
+                    $('sourcesBtn').disabled = false;
                     break;
                 }
                 case 'error':
@@ -1094,6 +1173,7 @@
                     logInfo('⚠ ' + data.content);
                     isGenerating = false;
                     $('sendBtn').disabled = false;
+                    $('sourcesBtn').disabled = false;
                     pendingToc = false;
                     break;
                 case 'cleared':
@@ -1786,6 +1866,18 @@
             ws.send(JSON.stringify({ type: 'message', content: text, doc_context: streamBase, mode }));
         }
 
+        // Grounded Q&A: answer strictly from ingested resources, with citations.
+        // Independent of any open document — uses the proven `rag ask` path.
+        function askSources() {
+            const input = $('cmdInput'); const text = input.value.trim();
+            if (!text || !isConnected || isGenerating) return;
+            isGenerating = true; $('sendBtn').disabled = true; $('sourcesBtn').disabled = true;
+            addMessage('user', text);
+            input.value = '';
+            addStreamingMessage();
+            ws.send(JSON.stringify({ type: 'ask_sources', content: text }));
+        }
+
         async function exportDoc(fmt) {
             if (!currentDoc) return;
             await saveDoc();
@@ -2300,6 +2392,7 @@
         })();
 
         window.addEventListener('resize', fitTerminal);
+        window.addEventListener('resize', applyResponsiveMode);
         // Ctrl+` toggles the terminal, just like VSCode.
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && (e.key === '`' || e.code === 'Backquote')) { e.preventDefault(); toggleTerminal(); }
@@ -2342,6 +2435,7 @@
         })();
 
         loadLayout();
+        applyResponsiveMode();
         connect();
         loadDocList();
         loadFileTree();
