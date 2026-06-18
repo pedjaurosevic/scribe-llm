@@ -29,7 +29,7 @@ except ImportError:  # native Windows
     _PTY_AVAILABLE = False
 
 import uvicorn
-from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -70,6 +70,25 @@ store = DocumentStore(config)
 # Local working directory Scribe operates in.
 WORKSPACE_DIR = Path(config.workspace_dir)
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Ingest material (PDF/TXT/MD/EPUB) uploaded through the web UI lives here, in a
+# clear visible folder, and is indexed into RAG as source material.
+RESOURCES_DIR = WORKSPACE_DIR / "resources"
+RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
+INGEST_SUFFIXES = {".pdf", ".txt", ".md", ".epub"}
+
+# The RAG service pulls in sentence-transformers, so build it lazily on first
+# ingest instead of paying the import cost on every server start.
+_rag_service = None
+
+
+def _get_rag():
+    """Return a shared RAGService, importing/initialising it on first use."""
+    global _rag_service
+    if _rag_service is None:
+        from scribe.memory.rag import get_rag_service
+        _rag_service = get_rag_service(config)
+    return _rag_service
 
 
 # --- PIN gate -------------------------------------------------------------
@@ -235,6 +254,120 @@ async def api_add_chapter(doc_id: str, request: Request):
 async def api_delete_doc(doc_id: str):
     """Delete a document (only ever called from an explicit UI action)."""
     return {"ok": store.delete(doc_id)}
+
+
+# --- Document history / versioning ---------------------------------------
+
+
+@app.post("/api/docs/{doc_id}/snapshot")
+async def api_snapshot(doc_id: str, request: Request):
+    """Save the current document state as a version the user can return to."""
+    if not store.exists(doc_id):
+        return PlainTextResponse("Not found", status_code=404)
+    body = await request.json() if await request.body() else {}
+    label = body.get("label", "") if isinstance(body, dict) else ""
+    snap = store.snapshot(doc_id, label=label)
+    return snap or {"error": "could not snapshot"}
+
+
+@app.get("/api/docs/{doc_id}/history")
+async def api_history(doc_id: str):
+    """List all saved versions of a document, newest first."""
+    if not store.exists(doc_id):
+        return PlainTextResponse("Not found", status_code=404)
+    return {"history": store.list_history(doc_id)}
+
+
+@app.get("/api/docs/{doc_id}/history/{ts}")
+async def api_history_get(doc_id: str, ts: str):
+    """Load one version's full content for preview."""
+    snap = store.get_history(doc_id, ts)
+    if snap is None:
+        return PlainTextResponse("Not found", status_code=404)
+    return snap
+
+
+@app.post("/api/docs/{doc_id}/history/{ts}/restore")
+async def api_history_restore(doc_id: str, ts: str):
+    """Roll the document back to a version (current state is snapshotted first)."""
+    if not store.restore(doc_id, ts):
+        return PlainTextResponse("Not found", status_code=404)
+    return {"ok": True}
+
+
+# --- Resources / ingest material -----------------------------------------
+# Uploaded source files (PDF/TXT/MD/EPUB) are saved under <workspace>/resources
+# and indexed into RAG so the model can ground its writing in them.
+
+
+def _resource_entries() -> list[dict]:
+    """List ingested resource files with size and modified time."""
+    entries = []
+    for p in sorted(RESOURCES_DIR.iterdir(), key=lambda x: x.name.lower()):
+        if p.is_file() and not p.name.startswith("."):
+            stat = p.stat()
+            entries.append({
+                "name": p.name,
+                "size": stat.st_size,
+                "suffix": p.suffix.lower().lstrip("."),
+                "ingested": p.suffix.lower() in INGEST_SUFFIXES,
+            })
+    return entries
+
+
+@app.get("/api/resources")
+async def api_resources():
+    """List ingest material the user has uploaded through the web UI."""
+    return {"resources": _resource_entries()}
+
+
+@app.post("/api/resources")
+async def api_ingest(file: UploadFile = File(...)):
+    """Save an uploaded PDF/TXT/MD/EPUB to the resources folder and index it."""
+    name = os.path.basename(file.filename or "").strip()
+    if not name:
+        return JSONResponse({"error": "Missing filename"}, status_code=400)
+    suffix = Path(name).suffix.lower()
+    if suffix not in INGEST_SUFFIXES:
+        return JSONResponse(
+            {"error": f"Unsupported type '{suffix}'. Allowed: PDF, TXT, MD, EPUB."},
+            status_code=400,
+        )
+
+    dest = RESOURCES_DIR / name
+    # Avoid clobbering an existing resource of the same name.
+    stem, n = dest.stem, 1
+    while dest.exists():
+        dest = RESOURCES_DIR / f"{stem}-{n}{suffix}"
+        n += 1
+    dest.write_bytes(await file.read())
+
+    chunks = 0
+    error = None
+    try:
+        rag = _get_rag()
+        if rag is not None:
+            chunks = rag.ingest_file(dest)
+    except Exception as e:  # indexing failed, but the file is saved
+        error = str(e)
+
+    return {
+        "ok": True,
+        "name": dest.name,
+        "chunks": chunks,
+        "indexed": error is None and chunks > 0,
+        "error": error,
+    }
+
+
+@app.delete("/api/resources/{name}")
+async def api_delete_resource(name: str):
+    """Delete an uploaded resource file (explicit user action)."""
+    target = RESOURCES_DIR / os.path.basename(name)
+    if target.is_file() and target.parent == RESOURCES_DIR:
+        target.unlink()
+        return {"ok": True}
+    return PlainTextResponse("Not found", status_code=404)
 
 
 # --- Export ---------------------------------------------------------------
@@ -459,6 +592,11 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# Sentinels that fence a user-locked region inside the document body. They are
+# shared with the front-end (editor.html) and stripped from MD/EPUB exports.
+LOCK_OPEN = "⟦LOCK⟧"
+LOCK_CLOSE = "⟦/LOCK⟧"
+
 
 def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> str:
     """Wrap the user's command with the current document so the model writes
@@ -472,7 +610,7 @@ def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> st
     if doc_context.strip():
         parts.append(f"[Current {unit} content]:\n{doc_context.strip()}")
     parts.append(f"[User Instruction/Question]: {instruction}")
-    parts.append(
+    rules = (
         f"You are helping the user edit this {unit}.\n"
         f"If the user wants you to write, edit, update, or rewrite the content of the {unit}, "
         f"you MUST wrap the entire updated markdown content for the {unit} inside "
@@ -483,6 +621,16 @@ def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> st
         "not sure whether they want to write directly to the document/chapter, do NOT use "
         "`<doc_content>` tags. Instead, reply in the chatbox to discuss or ask for confirmation."
     )
+    # Locked regions arrive wrapped in sentinels; the model must keep them
+    # byte-for-byte, sentinels included, so the UI can re-anchor them.
+    if LOCK_OPEN in doc_context:
+        rules += (
+            f"\n\nIMPORTANT: text wrapped between `{LOCK_OPEN}` and `{LOCK_CLOSE}` is LOCKED "
+            "by the user. You MUST reproduce every locked region exactly as-is, including "
+            "the sentinels, and you must NOT rephrase, move, summarise or delete anything "
+            "inside them. Edit only the text outside the locked regions."
+        )
+    parts.append(rules)
     return "\n\n".join(parts)
 
 
