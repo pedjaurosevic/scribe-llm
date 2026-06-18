@@ -261,6 +261,84 @@
             color: var(--text); padding: .45rem .7rem; text-decoration: none; display: block; font-size: .72rem;
         }
         .export-menu .export-content a:hover { background: var(--accent); color: #08201b; }
+
+        /* Lock + History dropdowns in the doc toolbar (share the export look) */
+        .lock-menu, .history-menu { position: relative; display: inline-block; }
+        .lock-btn, .history-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+            padding: .25rem .5rem; font-size: .72rem; cursor: pointer; border-radius: 4px;
+        }
+        .lock-btn:hover, .history-btn:hover { color: var(--accent); border-color: var(--accent); }
+        .lock-content, .history-content {
+            display: none; position: absolute; right: 0; top: 100%; margin-top: 3px;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            min-width: 190px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); border-radius: 4px; z-index: 1001;
+        }
+        .lock-menu.open .lock-content, .history-menu.open .history-content { display: block; }
+        .lock-content a, .history-content a {
+            color: var(--text); padding: .45rem .7rem; text-decoration: none; display: block; font-size: .72rem;
+        }
+        .lock-content a:hover, .history-content a:hover { background: var(--accent); color: #08201b; }
+        .history-content { max-height: 320px; overflow-y: auto; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: .35rem .7rem; font-size: .7rem; gap: .4rem; }
+        .history-item:hover { background: rgba(143,209,192,0.08); }
+        .history-item .h-meta { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .history-item .h-restore { background: var(--accent); color: #08201b; border: 0; border-radius: 3px; padding: .15rem .4rem; cursor: pointer; font-size: .65rem; flex: 0 0 auto; }
+        .history-empty { padding: .5rem .7rem; color: var(--text-dim); font-size: .7rem; }
+        .menu-divider { border: 0; border-top: 1px solid var(--border); margin: .2rem 0; }
+
+        /* Resources / ingest panel */
+        .resource-drop { border: 1px dashed var(--border); border-radius: 5px; padding: .3rem; margin-bottom: .5rem; transition: border-color .15s, background .15s; }
+        .resource-drop.dragover { border-color: var(--accent); background: var(--accent-glow); }
+        .resource-hint { color: var(--text-dim); font-size: .64rem; text-align: center; padding: .35rem .2rem; line-height: 1.4; }
+        .resource-item { display: flex; align-items: center; gap: .35rem; padding: .25rem .3rem; font-size: .7rem; border-radius: 4px; }
+        .resource-item:hover { background: rgba(143,209,192,0.08); }
+        .resource-item .r-ico { flex: 0 0 auto; }
+        .resource-item .r-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .resource-item .r-tag { flex: 0 0 auto; font-size: .58rem; color: var(--accent); border: 1px solid var(--border); border-radius: 3px; padding: 0 .25rem; }
+        .resource-item .r-del { flex: 0 0 auto; color: var(--text-dim); cursor: pointer; opacity: 0; }
+        .resource-item:hover .r-del { opacity: 1; }
+        .resource-item .r-del:hover { color: var(--error); }
+
+        /* A locked region rendered in the markdown preview */
+        .preview-content .locked-region {
+            background: rgba(143,209,192,0.10); border-left: 3px solid var(--accent);
+            padding: .1rem .4rem; border-radius: 3px;
+        }
+
+        /* "Scribe is writing into the document" card in the chat */
+        .writing-card {
+            display: flex; align-items: center; gap: .7rem; padding: .6rem .8rem;
+            background: rgba(143,209,192,0.07); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text-dim); font-size: .8rem;
+        }
+        .writing-card .wc-meta { line-height: 1.35; }
+        .writing-card .wc-meta b { color: var(--accent); font-weight: 600; }
+
+        /* Goodbye / exit screen */
+        #goodbyeScreen {
+            display: none; position: fixed; inset: 0; z-index: 5000;
+            background: radial-gradient(circle at 50% 35%, #233a34 0%, #141414 70%);
+            align-items: center; justify-content: center; text-align: center;
+        }
+        #goodbyeScreen.open { display: flex; }
+        .goodbye-inner h1 { color: var(--accent); font-weight: 500; margin: .6rem 0; }
+        .goodbye-inner p { color: var(--text-dim); margin-bottom: 1.4rem; }
+        .goodbye-inner button {
+            background: var(--accent); color: #08201b; border: 0; border-radius: 6px;
+            padding: .5rem 1.4rem; font-size: .9rem; cursor: pointer;
+        }
+        .goodbye-quill { font-size: 3.5rem; animation: floatPen 3s ease-in-out infinite; }
+        @keyframes floatPen {
+            0%,100% { transform: translateY(0) rotate(-6deg); }
+            50% { transform: translateY(-12px) rotate(6deg); }
+        }
+        .exit-armed-toast {
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+            background: var(--bg-panel); border: 1px solid var(--accent); color: var(--text);
+            padding: .5rem 1rem; border-radius: 8px; font-size: .8rem; z-index: 4000;
+            box-shadow: 0 8px 24px rgba(0,0,0,.5);
+        }
         .pane.editor .pane-body {
             overflow: hidden;
             display: flex;
@@ -604,6 +682,16 @@
                         <button onclick="createDoc('doc')">＋ Document</button>
                         <button onclick="createDoc('book')">＋ Book</button>
                     </div>
+                    <div class="side-label" style="display:flex;justify-content:space-between;align-items:center">
+                        <span>📥 Resources (ingest)</span>
+                        <button class="toc-btn" style="width:auto;margin:0;padding:.1rem .4rem" onclick="$('resourceInput').click()" title="Add PDF / TXT / MD / EPUB">＋</button>
+                    </div>
+                    <div id="resourceDrop" class="resource-drop">
+                        <div id="resourceList"></div>
+                        <div class="resource-hint" id="resourceHint">Drop PDF · TXT · MD · EPUB here, or click ＋</div>
+                    </div>
+                    <input type="file" id="resourceInput" accept=".pdf,.txt,.md,.epub" multiple style="display:none">
+
                     <div class="side-label">📚 Documents & Books</div>
                     <div id="docList"></div>
                     <div id="tocSection" style="display:none">
@@ -624,6 +712,23 @@
                         <input class="title" id="docTitle" placeholder="Title…">
                         <button onclick="setViewMode('preview')" id="previewBtn">Preview</button>
                         <button onclick="setViewMode('edit')" id="rawBtn">Raw MD</button>
+                        <div class="lock-menu" id="lockMenu">
+                            <button class="lock-btn" onclick="toggleLockMenu(event)" title="Protect text from the model">🔒 Lock ▾</button>
+                            <div class="lock-content" id="lockContent">
+                                <a href="#" onclick="lockSelection(); return false;">Lock selection</a>
+                                <a href="#" onclick="lockPage(); return false;">Lock whole page</a>
+                                <a href="#" onclick="unlockSelection(); return false;">Unlock selection</a>
+                                <a href="#" onclick="unlockPage(); return false;">Unlock page</a>
+                            </div>
+                        </div>
+                        <div class="history-menu" id="historyMenu">
+                            <button class="history-btn" onclick="toggleHistoryMenu(event)" title="Version history">⏱ History ▾</button>
+                            <div class="history-content" id="historyContent">
+                                <a href="#" onclick="saveVersion(); return false;">＋ Save version now</a>
+                                <hr class="menu-divider">
+                                <div id="historyList"><div class="history-empty">No versions yet</div></div>
+                            </div>
+                        </div>
                         <div class="export-menu" id="exportMenu">
                             <button class="export-btn" onclick="toggleExportMenu(event)">Export ▾</button>
                             <div class="export-content" id="exportContent">
@@ -758,6 +863,35 @@
         </div>
     </div>
 
+    <!-- Exit confirmation (Ctrl+Shift+C then Ctrl+Shift+D, like the TUI) -->
+    <div class="modal-backdrop" id="exitModal">
+        <div class="modal" style="max-width:22rem;text-align:center">
+            <div class="modal-head" style="justify-content:center">
+                <span class="t">🪶 Leave Scribe?</span>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-dim);font-size:.9rem;line-height:1.5">
+                    This ends your Scribe session and signs you out.<br>
+                    Your document is already saved.
+                </p>
+            </div>
+            <div class="modal-foot" style="justify-content:center;gap:.6rem">
+                <button class="clear-btn" onclick="cancelExit()">Cancel</button>
+                <button class="save" onclick="confirmExit()">Yes, leave</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Goodbye screen shown after exit -->
+    <div id="goodbyeScreen">
+        <div class="goodbye-inner">
+            <div class="goodbye-quill">🪶</div>
+            <h1>Scribe session closed</h1>
+            <p>You have signed out. Reload the page to start a new session.</p>
+            <button onclick="location.href='/login'">Open Scribe again</button>
+        </div>
+    </div>
+
     <script>
         marked.setOptions({ breaks: true });
         const $ = (id) => document.getElementById(id);
@@ -768,6 +902,18 @@
         let streamBase = "", pendingToc = false, tocBuffer = "";
         let docPages = [''];
         let currentPageIndex = 0;
+
+        // Lock sentinels — must match web.LOCK_OPEN / LOCK_CLOSE on the backend.
+        const LOCK_OPEN = '⟦LOCK⟧';
+        const LOCK_CLOSE = '⟦/LOCK⟧';
+        const LOCK_RE = /⟦LOCK⟧[\s\S]*?⟦\/LOCK⟧/g;
+        // Approx. characters that fit on one A4 page — used to flip pages while
+        // the model streams; an exact reflow runs once streaming is done.
+        const STREAM_PAGE_CHARS = 1800;
+        let lastGoodEditorValue = '';   // for protecting locked regions from manual edits
+        let docStreaming = false;       // true while a doc_content stream is in flight
+        let exitArmed = false;          // Ctrl+Shift+C arms; Ctrl+Shift+D confirms
+        let lastFullAnswer = '';        // most recent streamed answer (for the final reflow)
 
         // --- Layout Panels Toggle & Resizing ------------------------------
         const WB = $('workbench');
@@ -908,30 +1054,41 @@
                     collapseThinking();
                     addToolCall(data);
                     break;
-                case 'chunk':
+                case 'chunk': {
                     hideTypingIndicator();
                     collapseThinking();
-                    updateLastMessage(data.full);
-                    if ($('autoWriteCheck').checked) {
-                        if (pendingToc) tocBuffer = data.full; else applyStream(data.full);
+                    lastFullAnswer = data.full;
+                    if (pendingToc) { tocBuffer = data.full; updateLastMessage('Generating table of contents…'); break; }
+
+                    const split = splitStream(data.full);
+                    // The chat only ever shows the conversational part + a small
+                    // "writing into the document" card — never the raw body.
+                    updateLastMessage(split.chat, split.hasDoc ? split.docText : null, split.writing);
+                    // The document body streams token-by-token into the centre pane.
+                    if (split.hasDoc && $('autoWriteCheck').checked) {
+                        docStreaming = true;
+                        applyStreamDoc(split.docText);
                     }
                     break;
-                case 'done':
+                }
+                case 'done': {
                     hideTypingIndicator();
-                    finalizeStreaming();
                     if (pendingToc) {
+                        finalizeStreaming();
                         finishToc(tocBuffer);
-                    } else if ($('autoWriteCheck').checked) {
-                        logInfo('✓ Content applied to document');
-                        checkAllPagesOverflow(0, () => {
-                            currentPageIndex = 0;
-                            loadPage(0);
-                            scheduleSave();
-                        });
+                    } else if (docStreaming) {
+                        // One exact reflow now that the full body has arrived.
+                        const split = splitStream(lastFullAnswer);
+                        applyStreamDoc(split.docText, true);
+                        finalizeStreaming();
+                        docStreaming = false;
+                    } else {
+                        finalizeStreaming();
                     }
                     isGenerating = false;
                     $('sendBtn').disabled = false;
                     break;
+                }
                 case 'error':
                     hideTypingIndicator();
                     logInfo('⚠ ' + data.content);
@@ -945,20 +1102,134 @@
             }
         }
 
-        function applyStream(full) {
-            if (full.includes('<doc_content>')) {
-                const startIdx = full.indexOf('<doc_content>') + 13;
-                const endIdx = full.includes('</doc_content>') ? full.indexOf('</doc_content>') : full.length;
-                const docText = full.substring(startIdx, endIdx);
-                
-                docPages = docText.split('\n---\n');
-                if (docPages.length === 0 || (docPages.length === 1 && docPages[0] === '')) {
-                    docPages = [''];
-                }
-                currentPageIndex = Math.min(currentPageIndex, docPages.length - 1);
-                loadPage(currentPageIndex);
-                if (viewMode === 'preview') renderPreview();
+        // Separate the streamed answer into a chat part and a document body.
+        // Everything outside <doc_content>…</doc_content> is conversation; the
+        // text inside is what gets written into the centre pane.
+        function splitStream(full) {
+            const open = full.indexOf('<doc_content>');
+            if (open === -1) {
+                return { chat: full, hasDoc: false, docText: '', writing: false };
             }
+            const closeTag = '</doc_content>';
+            const close = full.indexOf(closeTag);
+            const docText = full.substring(
+                open + '<doc_content>'.length,
+                close === -1 ? full.length : close
+            );
+            const before = full.substring(0, open);
+            const after = close === -1 ? '' : full.substring(close + closeTag.length);
+            return {
+                chat: (before + after).trim(),
+                hasDoc: true,
+                docText,
+                writing: close === -1,   // tag still open → still being written
+            };
+        }
+
+        // Paginate a growing body for live streaming: honour explicit \n---\n
+        // breaks, and split long runs at roughly one A4 page so new pages appear
+        // as the model writes. A precise reflow runs once streaming finishes.
+        function paginateForStream(text) {
+            const pages = [];
+            for (const seg of text.split('\n---\n')) {
+                let rest = seg;
+                while (rest.length > STREAM_PAGE_CHARS) {
+                    let cut = rest.lastIndexOf('\n', STREAM_PAGE_CHARS);
+                    if (cut < STREAM_PAGE_CHARS * 0.5) cut = rest.lastIndexOf(' ', STREAM_PAGE_CHARS);
+                    if (cut < 1) cut = STREAM_PAGE_CHARS;
+                    pages.push(rest.slice(0, cut));
+                    rest = rest.slice(cut).replace(/^[ \t]+/, '');
+                }
+                pages.push(rest);
+            }
+            return pages.length ? pages : [''];
+        }
+
+        function applyStreamDoc(docText, finalReflow = false) {
+            if (finalReflow) {
+                // Exact page layout via real overflow measurement.
+                docPages = docText.split('\n---\n');
+                if (docPages.length === 0 || (docPages.length === 1 && docPages[0] === '')) docPages = [''];
+                checkAllPagesOverflow(0, () => {
+                    currentPageIndex = docPages.length - 1;  // land on the last written page
+                    loadPage(currentPageIndex);
+                    lastGoodEditorValue = $('editor').value;
+                    if (viewMode === 'preview') renderPreview();
+                    scheduleSave();
+                    logInfo('🪶 Written into the document — ' + wordCount(docText) + ' words');
+                });
+                return;
+            }
+            // Live: cheap pagination + follow-the-pen onto the last page.
+            docPages = paginateForStream(docText);
+            const last = docPages.length - 1;
+            currentPageIndex = last;
+            loadPage(last);
+            $('editor').scrollTop = $('editor').scrollHeight;
+            if (viewMode === 'preview') renderPreview();
+        }
+
+        function wordCount(s) {
+            const m = (s || '').trim().match(/\S+/g);
+            return m ? m.length : 0;
+        }
+
+        // A playful, "magic" writing quill: gradient feather, a glowing nib,
+        // an ink line drawing itself and little sparkles popping around it.
+        // Returns a self-contained inline SVG (unique gradient ids per call).
+        function quillSvg(size = 32) {
+            const uid = 'q' + Math.random().toString(36).slice(2, 8);
+            return `
+            <svg class="magic-quill" viewBox="0 0 72 44" width="${Math.round(size * 1.8)}" height="${size}"
+                 style="flex-shrink:0;overflow:visible">
+                <defs>
+                    <linearGradient id="${uid}f" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#bff3e6"/>
+                        <stop offset="45%" stop-color="#8fd1c0"/>
+                        <stop offset="100%" stop-color="#f4d58d"/>
+                    </linearGradient>
+                    <radialGradient id="${uid}g" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#fff7d6"/>
+                        <stop offset="100%" stop-color="#f4d58d" stop-opacity="0"/>
+                    </radialGradient>
+                    <style>
+                        .${uid}-ink { stroke-dasharray: 46; stroke-dashoffset: 46;
+                            animation: ${uid}ink 2s ease-in-out infinite; }
+                        @keyframes ${uid}ink {
+                            0%{stroke-dashoffset:46;opacity:1} 65%{stroke-dashoffset:0;opacity:1}
+                            90%{stroke-dashoffset:0;opacity:1} 100%{stroke-dashoffset:0;opacity:0} }
+                        .${uid}-pen { transform-origin: 14px 30px;
+                            animation: ${uid}pen 2s ease-in-out infinite; }
+                        @keyframes ${uid}pen {
+                            0%{transform:translate(0,0) rotate(-4deg)}
+                            65%{transform:translate(40px,-2px) rotate(-4deg)}
+                            70%{transform:translate(2px,-1px) rotate(-4deg)}
+                            100%{transform:translate(0,0) rotate(-4deg)} }
+                        .${uid}-sp { transform-origin: center; opacity: 0;
+                            animation: ${uid}sp 2s ease-in-out infinite; }
+                        @keyframes ${uid}sp {
+                            0%,55%{opacity:0;transform:scale(0.2)}
+                            70%{opacity:1;transform:scale(1)}
+                            100%{opacity:0;transform:scale(0.4)} }
+                    </style>
+                </defs>
+                <!-- already-written faint lines -->
+                <path d="M12 13 H52" stroke="#8fd1c0" stroke-width="2" stroke-linecap="round" opacity="0.25" fill="none"/>
+                <path d="M12 20 H46" stroke="#8fd1c0" stroke-width="2" stroke-linecap="round" opacity="0.25" fill="none"/>
+                <!-- the line currently being drawn -->
+                <path class="${uid}-ink" d="M12 28 H56" stroke="#8fd1c0" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+                <!-- sparkles -->
+                <g class="${uid}-sp"><path d="M58 8 l1.4 3 3 1.4 -3 1.4 -1.4 3 -1.4 -3 -3 -1.4 3 -1.4 z" fill="#f4d58d"/></g>
+                <g class="${uid}-sp" style="animation-delay:.5s"><path d="M48 4 l1 2 2 1 -2 1 -1 2 -1 -2 -2 -1 2 -1 z" fill="#bff3e6"/></g>
+                <g class="${uid}-sp" style="animation-delay:.9s"><path d="M64 22 l1 2 2 1 -2 1 -1 2 -1 -2 -2 -1 2 -1 z" fill="#fff7d6"/></g>
+                <!-- the quill -->
+                <g class="${uid}-pen">
+                    <circle cx="14" cy="30" r="7" fill="url(#${uid}g)"/>
+                    <path d="M10 4 C 28 8, 32 22, 16 32 L 10 35 Z" fill="url(#${uid}f)"/>
+                    <path d="M10 35 L 23 14" stroke="#0f2a23" stroke-width="1" stroke-linecap="round" opacity="0.45"/>
+                    <path d="M10 35 L 13 30" stroke="#f4d58d" stroke-width="2.4" stroke-linecap="round"/>
+                </g>
+            </svg>`;
         }
 
         // --- Assistant / Chat Log ----------------------------------------
@@ -1012,12 +1283,23 @@
             return msgDiv;
         }
 
-        function updateLastMessage(content) {
+        function updateLastMessage(content, docText = null, writing = false) {
             const streaming = document.getElementById('streamingMessage');
-            if (streaming) {
-                streaming.querySelector('.msg-content').innerHTML = parseMarkdown(content);
-                $('chatLog').scrollTop = $('chatLog').scrollHeight;
+            if (!streaming) return;
+            let html = content ? parseMarkdown(content) : '';
+            if (docText !== null) {
+                const n = wordCount(docText);
+                const label = writing
+                    ? `<b>Scribe is writing into the document…</b><br>${n} words so far · see the centre pane`
+                    : `<b>Written into the document.</b><br>${n} words`;
+                html += `
+                    <div class="writing-card">
+                        ${quillSvg(28)}
+                        <div class="wc-meta">${label}</div>
+                    </div>`;
             }
+            streaming.querySelector('.msg-content').innerHTML = html;
+            $('chatLog').scrollTop = $('chatLog').scrollHeight;
         }
 
         function updateThinking(content) {
@@ -1074,46 +1356,8 @@
             div.id = 'typingIndicator';
             div.innerHTML = `
                 <div class="msg-meta"><span class="msg-sender">✦ Scribe</span></div>
-                <div class="msg-content" style="padding:0.6rem 0.8rem; display: flex; align-items: center; overflow: hidden; position: relative;">
-                    <svg class="quill-anim" viewBox="0 0 64 36" width="56" height="32" style="margin-right: 14px; flex-shrink: 0;">
-                        <style>
-                            /* Already-written faint lines */
-                            .ink-active {
-                                stroke-dasharray: 42; stroke-dashoffset: 42;
-                                animation: inkWrite 1.8s ease-in-out infinite;
-                            }
-                            @keyframes inkWrite {
-                                0%   { stroke-dashoffset: 42; opacity: 1; }
-                                70%  { stroke-dashoffset: 0;  opacity: 1; }
-                                92%  { stroke-dashoffset: 0;  opacity: 1; }
-                                100% { stroke-dashoffset: 0;  opacity: 0; }
-                            }
-                            .quill {
-                                transform-origin: 8px 24px;
-                                animation: quillGlide 1.8s ease-in-out infinite;
-                            }
-                            @keyframes quillGlide {
-                                0%   { transform: translate(0px, 0px) rotate(-3deg); }
-                                70%  { transform: translate(38px, 0px) rotate(-3deg); }
-                                72%  { transform: translate(0px, -1px) rotate(-3deg); opacity: .6; }
-                                100% { transform: translate(0px, 0px) rotate(-3deg); opacity: 1; }
-                            }
-                        </style>
-                        <!-- previously written lines (faint) -->
-                        <path d="M10 11 H44" stroke="#8fd1c0" stroke-width="2" stroke-linecap="round" opacity="0.28" fill="none"/>
-                        <path d="M10 18 H38" stroke="#8fd1c0" stroke-width="2" stroke-linecap="round" opacity="0.28" fill="none"/>
-                        <!-- the line currently being written -->
-                        <path class="ink-active" d="M10 26 H48" stroke="#8fd1c0" stroke-width="2.4" stroke-linecap="round" fill="none"/>
-                        <!-- the quill that does the writing -->
-                        <g class="quill">
-                            <!-- feather -->
-                            <path d="M6 4 C 20 8, 24 17, 13 25 L 8 28 Z" fill="#8fd1c0"/>
-                            <!-- feather spine -->
-                            <path d="M8 28 L 18 12" stroke="#0f2a23" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
-                            <!-- nib -->
-                            <path d="M8 28 L 10 24" stroke="#8fd1c0" stroke-width="2.2" stroke-linecap="round"/>
-                        </g>
-                    </svg>
+                <div class="msg-content" style="padding:0.6rem 0.8rem; display: flex; align-items: center; gap:14px; overflow: visible; position: relative;">
+                    ${quillSvg(32)}
                     <div>
                         <span style="color:var(--text-dim); font-size:0.9rem;">Scribe is writing...</span>
                     </div>
@@ -1358,7 +1602,8 @@
             
             // Set editor content
             $('editor').value = docPages[currentPageIndex] || '';
-            
+            lastGoodEditorValue = $('editor').value;   // reset lock-protection baseline
+
             // Update footer page numbers in editPage
             const curNumSpan = $('pageCurrentNum');
             const totNumSpan = $('pageTotalNum');
@@ -1501,7 +1746,11 @@
             const preview = $('preview');
             if (!preview) return;
             const content = docPages[currentPageIndex] || '';
-            const html = marked.parse(content);
+            // Render locked regions as highlighted spans instead of raw sentinels.
+            const shown = content
+                .split(LOCK_OPEN).join('<span class="locked-region">')
+                .split(LOCK_CLOSE).join('</span>');
+            const html = marked.parse(shown);
             preview.innerHTML = `
                 <div class="preview-content">${html}</div>
                 <div class="page-footer">
@@ -1525,9 +1774,12 @@
                 return;
             }
             if (viewMode !== 'edit') setViewMode('edit');
-            streamBase = docPages.join('\n---\n'); // Use the full text including all pages for doc context
+            saveCurrentPageData();
+            streamBase = docPages.join('\n---\n'); // Full text (incl. lock sentinels) as doc context
             const mode = (currentDoc && currentDoc.type === 'book') ? 'book' : 'free';
             isGenerating = true; $('sendBtn').disabled = true;
+            // Snapshot the current state so this model edit can be undone via History.
+            snapshotBeforeWrite();
             addMessage('user', text);
             input.value = '';
             addStreamingMessage();
@@ -1633,6 +1885,223 @@
         function logCmd(t) { addMessage('user', t); }
         function logInfo(t) { addMessage('assistant', t); }
         function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+        // --- Resources / ingest -------------------------------------------
+        const R_ICONS = { pdf: '📕', epub: '📗', md: '📘', txt: '📄' };
+        async function loadResources() {
+            try {
+                const r = await fetch('/api/resources');
+                const { resources } = await r.json();
+                const list = $('resourceList');
+                list.innerHTML = '';
+                $('resourceHint').style.display = resources.length ? 'none' : 'block';
+                resources.forEach(res => {
+                    const div = document.createElement('div');
+                    div.className = 'resource-item';
+                    div.innerHTML =
+                        `<span class="r-ico">${R_ICONS[res.suffix] || '📄'}</span>` +
+                        `<span class="r-name" title="${escapeHtml(res.name)}">${escapeHtml(res.name)}</span>` +
+                        `${res.ingested ? '<span class="r-tag">ingest</span>' : ''}` +
+                        `<span class="r-del" title="Remove">✕</span>`;
+                    div.querySelector('.r-del').onclick = () => deleteResource(res.name);
+                    list.appendChild(div);
+                });
+            } catch (e) { /* offline */ }
+        }
+
+        async function uploadResources(files) {
+            for (const file of files) {
+                const fd = new FormData();
+                fd.append('file', file);
+                logInfo(`📥 Ingesting "${file.name}"…`);
+                try {
+                    const r = await fetch('/api/resources', { method: 'POST', body: fd });
+                    const data = await r.json();
+                    if (!r.ok) { logInfo(`⚠ ${data.error || 'upload failed'}`); continue; }
+                    logInfo(data.indexed
+                        ? `✓ "${data.name}" ingested — ${data.chunks} chunks indexed for RAG`
+                        : `✓ "${data.name}" saved${data.error ? ' (index skipped: ' + data.error + ')' : ''}`);
+                } catch (e) { logInfo('⚠ ' + e); }
+            }
+            loadResources();
+        }
+
+        async function deleteResource(name) {
+            if (!confirm(`Remove resource "${name}"?`)) return;
+            await fetch('/api/resources/' + encodeURIComponent(name), { method: 'DELETE' });
+            loadResources();
+        }
+
+        // --- Lock: protect text from the model and from manual edits -------
+        function toggleLockMenu(e) { if (e) e.stopPropagation(); $('lockMenu').classList.toggle('open'); }
+
+        function wrapSelectionWith(open, close) {
+            const ed = $('editor');
+            let s = ed.selectionStart, t = ed.selectionEnd;
+            if (s === t) return null;
+            return { s, t, val: ed.value };
+        }
+
+        function lockSelection() {
+            $('lockMenu').classList.remove('open');
+            const ed = $('editor');
+            const sel = wrapSelectionWith();
+            if (!sel) { logInfo('Select some text in the document first.'); return; }
+            let { s, t, val } = sel;
+            let chunk = val.substring(s, t);
+            if (chunk.includes(LOCK_OPEN)) { logInfo('That selection is already locked.'); return; }
+            ed.value = val.substring(0, s) + LOCK_OPEN + chunk + LOCK_CLOSE + val.substring(t);
+            commitEditorEdit();
+            logInfo('🔒 Locked selection — the model will keep it unchanged.');
+        }
+
+        function lockPage() {
+            $('lockMenu').classList.remove('open');
+            const ed = $('editor');
+            let v = ed.value.trim();
+            if (!v) { logInfo('This page is empty.'); return; }
+            if (v.startsWith(LOCK_OPEN)) { logInfo('This page is already locked.'); return; }
+            ed.value = LOCK_OPEN + ed.value + LOCK_CLOSE;
+            commitEditorEdit();
+            logInfo('🔒 Locked the whole page.');
+        }
+
+        function unlockSelection() {
+            $('lockMenu').classList.remove('open');
+            const ed = $('editor');
+            const sel = wrapSelectionWith();
+            const ctx = sel || { s: 0, t: ed.value.length, val: ed.value };
+            let chunk = ctx.val.substring(ctx.s, ctx.t).split(LOCK_OPEN).join('').split(LOCK_CLOSE).join('');
+            ed.value = ctx.val.substring(0, ctx.s) + chunk + ctx.val.substring(ctx.t);
+            commitEditorEdit();
+            logInfo('🔓 Unlocked selection.');
+        }
+
+        function unlockPage() {
+            $('lockMenu').classList.remove('open');
+            const ed = $('editor');
+            ed.value = ed.value.split(LOCK_OPEN).join('').split(LOCK_CLOSE).join('');
+            commitEditorEdit();
+            logInfo('🔓 Unlocked the page.');
+        }
+
+        // Persist a programmatic editor change and refresh the protection baseline.
+        function commitEditorEdit() {
+            saveCurrentPageData();
+            lastGoodEditorValue = $('editor').value;
+            checkPageOverflow();
+            scheduleSave();
+        }
+
+        // Reject a manual edit that would alter or delete any locked region.
+        function guardLockedRegions() {
+            const ed = $('editor');
+            const locks = (lastGoodEditorValue.match(LOCK_RE) || []);
+            for (const seg of locks) {
+                if (!ed.value.includes(seg)) {
+                    // A locked region was touched — revert to the last good value.
+                    const pos = ed.selectionStart;
+                    ed.value = lastGoodEditorValue;
+                    try { ed.selectionStart = ed.selectionEnd = Math.min(pos, ed.value.length); } catch (e) {}
+                    $('sbSave').textContent = '🔒 locked text protected';
+                    return false;
+                }
+            }
+            lastGoodEditorValue = ed.value;
+            return true;
+        }
+
+        // --- History / versioning -----------------------------------------
+        function toggleHistoryMenu(e) {
+            if (e) e.stopPropagation();
+            const open = $('historyMenu').classList.toggle('open');
+            if (open) loadHistory();
+        }
+
+        async function saveVersion() {
+            if (!currentDoc) return;
+            await doSave();
+            const label = prompt('Name this version (optional):', '') ?? '';
+            await fetch(`/api/docs/${currentDoc.id}/snapshot`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label }),
+            });
+            logInfo('🕮 Version saved.');
+            loadHistory();
+        }
+
+        // Auto-snapshot before the model rewrites a document, so every model
+        // iteration is reversible.
+        async function snapshotBeforeWrite() {
+            if (!currentDoc) return;
+            try {
+                await fetch(`/api/docs/${currentDoc.id}/snapshot`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ label: 'before model edit' }),
+                });
+            } catch (e) {}
+        }
+
+        async function loadHistory() {
+            if (!currentDoc) return;
+            const box = $('historyList');
+            try {
+                const r = await fetch(`/api/docs/${currentDoc.id}/history`);
+                const { history } = await r.json();
+                if (!history.length) { box.innerHTML = '<div class="history-empty">No versions yet</div>'; return; }
+                box.innerHTML = '';
+                history.forEach(h => {
+                    const when = h.ts.replace(/^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2}).*/, '$3.$2 $4:$5');
+                    const div = document.createElement('div');
+                    div.className = 'history-item';
+                    div.innerHTML =
+                        `<span class="h-meta" title="${escapeHtml(h.ts)}">${when}${h.label ? ' · ' + escapeHtml(h.label) : ''}</span>` +
+                        `<button class="h-restore">Restore</button>`;
+                    div.querySelector('.h-restore').onclick = () => restoreVersion(h.ts);
+                    box.appendChild(div);
+                });
+            } catch (e) { box.innerHTML = '<div class="history-empty">history unavailable</div>'; }
+        }
+
+        async function restoreVersion(ts) {
+            if (!currentDoc) return;
+            if (!confirm('Restore this version? Current state is saved to history first.')) return;
+            const r = await fetch(`/api/docs/${currentDoc.id}/history/${ts}/restore`, { method: 'POST' });
+            if (r.ok) { logInfo('↩ Restored version ' + ts); $('historyMenu').classList.remove('open'); openDoc(currentDoc.id); }
+            else logInfo('⚠ Could not restore version');
+        }
+
+        // --- Exit: Ctrl+Shift+C arms, Ctrl+Shift+D confirms (TUI parity) ---
+        function armExit() {
+            exitArmed = true;
+            let toast = $('exitToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'exitToast'; toast.className = 'exit-armed-toast';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = '🪶 Press Ctrl+Shift+D to leave Scribe (Esc to cancel)';
+            clearTimeout(armExit._t);
+            armExit._t = setTimeout(disarmExit, 4000);
+        }
+        function disarmExit() {
+            exitArmed = false;
+            const toast = $('exitToast');
+            if (toast) toast.remove();
+        }
+        function requestExit() {
+            disarmExit();
+            $('exitModal').classList.add('open');
+        }
+        function cancelExit() { $('exitModal').classList.remove('open'); }
+        function confirmExit() {
+            $('exitModal').classList.remove('open');
+            try { if (ws) ws.close(); } catch (e) {}
+            // Sign out, then show the goodbye screen.
+            fetch('/logout').catch(() => {}).finally(() => {
+                $('goodbyeScreen').classList.add('open');
+            });
+        }
 
         // --- Workspace file tree ------------------------------------------
         async function loadFileTree() {
@@ -1741,7 +2210,10 @@
         $('backendModal').addEventListener('click', (e) => { if (e.target.id === 'backendModal') closeBackend(); });
 
         // --- Wiring -------------------------------------------------------
-        $('editor').addEventListener('input', () => { saveCurrentPageData(); checkPageOverflow(); scheduleSave(); });
+        $('editor').addEventListener('input', () => {
+            if (!guardLockedRegions()) return;   // reverted a locked-region edit
+            saveCurrentPageData(); checkPageOverflow(); scheduleSave();
+        });
         $('docTitle').addEventListener('input', scheduleSave);
         $('cmdInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendCommand(); }
@@ -1832,12 +2304,48 @@
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && (e.key === '`' || e.code === 'Backquote')) { e.preventDefault(); toggleTerminal(); }
             if (e.ctrlKey && e.key === 's') { e.preventDefault(); doSave(); }
+            // Exit sequence (same as the TUI): Ctrl+Shift+C, then Ctrl+Shift+D.
+            if (e.ctrlKey && e.shiftKey && (e.code === 'KeyC')) { e.preventDefault(); armExit(); }
+            else if (e.ctrlKey && e.shiftKey && (e.code === 'KeyD')) {
+                e.preventDefault();
+                if (exitArmed) requestExit(); else armExit();
+            } else if (e.key === 'Escape') {
+                if (exitArmed) disarmExit();
+                cancelExit();
+                $('lockMenu').classList.remove('open');
+                $('historyMenu').classList.remove('open');
+            }
         });
+
+        // Close the lock/history dropdowns when clicking elsewhere.
+        document.addEventListener('click', function (e) {
+            const lm = $('lockMenu'); if (lm && !lm.contains(e.target)) lm.classList.remove('open');
+            const hm = $('historyMenu'); if (hm && !hm.contains(e.target)) hm.classList.remove('open');
+        });
+
+        // Resources: file picker + drag & drop.
+        $('resourceInput').addEventListener('change', (e) => {
+            if (e.target.files.length) uploadResources(Array.from(e.target.files));
+            e.target.value = '';
+        });
+        (function () {
+            const drop = $('resourceDrop');
+            ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
+                e.preventDefault(); drop.classList.add('dragover');
+            }));
+            ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => {
+                e.preventDefault(); drop.classList.remove('dragover');
+            }));
+            drop.addEventListener('drop', (e) => {
+                if (e.dataTransfer.files.length) uploadResources(Array.from(e.dataTransfer.files));
+            });
+        })();
 
         loadLayout();
         connect();
         loadDocList();
         loadFileTree();
+        loadResources();
     </script>
 </body>
 </html>

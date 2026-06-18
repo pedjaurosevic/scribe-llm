@@ -6,6 +6,44 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-18
+
+A web-editor focused release: the chat and the document are now clearly
+separated, with resources, locking and version history added around the
+writing surface.
+
+### Added
+- **Resources / ingest panel** in the web Explorer. Drop or pick **PDF, TXT,
+  MD or EPUB** files; they are saved under `<workspace>/resources/`, indexed
+  into RAG as source material, and listed with an `ingest` tag. EPUB text is
+  now extracted (stdlib ZIP + XHTML parsing, no new dependency).
+- **Lock / protect text.** A `🔒 Lock ▾` menu in the document toolbar locks the
+  current **selection** or the **whole page**. Locked regions are fenced with
+  `⟦LOCK⟧…⟦/LOCK⟧` sentinels: the model is instructed to reproduce them
+  verbatim, manual edits inside them are reverted, and the sentinels are
+  stripped from MD/EPUB/PDF exports. Locked spans are highlighted in Preview.
+- **Version history.** An `⏱ History ▾` menu lists timestamped snapshots and
+  restores any of them. Snapshots are taken on **Save version**, automatically
+  **before each model edit**, and (reversibly) **before a restore**. Stored as
+  JSON under `documents/<id>/history/`. New REST endpoints:
+  `POST /api/docs/{id}/snapshot`, `GET /api/docs/{id}/history`,
+  `GET /api/docs/{id}/history/{ts}`, `POST /api/docs/{id}/history/{ts}/restore`.
+- **Exit sequence in the web UI** matching the TUI: `Ctrl+Shift+C` arms, then
+  `Ctrl+Shift+D` opens a confirmation; confirming signs out and shows a
+  goodbye screen (`Esc` cancels).
+
+### Changed
+- **Chat no longer prints the document.** When Scribe writes content, the
+  conversation pane shows only a small **🪶 writing-into-the-document card**
+  (with a live word count); the body itself streams token-by-token into the
+  centre page. Text outside `<doc_content>` still appears as normal chat.
+- **Follow-the-pen pagination.** While the model writes, the centre pane flips
+  to the page currently being written; an exact reflow runs once streaming
+  finishes.
+- **Richer "magic" quill animation** (gradient feather, glowing nib, an
+  ink line that draws itself, and sparkles) replaces the previous flat quill,
+  reused in both the typing indicator and the writing card.
+
 ## [0.8.0] - 2026-06-17
 
 ### Added
