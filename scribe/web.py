@@ -598,6 +598,70 @@ LOCK_OPEN = "⟦LOCK⟧"
 LOCK_CLOSE = "⟦/LOCK⟧"
 
 
+def _has_resources() -> bool:
+    """True when the user has uploaded any ingest material to ground on."""
+    try:
+        return any(
+            p.is_file() and not p.name.startswith(".") for p in RESOURCES_DIR.iterdir()
+        )
+    except OSError:
+        return False
+
+
+def _grounded_chunks(query: str, k: int = 5):
+    """Return the raw RAG chunks for a grounded Q&A turn (or [] on any failure)."""
+    if not query.strip():
+        return []
+    try:
+        rag = _get_rag()
+        if rag is None:
+            return []
+        return rag.search(query, limit=k)
+    except Exception:
+        return []
+
+
+def _retrieve_sources(query: str, k: int = 4) -> tuple[str, int]:
+    """Retrieve relevant chunks from RAG to ground a writing/chat turn.
+
+    Returns ``(sources_block, count)``. Empty/0 when there is nothing to ground
+    on, RAG is unavailable, or the search fails — grounding is best-effort and
+    never blocks a turn.
+    """
+    if not query.strip() or not _has_resources():
+        return "", 0
+    try:
+        rag = _get_rag()
+        if rag is None:
+            return "", 0
+        chunks = rag.search(query, limit=k)
+    except Exception:
+        return "", 0
+    if not chunks:
+        return "", 0
+    lines = [
+        "You have retrieved the following passages from the user's own ingested "
+        "resources for the CURRENT request. They are authoritative reference "
+        "material that the user explicitly added.",
+        "",
+        "RULES:",
+        "- If these passages contain the answer, you MUST answer from them and "
+        "cite inline as [n]. Do not claim the information is missing.",
+        "- Only say information is unavailable if it is genuinely absent from "
+        "every passage below.",
+        "- Prefer these passages over your own assumptions or memory.",
+        "",
+        "## Retrieved sources",
+        "",
+    ]
+    for n, c in enumerate(chunks, 1):
+        name = (getattr(c, "source_file", "") or "source").rsplit("/", 1)[-1]
+        lines.append(f"[{n}] ({name})")
+        lines.append((getattr(c, "content", "") or "").strip())
+        lines.append("")
+    return "\n".join(lines), len(chunks)
+
+
 def _compose_writing_prompt(instruction: str, doc_context: str, mode: str) -> str:
     """Wrap the user's command with the current document so the model writes
     content meant to be inserted straight into the editor.
@@ -722,11 +786,37 @@ async def websocket_chat(websocket: WebSocket):
                     if result.success:
                         user_content = f"{user_content}\n\n{result.output}"
 
+                # Ground the turn in ingested resources (best-effort, off-thread
+                # so the embedding search never blocks the event loop).
+                sources_block, n_sources = "", 0
+                if _has_resources():
+                    await websocket.send_json({
+                        "type": "status", "content": "Reading your resources…"
+                    })
+                    loop = asyncio.get_event_loop()
+                    sources_block, n_sources = await loop.run_in_executor(
+                        None, _retrieve_sources, user_content
+                    )
+
                 if doc_context or mode == "book":
                     model_input = _compose_writing_prompt(user_content, doc_context, mode)
                 else:
                     model_input = user_content
+                # Sources ride at the end of the user turn (recency) — close to
+                # where the model starts answering. Folding them into the system
+                # prompt fought the session-recall text already living there.
+                if sources_block:
+                    model_input = model_input + "\n\n" + sources_block
                 messages.append({"role": "user", "content": model_input})
+                _orig_system = None
+
+                if n_sources:
+                    await websocket.send_json({
+                        "type": "tool",
+                        "name": "grounding",
+                        "args": {"query": user_content[:80]},
+                        "result": f"Using {n_sources} passage(s) from your ingested resources.",
+                    })
 
                 await websocket.send_json({
                     "type": "status",
@@ -803,6 +893,11 @@ async def websocket_chat(websocket: WebSocket):
                             "content": result,
                         })
 
+                # Restore the primary system prompt (grounding was injected for
+                # this turn only, so it doesn't accumulate across the session).
+                if _orig_system is not None:
+                    messages[0]["content"] = _orig_system
+
                 # Store only the clean final answer, not the reasoning.
                 messages.append({"role": "assistant", "content": final_answer})
                 session_manager.add_message("user", user_content)
@@ -812,6 +907,59 @@ async def websocket_chat(websocket: WebSocket):
                     "type": "done",
                     "content": final_answer,
                 })
+
+            elif event.get("type") == "ask_sources":
+                # Grounded Q&A over ingested resources, isolated from the chat/
+                # writing history — this mirrors the proven `rag ask` path:
+                # grounding rules + numbered sources ARE the system prompt, so
+                # the model answers reliably from the resources and cites [n].
+                question = event.get("content", "").strip()
+                if not question:
+                    continue
+                await websocket.send_json({
+                    "type": "status", "content": "Searching your resources…"
+                })
+                loop = asyncio.get_event_loop()
+                chunks = await loop.run_in_executor(None, _grounded_chunks, question)
+                if not chunks:
+                    msg = ("No ingested resources matched that question. Add "
+                           "PDF/TXT/MD/EPUB in the Resources panel first.")
+                    await websocket.send_json({"type": "chunk", "content": msg, "full": msg})
+                    await websocket.send_json({"type": "done", "content": msg})
+                    continue
+
+                names = []
+                for c in chunks:
+                    nm = (getattr(c, "source_file", "") or "source").rsplit("/", 1)[-1]
+                    if nm not in names:
+                        names.append(nm)
+                await websocket.send_json({
+                    "type": "tool",
+                    "name": "grounded answer",
+                    "args": {"query": question[:80]},
+                    "result": "Sources: " + ", ".join(names),
+                })
+
+                from scribe.prompts import get_grounded_prompt
+                gmsgs = [
+                    {"role": "system", "content": get_grounded_prompt(chunks)},
+                    {"role": "user", "content": question},
+                ]
+                answer = ""
+                async for kind, payload in adapter.streaming_turn_async(gmsgs, tools=None):
+                    if kind == "answer":
+                        answer += payload
+                        await websocket.send_json({
+                            "type": "chunk", "content": payload, "full": answer
+                        })
+                    elif kind == "thinking":
+                        await websocket.send_json({
+                            "type": "thinking", "content": payload, "full": payload
+                        })
+                if not answer.strip():
+                    answer = "The sources do not cover this."
+                    await websocket.send_json({"type": "chunk", "content": answer, "full": answer})
+                await websocket.send_json({"type": "done", "content": answer})
 
             elif event.get("type") == "clear":
                 messages = [messages[0]]
