@@ -894,9 +894,12 @@ class ScribeTUI:
         if not model:
             self.console.print("[dim]→ Canceled (no model).[/dim]")
             return
+        # password=True hides the key as it is typed (mirrors the web modal's
+        # masked input), so it never shows on screen or in scrollback.
         key = self.console.input(
-            "  [dim]API key (stored in your local config; or leave empty to use "
-            "SCRIBE_API_KEY)[/dim] [dim]›[/dim] "
+            "  [dim]API key (hidden; stored in your local config; or leave empty "
+            "to use SCRIBE_API_KEY)[/dim] [dim]›[/dim] ",
+            password=True,
         ).strip() or "not-needed"
         # Cloud backends do not support GBNF grammar; fall back to plain parsing.
         self._apply_backend(

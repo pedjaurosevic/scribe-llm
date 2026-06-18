@@ -28,7 +28,7 @@ from scribe.llm_adapter import LLMAdapter
 from scribe.memory.sme import get_sme_service
 from scribe.prompts import get_code_system_prompt, get_system_prompt
 from scribe.session import SessionManager
-from scribe.ui.console import DEFAULT_THEME, PALETTES, list_themes
+from scribe.ui.console import DEFAULT_THEME, PALETTES, gradient_text, list_themes
 
 
 def build_status_line(
@@ -148,6 +148,7 @@ class ScribeApp(App):
     #topbar { height: 1; padding: 0 1; }
     #chat { height: 1fr; padding: 1 2; }
     #chat .msg-user { margin: 0 0 1 0; }
+    #chat .msg-scribe-head { margin: 0; padding: 0; }
     #chat .msg-scribe { margin: 0 0 1 0; padding: 0; background: transparent; }
     #chat .thinking { margin: 0 0 1 0; color: $text-muted; }
     Input#prompt { height: 3; margin: 0 1; }
@@ -220,8 +221,16 @@ class ScribeApp(App):
 
     def _set_topbar(self) -> None:
         model = self.adapter.get_model_name()
-        mode = "  ·  ⌘ CODE" if self.code_mode else ""
-        self.query_one("#topbar", Static).update(f" ✶ Scribe   ·   {model}{mode}")
+        p = self._palette()
+        bar = Text(no_wrap=True, overflow="ellipsis", end="")
+        bar.append(" ")
+        # Gradient brand wordmark (Crush-style primary→secondary).
+        bar.append_text(gradient_text("✶ SCRIBE", self.theme_name))
+        bar.append("  ·  ", style=p["bg"])
+        bar.append(model, style=f"bold {p['bg']}")
+        if self.code_mode:
+            bar.append("  ·  ⌘ CODE", style=f"bold {p['bg']}")
+        self.query_one("#topbar", Static).update(bar)
 
     def _refresh_status(self) -> None:
         try:
@@ -267,6 +276,10 @@ class ScribeApp(App):
         self.messages.append({"role": "user", "content": full})  # model gets all
 
         chat = self.query_one("#chat", VerticalScroll)
+        p = self._palette()
+        await chat.mount(
+            Static(Text("✦ Scribe", style=f"bold {p['accent']}"), classes="msg-scribe-head")
+        )
         self._cur_thinking = Static("💭 razmišlja…", classes="thinking")
         await chat.mount(self._cur_thinking)
         self._cur_md = Markdown("", classes="msg-scribe")
@@ -279,7 +292,7 @@ class ScribeApp(App):
     async def _add_user(self, text: str) -> None:
         p = self._palette()
         body = Text()
-        body.append("› ", style=f"bold {p['user']}")
+        body.append("▌ You\n", style=f"bold {p['user']}")
         body.append(text)
         await self.query_one("#chat", VerticalScroll).mount(
             Static(body, classes="msg-user")

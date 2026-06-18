@@ -44,6 +44,19 @@ PALETTES: dict[str, dict[str, str]] = {
         "success": "#859900", "warning": "#b58900", "error": "#dc322f",
         "user": "#d33682", "assistant": "#2aa198",
     },
+    # Charm-inspired palette (à la Charmbracelet's Crush): hot pink primary,
+    # electric purple secondary, mint success, on a near-black background.
+    "charm": {
+        "bg": "#171717", "fg": "#dbdbdb", "accent": "#ff5faf", "secondary": "#8b5dff",
+        "success": "#00d7af", "warning": "#ffd787", "error": "#ff5f87",
+        "user": "#8b5dff", "assistant": "#ff5faf",
+    },
+}
+
+# Two ends of the brand gradient (Crush uses primary→secondary for the logo,
+# cursor and accents). Falls back to accent↔secondary for non-charm themes.
+GRADIENT_ENDS: dict[str, tuple[str, str]] = {
+    "charm": ("#ff5faf", "#8b5dff"),
 }
 
 DEFAULT_THEME = "gruvbox-dark"
@@ -117,6 +130,42 @@ def list_themes() -> list[str]:
 def theme_accent(theme: str) -> str:
     """The accent (primary) hex color of a theme, for swatches/previews."""
     return PALETTES.get(theme, PALETTES[DEFAULT_THEME])["accent"]
+
+
+def _hex_to_rgb(h: str) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def gradient_ends(theme: str) -> tuple[str, str]:
+    """Start/end hex colors of a theme's brand gradient (primary→secondary)."""
+    if theme in GRADIENT_ENDS:
+        return GRADIENT_ENDS[theme]
+    p = PALETTES.get(theme, PALETTES[DEFAULT_THEME])
+    return p["accent"], p["secondary"]
+
+
+def gradient_text(text: str, theme: str = DEFAULT_THEME, *, bold: bool = True):
+    """Render text with a per-character primary→secondary color gradient.
+
+    Mirrors Crush's gradient accents (a smooth foreground transition across the
+    string). Returns a Rich Text; whitespace is spanned but not colored.
+    """
+    from rich.text import Text
+
+    start, end = gradient_ends(theme)
+    sr, sg, sb = _hex_to_rgb(start)
+    er, eg, eb = _hex_to_rgb(end)
+    out = Text()
+    n = max(len(text) - 1, 1)
+    for i, ch in enumerate(text):
+        t = i / n
+        r = round(sr + (er - sr) * t)
+        g = round(sg + (eg - sg) * t)
+        b = round(sb + (eb - sb) * t)
+        style = f"#{r:02x}{g:02x}{b:02x}"
+        out.append(ch, style=f"bold {style}" if bold else style)
+    return out
 
 
 def get_console(theme: str = DEFAULT_THEME, **kwargs) -> Console:
