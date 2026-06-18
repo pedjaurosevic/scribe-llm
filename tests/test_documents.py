@@ -94,3 +94,34 @@ def test_delete_removes_document(tmp_path):
     assert store.delete(meta["id"]) is True
     assert store.exists(meta["id"]) is False
     assert store.list() == []
+
+
+def test_history_snapshot_and_restore(tmp_path):
+    store = make_store(tmp_path)
+    meta = store.create("Sa istorijom", "doc")
+    did = meta["id"]
+
+    store.save_content(did, "verzija 1")
+    first = store.snapshot(did, "prva")
+    store.save_content(did, "verzija 2")
+    store.snapshot(did, "druga")
+
+    history = store.list_history(did)
+    assert len(history) == 2
+    assert [h["label"] for h in history] == ["druga", "prva"]
+
+    assert store.restore(did, first["ts"]) is True
+    assert store.load(did)["content"] == "verzija 1"
+    # Restoring snapshots the pre-restore state, so it is itself reversible.
+    labels = [h["label"] for h in store.list_history(did)]
+    assert "before restore" in labels
+
+
+def test_export_strips_lock_sentinels(tmp_path):
+    store = make_store(tmp_path)
+    meta = store.create("Sa lokom", "doc")
+    store.save_content(meta["id"], "Pre ⟦LOCK⟧zakljucan deo⟦/LOCK⟧ posle")
+
+    md = store.assemble_markdown(meta["id"])
+    assert "zakljucan deo" in md
+    assert "⟦LOCK⟧" not in md and "⟦/LOCK⟧" not in md

@@ -262,8 +262,79 @@ class RAGService:
                 logger.error(f"Failed to extract text from PDF {file_path.name}: {e}")
                 return f"[Failed to extract content from {file_path.name}]"
 
+        elif suffix == ".epub":
+            return self._extract_epub(file_path)
+
         else:
             return f"[Content from {file_path.name}]"
+
+    @staticmethod
+    def _extract_epub(file_path: Path) -> str:
+        """Extract plain text from an EPUB without extra dependencies.
+
+        An EPUB is a ZIP of XHTML documents. We read the spine order from the
+        OPF manifest and strip the markup with a tiny stdlib HTML parser, so no
+        third-party EPUB library is needed.
+        """
+        import zipfile
+        from html.parser import HTMLParser
+        from xml.etree import ElementTree as ET
+
+        class _TextExtractor(HTMLParser):
+            def __init__(self) -> None:
+                super().__init__()
+                self.parts: list[str] = []
+                self._skip = False
+
+            def handle_starttag(self, tag, attrs):
+                if tag in ("script", "style"):
+                    self._skip = True
+                elif tag in ("p", "br", "div", "h1", "h2", "h3", "li"):
+                    self.parts.append("\n")
+
+            def handle_endtag(self, tag):
+                if tag in ("script", "style"):
+                    self._skip = False
+
+            def handle_data(self, data):
+                if not self._skip and data.strip():
+                    self.parts.append(data)
+
+        try:
+            with zipfile.ZipFile(file_path) as zf:
+                names = zf.namelist()
+                # Find the OPF to read the reading order; fall back to all XHTML.
+                opf_name = next((n for n in names if n.endswith(".opf")), None)
+                html_files: list[str] = []
+                if opf_name:
+                    opf = ET.fromstring(zf.read(opf_name))
+                    ns = {"opf": "http://www.idpf.org/2007/opf"}
+                    base = opf_name.rsplit("/", 1)[0] if "/" in opf_name else ""
+                    manifest = {
+                        item.get("id"): item.get("href")
+                        for item in opf.findall(".//opf:manifest/opf:item", ns)
+                    }
+                    for ref in opf.findall(".//opf:spine/opf:itemref", ns):
+                        href = manifest.get(ref.get("idref"))
+                        if href:
+                            html_files.append(f"{base}/{href}" if base else href)
+                if not html_files:
+                    html_files = [
+                        n for n in names if n.lower().endswith((".xhtml", ".html", ".htm"))
+                    ]
+
+                chunks: list[str] = []
+                for name in html_files:
+                    if name not in names:
+                        continue
+                    parser = _TextExtractor()
+                    parser.feed(zf.read(name).decode("utf-8", "replace"))
+                    chunks.append("".join(parser.parts))
+                text = "\n\n".join(chunks)
+                return text or f"[No extractable text in {file_path.name}]"
+        except Exception as e:
+            logger.error(f"Failed to extract text from EPUB {file_path.name}: {e}")
+            return f"[Failed to extract content from {file_path.name}]"
 
 
     def search(
