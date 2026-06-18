@@ -20,8 +20,9 @@ from rich.cells import cell_len
 from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
-from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Input, Markdown, Static
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Button, Input, Label, Markdown, Static
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
@@ -140,6 +141,80 @@ class PasteInput(Input):
         self.pastes.clear()
 
 
+class ModelsScreen(ModalScreen):
+    """Crush-style modal to switch the model backend (Ctrl+L).
+
+    Local llama.cpp or any OpenAI-compatible API. The API key field is masked
+    (password input); leaving it blank uses the local default or the
+    SCRIBE_API_KEY environment variable, so the key need never be typed in.
+    Returns a dict to the app on save, or None on cancel.
+    """
+
+    CSS = """
+    ModelsScreen { align: center middle; }
+    #dialog {
+        width: 72; height: auto; padding: 1 2;
+        border: round $accent; background: $panel;
+    }
+    #dialog Label { margin: 1 0 0 0; color: $text-muted; }
+    #dialog Input { margin: 0; }
+    #buttons { height: auto; margin-top: 1; align-horizontal: right; }
+    #buttons Button { margin-left: 1; }
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, base_url: str, model: str, theme_name: str):
+        super().__init__()
+        self._base_url = base_url
+        self._model = model
+        self._theme_name = theme_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(gradient_text("✶ Model Backend", self._theme_name))
+            yield Label("Base URL")
+            yield Input(value=self._base_url, id="base", placeholder="http://127.0.0.1:18083/v1")
+            yield Label("Model id (blank = local 'default')")
+            yield Input(value="" if self._model == "default" else self._model,
+                        id="model", placeholder="e.g. deepseek-chat")
+            yield Label("API key (hidden; blank = local / SCRIBE_API_KEY)")
+            yield Input(password=True, id="key", placeholder="sk-…")
+            with Horizontal(id="buttons"):
+                yield Button("Local", id="local")
+                yield Button("Cancel", id="cancel")
+                yield Button("Save API", id="save", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#base", Input).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+            return
+        base = self.query_one("#base", Input).value.strip()
+        if event.button.id == "local":
+            self.dismiss({
+                "kind": "local",
+                "base_url": base or "http://127.0.0.1:18083/v1",
+                "model": "default", "api_key": "not-needed", "tool_grammar": "auto",
+            })
+            return
+        # Save API
+        model = self.query_one("#model", Input).value.strip()
+        key = self.query_one("#key", Input).value.strip() or "not-needed"
+        if not base or not model:
+            self.query_one("#dialog", Vertical).styles.border = ("round", "red")
+            return
+        self.dismiss({
+            "kind": "api", "base_url": base, "model": model,
+            "api_key": key, "tool_grammar": "off",
+        })
+
+
 class ScribeApp(App):
     """Full-screen Textual chat for Scribe."""
 
@@ -155,7 +230,10 @@ class ScribeApp(App):
     #status { height: 1; }
     """
 
-    BINDINGS = [("ctrl+c", "quit", "Quit")]
+    BINDINGS = [
+        ("ctrl+c", "quit", "Quit"),
+        ("ctrl+l", "models", "Models"),
+    ]
 
     def __init__(self, config: ScribeConfig | None = None):
         super().__init__()
@@ -372,6 +450,7 @@ class ScribeApp(App):
         elif cmd == "/help":
             await self._note(
                 "Commands: /theme NAME · /code · /chat · /clear · /quit\n"
+                "Keys: Ctrl+L model backend · Ctrl+P command palette\n"
                 f"Themes: {', '.join(list_themes())}"
             )
         else:
@@ -414,6 +493,33 @@ class ScribeApp(App):
                 })
         self._set_topbar()
         self._refresh_status()
+
+    # --------------------------------------------------------------- models
+    def action_models(self) -> None:
+        """Open the model-backend modal (Ctrl+L)."""
+        if self._busy:
+            return
+
+        def _applied(result: dict | None) -> None:
+            if not result:
+                return
+            try:
+                self.config.save_value("scribe", "base_url", result["base_url"])
+                self.config.save_value("scribe", "model", result["model"])
+                self.config.save_value("scribe", "api_key", result["api_key"])
+                self.config.save_value("scribe", "tool_grammar", result["tool_grammar"])
+            except Exception as e:
+                self.call_later(self._note, f"⚠ Could not save backend: {e}")
+                return
+            self.adapter = LLMAdapter.from_config(self.config)
+            self._set_topbar()
+            self._refresh_status()
+            self.call_later(self._note, f"✦ Backend → {result['base_url']}")
+
+        self.push_screen(
+            ModelsScreen(self.config.base_url, self.config.model, self.theme_name),
+            _applied,
+        )
 
     async def _note(self, text: str) -> None:
         p = self._palette()
