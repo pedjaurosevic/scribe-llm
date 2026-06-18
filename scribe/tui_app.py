@@ -20,9 +20,10 @@ from rich.cells import cell_len
 from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
+from textual.command import Hit, Hits, Provider
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Markdown, Static
+from textual.widgets import Button, Input, Label, ListItem, ListView, Markdown, Static
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
@@ -141,6 +142,30 @@ class PasteInput(Input):
         self.pastes.clear()
 
 
+class ScribeCommands(Provider):
+    """Command-palette entries (Ctrl+P): backend, sessions, themes, code, clear."""
+
+    def _commands(self):
+        app = self.app
+        items = [
+            ("Model backend…", app.action_models),
+            ("Resume session…", app.action_sessions),
+            ("Toggle code mode", lambda: app._cmd_code(off=app.code_mode)),
+            ("Clear chat", lambda: app.call_later(app._do_clear)),
+            ("Quit Scribe", app.action_quit),
+        ]
+        for name in list_themes():
+            items.append((f"Theme → {name}", (lambda n=name: app.apply_named_theme(n))))
+        return items
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for name, callback in self._commands():
+            score = matcher.match(name)
+            if score > 0:
+                yield Hit(score, matcher.highlight(name), callback)
+
+
 class ModelsScreen(ModalScreen):
     """Crush-style modal to switch the model backend (Ctrl+L).
 
@@ -215,8 +240,59 @@ class ModelsScreen(ModalScreen):
         })
 
 
+class SessionsScreen(ModalScreen):
+    """Crush-style modal to resume a past session (Ctrl+S).
+
+    Lists recent sessions newest-first; selecting one returns its id to the app,
+    which reloads its transcript. Returns the chosen session id, or None.
+    """
+
+    CSS = """
+    SessionsScreen { align: center middle; }
+    #dialog {
+        width: 80; height: auto; max-height: 80%; padding: 1 2;
+        border: round $accent; background: $panel;
+    }
+    #dialog ListView { height: auto; max-height: 20; margin-top: 1; background: $panel; }
+    #dialog ListItem { padding: 0 1; }
+    #hint { color: $text-muted; margin-top: 1; }
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, sessions: list[tuple[str, str]], theme_name: str):
+        super().__init__()
+        self._sessions = sessions
+        self._theme_name = theme_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(gradient_text("✶ Resume session", self._theme_name))
+            if self._sessions:
+                lv = ListView(
+                    *[ListItem(Label(label), id=f"s_{sid}") for sid, label in self._sessions]
+                )
+                yield lv
+                yield Static("Enter to resume · Esc to cancel", id="hint")
+            else:
+                yield Static("No saved sessions yet.", id="hint")
+
+    def on_mount(self) -> None:
+        if self._sessions:
+            self.query_one(ListView).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        sid = (event.item.id or "")[2:]  # strip the "s_" prefix
+        self.dismiss(sid or None)
+
+
 class ScribeApp(App):
     """Full-screen Textual chat for Scribe."""
+
+    COMMANDS = App.COMMANDS | {ScribeCommands}
 
     CSS = """
     Screen { layout: vertical; }
@@ -233,6 +309,7 @@ class ScribeApp(App):
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+l", "models", "Models"),
+        ("ctrl+s", "sessions", "Sessions"),
     ]
 
     def __init__(self, config: ScribeConfig | None = None):
@@ -440,9 +517,7 @@ class ScribeApp(App):
         if cmd in ("/quit", "/exit", "/q"):
             self.exit()
         elif cmd == "/clear":
-            await self.query_one("#chat", VerticalScroll).remove_children()
-            self.messages = self.messages[:1]
-            self._refresh_status()
+            await self._do_clear()
         elif cmd == "/theme":
             await self._cmd_theme(arg)
         elif cmd in ("/code", "/chat"):
@@ -455,6 +530,22 @@ class ScribeApp(App):
             )
         else:
             await self._note(f"Unknown command: {cmd}")
+
+    async def _do_clear(self) -> None:
+        await self.query_one("#chat", VerticalScroll).remove_children()
+        self.messages = self.messages[:1]
+        self._refresh_status()
+
+    def apply_named_theme(self, name: str) -> None:
+        """Switch theme by name (used by the command palette)."""
+        if name not in list_themes():
+            return
+        self.theme_name = name
+        self._apply_theme()
+        try:
+            self.config.save_value("scribe.ui", "theme", name)
+        except Exception:
+            pass
 
     async def _cmd_theme(self, name: str) -> None:
         if not name:
@@ -520,6 +611,47 @@ class ScribeApp(App):
             ModelsScreen(self.config.base_url, self.config.model, self.theme_name),
             _applied,
         )
+
+    # ------------------------------------------------------------- sessions
+    def action_sessions(self) -> None:
+        """Open the resume-session modal (Ctrl+S)."""
+        if self._busy:
+            return
+        rows: list[tuple[str, str]] = []
+        for sid in self.session.list_sessions()[:30]:
+            cp = self.session.load_session(sid)
+            if cp is None:
+                continue
+            n = len([m for m in cp.messages if m.get("role") in ("user", "assistant")])
+            rows.append((sid, f"{sid}   ·   {cp.topic or '—'}   ·   {n} turns"))
+        self.push_screen(SessionsScreen(rows, self.theme_name), self._resume_session)
+
+    def _resume_session(self, sid: str | None) -> None:
+        if not sid:
+            return
+        cp = self.session.load_session(sid)
+        if cp is None:
+            return
+        restored = [m for m in cp.messages if m.get("role") in ("user", "assistant")]
+        self.messages = self.messages[:1] + restored
+        self.call_later(self._repaint_chat, sid)
+
+    async def _repaint_chat(self, sid: str) -> None:
+        chat = self.query_one("#chat", VerticalScroll)
+        await chat.remove_children()
+        p = self._palette()
+        for m in self.messages[1:]:
+            if m.get("role") == "user":
+                await self._add_user(m.get("content", ""))
+            elif m.get("role") == "assistant":
+                await chat.mount(
+                    Static(Text("✦ Scribe", style=f"bold {p['accent']}"),
+                           classes="msg-scribe-head")
+                )
+                await chat.mount(Markdown(m.get("content", ""), classes="msg-scribe"))
+        await self._note(f"↩ Resumed session {sid}")
+        chat.scroll_end()
+        self._refresh_status()
 
     async def _note(self, text: str) -> None:
         p = self._palette()
