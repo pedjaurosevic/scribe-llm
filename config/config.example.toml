@@ -121,3 +121,16 @@ request_timeout_seconds = 600
 #   ~30 = kratko (default)   ~15 = vrlo kratko   ~8 = minimalno (1 rečenica)
 # To turn thinking off entirely, set reasoning = false above.
 max_thinking_words = 30
+
+# Models compared by `scribe-llm bench --models` — the grounding leaderboard.
+# Each entry is an inline table. base_url/model point at a llama.cpp server
+# (one per port) or any OpenAI-compatible endpoint (OpenRouter, Groq, ...).
+# api_key_env names an env var holding the key, so no secret lands in this file
+# (omit it for local llama.cpp). Results are written to docs/leaderboard.{md,json}.
+# Note the quoted header: ["scribe.bench"], matching the other sub-sections.
+# ["scribe.bench"]
+# models = [
+#   { name = "gemma-4-12b", base_url = "http://127.0.0.1:18083/v1", model = "default" },
+#   { name = "qwen-2.5-7b", base_url = "http://127.0.0.1:18084/v1", model = "default" },
+#   { name = "llama-3.1-8b (openrouter)", base_url = "https://openrouter.ai/api/v1", model = "meta-llama/llama-3.1-8b-instruct", api_key_env = "OPENROUTER_API_KEY" },
+# ]
