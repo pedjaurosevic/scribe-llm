@@ -713,6 +713,78 @@ def kb_ask(ctx, name, question, limit, best_of):
 
 
 @main.group()
+def queue():
+    """AFK task queue: delegate narrow tasks, run them, review the results."""
+    pass
+
+
+@queue.command("add")
+@click.argument("task")
+@click.pass_context
+def queue_add(ctx, task):
+    """Queue a well-defined task for later (AFK) execution."""
+    from scribe.queue import TaskQueue
+
+    console = ctx.obj["console"]
+    t = TaskQueue().add(task)
+    console.print(f"[success]✓[/success] Queued [{t.id}]: {t.prompt}")
+
+
+@queue.command("list")
+@click.pass_context
+def queue_list(ctx):
+    """Show queued tasks and their status."""
+    from scribe.queue import TaskQueue
+
+    console = ctx.obj["console"]
+    tasks = TaskQueue().list()
+    if not tasks:
+        console.print("[dim]Queue empty — `scribe-llm queue add \"<task>\"`[/dim]")
+        return
+    color = {"pending": "yellow", "running": "cyan", "done": "green", "failed": "red"}
+    for t in tasks:
+        c = color.get(t.status, "white")
+        console.print(f"[{c}]{t.status:>7}[/{c}]  [bold]{t.id}[/bold]  {t.prompt}")
+
+
+@queue.command("run")
+@click.option("--all", "run_all", is_flag=True, help="Run every pending task, not just the next")
+@click.pass_context
+def queue_run(ctx, run_all):
+    """Run the next pending task (or all of them) through the headless agent."""
+    from scribe.mail import execute_instruction
+    from scribe.queue import TaskQueue
+
+    console = ctx.obj["console"]
+    config = ScribeConfig()
+    q = TaskQueue()
+
+    def executor(prompt: str) -> str:
+        return execute_instruction(config, prompt)
+
+    ran = q.run_all(executor) if run_all else [t for t in [q.run_next(executor)] if t]
+    if not ran:
+        console.print("[dim]No pending tasks[/dim]")
+        return
+    for t in ran:
+        mark = "[success]✓[/success]" if t.status == "done" else "[error]✗[/error]"
+        console.print(f"{mark} [{t.id}] {t.prompt}")
+        console.print(f"  [dim]{(t.result or t.error)[:400]}[/dim]")
+
+
+@queue.command("clear")
+@click.option("--done", "done_only", is_flag=True, help="Clear only finished tasks")
+@click.pass_context
+def queue_clear(ctx, done_only):
+    """Remove tasks from the queue (all, or only the finished ones)."""
+    from scribe.queue import DONE, TaskQueue
+
+    console = ctx.obj["console"]
+    removed = TaskQueue().clear(status=DONE if done_only else None)
+    console.print(f"[success]✓[/success] Cleared {removed} task(s)")
+
+
+@main.group()
 def session():
     """Session management."""
     pass
