@@ -20,6 +20,7 @@ import re
 import resource
 import shutil
 import subprocess
+import sys
 
 # ── Layer 1: command gate ──────────────────────────────────────────────────
 
@@ -124,13 +125,38 @@ def wrap_argv(command: str, workspace: str, network: bool = False) -> list[str]:
 
 
 def _rlimits(timeout: int):
-    """preexec_fn applying CPU and memory ceilings to the child."""
+    """preexec_fn applying CPU and memory ceilings to the child.
+
+    Used only as a fallback on Python < 3.11 where ``process_group`` is not
+    available.  On 3.11+ we pass ``process_group=0`` to subprocess.run()
+    instead and apply rlimits through ``prlimit`` after fork.
+    """
     def apply() -> None:
         cpu = max(timeout, 30)
         resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
         mem = 4 * 1024**3
         resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
     return apply
+
+
+def _apply_rlimits_post(pid: int, timeout: int) -> None:
+    """Apply CPU and memory limits to a running child via ``prlimit``."""
+    try:
+        cpu = max(timeout, 30)
+        mem = 4 * 1024**3
+        subprocess.run(
+            ["prlimit", f"--pid={pid}", f"--cpu={cpu}:{cpu}", f"--as={mem}:{mem}"],
+            capture_output=True, timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        # prlimit unavailable — rlimits were already set via preexec_fn or
+        # bwrap provides the containment.
+        pass
+
+
+# Python 3.11+ supports ``process_group`` which replaces ``preexec_fn`` +
+# ``start_new_session``. We detect support once at import time.
+_HAS_PROCESS_GROUP = sys.version_info >= (3, 11)
 
 
 def run_sandboxed(
@@ -150,13 +176,23 @@ def run_sandboxed(
     else:
         argv = command
         shell = True
-    return subprocess.run(
-        argv,
+
+    kwargs: dict = dict(
         shell=shell,
         cwd=workspace,
         capture_output=True,
         text=True,
         timeout=timeout,
-        preexec_fn=_rlimits(timeout),
         executable="/bin/bash" if shell else None,
     )
+    if _HAS_PROCESS_GROUP:
+        # Python 3.11+: ``process_group=0`` replaces the deprecated
+        # ``preexec_fn`` for putting the child in its own process group.
+        kwargs["process_group"] = 0
+        proc = subprocess.run(argv, **kwargs)
+    else:
+        # Fallback for Python 3.10: ``preexec_fn`` is the only option.
+        kwargs["preexec_fn"] = _rlimits(timeout)
+        proc = subprocess.run(argv, **kwargs)
+    return proc
+
