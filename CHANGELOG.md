@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-19
+
+A multi-pillar release: curated OKF knowledge bases the agent can browse and
+ground over, test-time reliability selection, a cascade-of-trust over memory,
+an immutable core for safe self-evolution, and a lean AFK harness with manually
+invoked skills.
+
 ### Added
 - **AFK task queue** (`scribe/queue.py`, `scribe-llm queue`). Delegate
   narrowly-scoped tasks and run them one at a time or in a batch instead of
