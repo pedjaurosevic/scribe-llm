@@ -6,6 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-06-19
+
+Closes the three items deferred from 1.5.0: the cascade-of-trust now reaches
+the model on every turn, the integrated terminal is hardened, and
+self-evolution gets a transactional shadow-deployment step.
+
+### Added
+- **Cascade-of-trust is live.** `get_system_prompt` appends the trust-precedence
+  note (WorldModel absolute > sources `[n]` > working memory) right after the
+  WorldModel block whenever a WorldModel is present, so the conflict-resolution
+  rule reaches the model on every chat turn (toggle via `memory_cascade=False`).
+- **Shadow deployment for self-evolution** (`scribe/evolve/shadow.py`). A
+  transactional step: guard every path (immutable-core), apply to a shadow, run
+  the held-out suite, and keep the change only on a non-regression — otherwise
+  roll back. Any apply/eval exception rolls back; `commit` runs only on a clean
+  pass. Pure, with injected git/eval/oracle callables.
+
+### Security
+- **Integrated terminal hardened.** A single-use, 30-second token
+  (`GET /api/terminal-token`) is required to open `/ws/terminal`, so a stale or
+  replayed URL cannot reopen a shell. On the no-bwrap fallback the shell runs in
+  restricted mode (rbash) when `scribe.web.restricted_shell` is set; and
+  `scribe.web.require_sandbox` makes the terminal fail closed (refuse rather than
+  degrade) when bubblewrap is unavailable.
+
 ## [1.5.0] - 2026-06-19
 
 A multi-pillar release: curated OKF knowledge bases the agent can browse and
