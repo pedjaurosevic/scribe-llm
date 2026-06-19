@@ -2,18 +2,25 @@
 Scribe Web - FastAPI web server with streaming chat UI.
 """
 
+# Security: this module implements rate-limiting, security headers, audit
+# logging, WebSocket origin checks, and cookie hardening.  See the
+# ``require_pin`` and ``security_headers`` middlewares.
+
 from __future__ import annotations
 
 import asyncio
+import collections
 import hashlib
 import hmac
 import json
+import logging
 import os
 import shutil
 import signal
 import struct
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 # The integrated terminal needs a POSIX pseudo-terminal (Linux/macOS/WSL).
@@ -112,6 +119,57 @@ def _is_authed(request_or_ws) -> bool:
     return hmac.compare_digest(token, _expected_token())
 
 
+# --- Security: audit logger ------------------------------------------------
+security_log = logging.getLogger("scribe.security")
+
+
+# --- Security: rate limiting ------------------------------------------------
+# In-memory sliding-window rate limiter for the login endpoint. Prevents PIN
+# brute-force: max RATE_LIMIT_MAX attempts within RATE_LIMIT_WINDOW seconds per
+# client IP.  Entries auto-expire on access.
+
+RATE_LIMIT_WINDOW = 300  # seconds
+RATE_LIMIT_MAX = 5       # max attempts per window
+
+_login_attempts: dict[str, list[float]] = collections.defaultdict(list)
+
+
+def _is_rate_limited(client_ip: str) -> bool:
+    """True when the client has exceeded the login attempt limit."""
+    now = time.monotonic()
+    window = _login_attempts[client_ip]
+    # Expire old entries.
+    _login_attempts[client_ip] = window = [t for t in window if now - t < RATE_LIMIT_WINDOW]
+    return len(window) >= RATE_LIMIT_MAX
+
+
+def _record_attempt(client_ip: str) -> None:
+    """Record a login attempt timestamp."""
+    _login_attempts[client_ip].append(time.monotonic())
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP (X-Forwarded-For aware)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# --- Security: WebSocket origin check --------------------------------------
+
+def _valid_ws_origin(websocket: WebSocket) -> bool:
+    """Reject WebSocket upgrades from foreign origins (CSWSH protection)."""
+    origin = websocket.headers.get("origin", "")
+    if not origin:
+        # No Origin header — non-browser client; allow (same as before).
+        return True
+    host = websocket.headers.get("host", "")
+    # Strip scheme from origin and compare host parts.
+    origin_host = origin.split("://", 1)[-1].rstrip("/")
+    return origin_host == host
+
+
 LOGIN_HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Scribe — PIN</title>
 <style>
@@ -137,6 +195,27 @@ LOGIN_HTML = """<!doctype html>
 
 
 @app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Add security headers to every HTTP response."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "0"
+    # CSP: allow inline styles/scripts (the SPA needs them) but nothing else.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self' ws: wss:; "
+        "font-src 'self' data:; "
+        "frame-ancestors 'none'"
+    )
+    return response
+
+
+@app.middleware("http")
 async def require_pin(request: Request, call_next):
     """Block every HTTP route until the PIN cookie is present and valid."""
     open_paths = ("/login", "/static", "/favicon.ico")
@@ -146,24 +225,42 @@ async def require_pin(request: Request, call_next):
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_form():
+async def login_form(request: Request):
     """Serve the PIN entry page."""
+    ip = _client_ip(request)
+    if _is_rate_limited(ip):
+        return HTMLResponse(
+            LOGIN_HTML.format(error="Too many attempts — try again later."),
+            status_code=429,
+            headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
+        )
     return LOGIN_HTML.format(error="")
 
 
 @app.post("/login", response_class=HTMLResponse)
-async def login_submit(pin: str = Form("")):
+async def login_submit(request: Request, pin: str = Form("")):
     """Check the PIN; on success set the auth cookie and enter the UI."""
+    ip = _client_ip(request)
+    if _is_rate_limited(ip):
+        security_log.warning("login rate-limited ip=%s", ip)
+        return HTMLResponse(
+            LOGIN_HTML.format(error="Too many attempts — try again later."),
+            status_code=429,
+            headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
+        )
+    _record_attempt(ip)
     if hmac.compare_digest(pin, _PIN):
+        security_log.info("login success ip=%s", ip)
         resp = RedirectResponse("/", status_code=303)
         resp.set_cookie(
             AUTH_COOKIE,
             _expected_token(),
             httponly=True,
-            samesite="lax",
-            max_age=60 * 60 * 24 * 7,
+            samesite="strict",
+            max_age=60 * 60 * 24,  # 24 hours (was 7 days)
         )
         return resp
+    security_log.warning("login failed ip=%s", ip)
     return HTMLResponse(LOGIN_HTML.format(error="Wrong PIN"), status_code=401)
 
 
@@ -705,6 +802,11 @@ async def websocket_chat(websocket: WebSocket):
     if not _is_authed(websocket):
         await websocket.close(code=1008)  # policy violation
         return
+    # Reject cross-origin connections (CSWSH protection).
+    if not _valid_ws_origin(websocket):
+        security_log.warning("ws/chat rejected foreign origin=%s", websocket.headers.get("origin"))
+        await websocket.close(code=1008)
+        return
 
     await manager.connect(websocket)
 
@@ -1014,7 +1116,16 @@ async def websocket_terminal(websocket: WebSocket):
     if not _is_authed(websocket):
         await websocket.close(code=1008)
         return
+    # Reject cross-origin connections (CSWSH protection).
+    if not _valid_ws_origin(websocket):
+        security_log.warning(
+            "ws/terminal rejected foreign origin=%s",
+            websocket.headers.get("origin"),
+        )
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
+    security_log.info("terminal opened origin=%s", websocket.headers.get("origin", ""))
 
     if not _PTY_AVAILABLE:
         # Native Windows: no PTY. Tell the client instead of crashing.
@@ -1025,10 +1136,31 @@ async def websocket_terminal(websocket: WebSocket):
         await websocket.close()
         return
 
+    from scribe.tools.sandbox import bwrap_available
+
     master_fd, slave_fd = pty.openpty()
     shell = os.environ.get("SHELL", "/bin/bash")
+
+    if bwrap_available():
+        # Run terminal inside bubblewrap container for file system isolation
+        cmd = [
+            "bwrap",
+            "--ro-bind", "/", "/",
+            "--dev", "/dev",
+            "--proc", "/proc",
+            "--tmpfs", "/tmp",
+            "--bind", str(WORKSPACE_DIR), str(WORKSPACE_DIR),
+            "--die-with-parent",
+            "--chdir", str(WORKSPACE_DIR),
+            shell,
+        ]
+        if "bash" in shell:
+            cmd.append("-l")
+    else:
+        cmd = [shell, "-l"]
+
     proc = subprocess.Popen(
-        [shell, "-l"],
+        cmd,
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
@@ -1079,6 +1211,7 @@ async def websocket_terminal(websocket: WebSocket):
     except Exception:
         pass
     finally:
+        security_log.info("terminal closed pid=%s", proc.pid)
         try:
             loop.remove_reader(master_fd)
         except (ValueError, OSError):
@@ -1106,6 +1239,20 @@ def run(host: str = "127.0.0.1", port: int = 8765):
     (`/ws/terminal`), so it should not be reachable from the network unless the
     operator explicitly opts in with `--host 0.0.0.0`.
     """
+    global _PIN
+    _PIN = config.ensure_web_pin()
+
+    if config.is_default_pin:
+        security_log.warning(
+            "Web UI PIN is the factory default '2020'. "
+            "Change it in ~/.config/scribe/config.toml → [scribe.web] pin = \"...\" "
+            "for security."
+        )
+    if host != "127.0.0.1":
+        security_log.warning(
+            "Web UI bound to %s — the integrated terminal is accessible "
+            "over the network. Make sure the PIN is strong.", host
+        )
     uvicorn.run(app, host=host, port=port, reload=False)
 
 
