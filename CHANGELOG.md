@@ -6,7 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-06-19
+## [1.2.0] - 2026-06-19
+
+Major security hardening of the Web SPA interface, sandboxed PTY terminal execution, dynamic PIN setup, and Python 3.12 compatibility fixes.
+
+### Added
+- **Interactive Web PIN Setup**: Prompt user to define a custom 4-digit PIN on first start of `scribe-llm web` if not configured in `config.toml`, falling back to generating a secure random 4-digit PIN if non-interactive.
+- **Sandboxed PTY Terminal**: Run the integrated web terminal inside a secure, network-isolated `bwrap` (Bubblewrap) container when available, with root filesystem mounted read-only and only the workspace mounted read-write.
+- **Rate-limited Login**: Limit Web login attempts to a maximum of 5 attempts within 5 minutes per client IP to prevent brute-forcing.
+- **Security Headers & CSWSH Protection**: Restrict WebSocket connections to matching origins only, shorten auth cookie life to 24 hours, and append secure HTTP headers (CSP, X-Frame-Options, X-Content-Type-Options, etc.).
+- **Security Logging**: Real-time logging of authentication events, blocked requests, and terminal session life-cycle.
+
+### Fixed
+- **preexec_fn Deprecation**: Resolved Python 3.12+ `preexec_fn` deprecation warnings in sandbox execution, using `process_group=0` for process group confinement on Python 3.11+.
+- **Legacy Tool Routing**: Routed the legacy `bash()` utility through the sandbox command gate to prevent destructive host operations.
+
 
 A Crush-inspired makeover of the full-screen `--textual` TUI, plus a small
 security touch for the classic TUI.
