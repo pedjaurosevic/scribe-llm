@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-19
+
 ### Added
 - **Multi-model grounding leaderboard.** `scribe-llm bench --models` runs the
   deterministic SPI grounding suite across every model listed in a new
