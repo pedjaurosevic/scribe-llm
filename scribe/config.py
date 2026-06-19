@@ -312,6 +312,21 @@ class ScribeConfig:
         return str(self.get("scribe.web", "pin", default="2020"))
 
     @property
+    def is_default_pin(self) -> bool:
+        """True when the web PIN is still the factory default (insecure)."""
+        return self.web_pin == "2020"
+
+    @property
+    def redacted_api_key(self) -> str:
+        """API key with all but the last 4 characters masked for safe display."""
+        key = self.api_key or ""
+        if not key or key in ("not-needed", ""):
+            return key
+        if len(key) <= 8:
+            return "****" + key[-2:]
+        return "****" + key[-4:]
+
+    @property
     def max_context_tokens(self) -> int:
         """Get the max context window size."""
         return self.get("scribe.limits", "max_context_tokens", default=131072)
@@ -357,6 +372,73 @@ class ScribeConfig:
             "imap_port": int(self.get("scribe.email", "imap_port", default=993)),
             "poll_interval": int(self.get("scribe.email", "poll_interval", default=30)),
         }
+
+    def is_pin_configured(self) -> bool:
+        """Check if the PIN is explicitly set in the user config file or env."""
+        if os.environ.get("SCRIBE_WEB_PIN"):
+            return True
+        config_file = self._find_config_file()
+        if config_file and config_file.exists():
+            try:
+                import toml
+                user_config = toml.load(config_file)
+                if "scribe.web" in user_config and isinstance(user_config["scribe.web"], dict):
+                    if "pin" in user_config["scribe.web"]:
+                        return True
+                # Check structure under [scribe]
+                if "scribe" in user_config and isinstance(user_config["scribe"], dict):
+                    if "web.pin" in user_config["scribe"]:
+                        return True
+                    # Check nested scribe: { web: { pin: ... } }
+                    sub = user_config["scribe"]
+                    if "web" in sub and isinstance(sub["web"], dict):
+                        if "pin" in sub["web"]:
+                            return True
+            except Exception:
+                pass
+        return False
+
+    def ensure_web_pin(self) -> str:
+        """Ensure a web PIN is set. Prompts or generates one if missing."""
+        if self.is_pin_configured():
+            return self.web_pin
+
+        # It's not configured. We need to establish a PIN.
+        import random
+        import sys
+
+        pin = ""
+        # Check if stdin is a TTY to prompt interactively
+        if sys.stdin.isatty():
+            try:
+                print("\n=== Scribe Web UI Security Setup ===")
+                print("No security PIN is configured for the Web UI.")
+                while True:
+                    entered = input(
+                        "Enter a new 4-digit PIN (e.g. 1234), "
+                        "or press Enter to generate a random one: "
+                    ).strip()
+                    if not entered:
+                        break
+                    if entered.isdigit() and len(entered) == 4:
+                        pin = entered
+                        break
+                    print("PIN must be exactly 4 digits. Please try again.")
+            except (KeyboardInterrupt, EOFError):
+                print("\nSetup interrupted. Generating a random PIN...")
+
+        if not pin:
+            pin = f"{random.randint(1000, 9999)}"
+            print(f"\n[Security] Generated a random 4-digit PIN for you: {pin}")
+
+        # Save it to config.toml
+        try:
+            target = self.save_value("scribe.web", "pin", pin)
+            print(f"[Security] PIN has been saved to: {target}\n")
+        except Exception as e:
+            print(f"[Warning] Could not save PIN to config file: {e}\n")
+
+        return pin
 
     def __repr__(self) -> str:
         return f"ScribeConfig(base_url={self.base_url}, model={self.model})"

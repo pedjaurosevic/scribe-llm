@@ -82,6 +82,9 @@ def bash(command: str, timeout: int = 60) -> dict[str, Any]:
     """
     Execute a bash command.
 
+    Routes through the sandbox command gate to refuse obviously destructive
+    commands (recursive rm on /, mkfs, fork bombs, etc.).
+
     Args:
         command: Command to execute
         timeout: Timeout in seconds
@@ -89,9 +92,17 @@ def bash(command: str, timeout: int = 60) -> dict[str, Any]:
     Returns:
         Dict with 'stdout', 'stderr', 'returncode'
     """
+    from scribe.tools.sandbox import gate_command
+
+    reason = gate_command(command)
+    if reason:
+        return {
+            "stdout": "",
+            "stderr": f"[refused] command gate: {reason}",
+            "returncode": 1,
+        }
     result = subprocess.run(
-        command,
-        shell=True,
+        ["bash", "-c", command],
         capture_output=True,
         text=True,
         timeout=timeout,
