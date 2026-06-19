@@ -6,6 +6,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-19
+
+A Crush-inspired makeover of the full-screen `--textual` TUI, plus a small
+security touch for the classic TUI.
+
+### Added
+- **`charm` theme** (hot-pink primary, electric-purple secondary, mint) and a
+  `gradient_text()` helper for Crush-style primary→secondary gradients.
+- **Crush-like `--textual` UI**: a gradient `✶ SCRIBE` wordmark in the header,
+  `▌ You` / `✦ Scribe` role headers on messages.
+- **Models modal (Ctrl+L)** to switch backend (local llama.cpp or any
+  OpenAI-compatible API) with a **masked API-key field**; a blank key falls
+  back to local or the `SCRIBE_API_KEY` env var.
+- **Sessions modal (Ctrl+S)** listing recent sessions (`id · topic · turns`);
+  selecting one reloads its transcript.
+- **Command palette (Ctrl+P)** with Scribe commands: model backend, resume
+  session, toggle code mode, clear chat, quit, and a `Theme → <name>` entry per
+  theme.
+
+### Changed
+- **Classic TUI masks the API key.** `/models api` now reads the key with a
+  hidden (password) prompt, matching the web modal — it no longer shows on
+  screen or in scrollback.
+
 ## [1.0.0] - 2026-06-18
 
 First stable release. Builds on 0.9.0 with a responsive web layout, reliable
