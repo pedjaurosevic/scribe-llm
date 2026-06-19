@@ -7,6 +7,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Curated OKF knowledge bases** (`scribe/knowledge.py`, `scribe-llm kb`).
+  Mount external Open Knowledge Format bundles by name and let the agent
+  **search** them, **navigate** their link graph, and **ground** answers
+  strictly from their pages with `[n]` citations (reusing the grounded-context
+  renderer). `kb add/list/remove/info/search/ask`. Retrieval core is pure and
+  file-based — testable offline with no model or vector store.
+- **Immutable-core guard** (`scribe/evolve/guard.py`). One source of truth for
+  what the self-improvement loop may rewrite: only skills and the prompt
+  overlay are mutable; the security core (sandbox/gates/grammar), the evolve
+  machinery, the constitution and the checksum-locked held-out suite are
+  protected. Default-closed — unknown paths are treated as protected.
 - **Cascade of trust for memory** (`scribe/memory/context.py`). A single
   precedence order over the three memory sources — WorldModel (absolute) >
   RAG sources `[n]` (facts/syntax) > SME working memory (ranked by recency +
