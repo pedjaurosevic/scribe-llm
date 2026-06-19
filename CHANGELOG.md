@@ -6,6 +6,57 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-19
+
+A multi-pillar release: curated OKF knowledge bases the agent can browse and
+ground over, test-time reliability selection, a cascade-of-trust over memory,
+an immutable core for safe self-evolution, and a lean AFK harness with manually
+invoked skills.
+
+### Added
+- **AFK task queue** (`scribe/queue.py`, `scribe-llm queue`). Delegate
+  narrowly-scoped tasks and run them one at a time or in a batch instead of
+  babysitting an open-ended agent loop; each task records its result so you
+  return as a reviewer. `queue add/list/run/clear`. Run logic takes an injected
+  executor — testable offline.
+- **Manually-invoked procedural skills** `/grill` (adversarial interviewer that
+  interrogates an idea before any code/prose) and `/teach` (stateful tutor that
+  keeps the mission and lessons in local files, not the context window). Both
+  are `user-invocable` and `disable-model-invocation` — you trigger them; the
+  model never auto-selects them.
+- **Test-time reliability / CLR** (`scribe/reliability.py`). For verifiable,
+  grounded tasks, draw N candidate answers and keep the most trustworthy one —
+  scored by claim coverage (fraction of sentences that carry a `[n]` citation
+  or are an explicit refusal) and consensus (agreement with the other
+  candidates) — then **long-to-short**: break near-ties toward the shorter
+  answer. Exposed as `scribe-llm kb ask --best-of N`. Selection core is pure
+  and offline-testable. (VibeThinker's inference-time idea; SFT/RL is out of
+  scope — Scribe runs models, it does not train them.)
+- **Curated OKF knowledge bases** (`scribe/knowledge.py`, `scribe-llm kb`).
+  Mount external Open Knowledge Format bundles by name and let the agent
+  **search** them, **navigate** their link graph, and **ground** answers
+  strictly from their pages with `[n]` citations (reusing the grounded-context
+  renderer). `kb add/list/remove/info/search/ask`. Retrieval core is pure and
+  file-based — testable offline with no model or vector store.
+- **Immutable-core guard** (`scribe/evolve/guard.py`). One source of truth for
+  what the self-improvement loop may rewrite: only skills and the prompt
+  overlay are mutable; the security core (sandbox/gates/grammar), the evolve
+  machinery, the constitution and the checksum-locked held-out suite are
+  protected. Default-closed — unknown paths are treated as protected.
+- **Cascade of trust for memory** (`scribe/memory/context.py`). A single
+  precedence order over the three memory sources — WorldModel (absolute) >
+  RAG sources `[n]` (facts/syntax) > SME working memory (ranked by recency +
+  significance + relevance) — assembled with an explicit conflict-resolution
+  note, so small local models stop hallucinating from mixed/stale context. The
+  ranking core is pure and offline-testable.
+
+### Security
+- **Email bridge: secret accepted in the message body**, not just the Subject.
+  The Subject travels in cleartext metadata across relays; the body can be
+  encrypted, so the body is now the recommended location for the shared secret
+  (Subject kept as a compatibility fallback). The token is stripped from both
+  before the command is executed.
+
 ## [1.3.0] - 2026-06-19
 
 ### Added

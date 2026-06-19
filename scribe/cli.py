@@ -559,6 +559,232 @@ def rag_stats(ctx):
 
 
 @main.group()
+def kb():
+    """Curated OKF knowledge bases: mount, browse, search and ground over them."""
+    pass
+
+
+@kb.command("add")
+@click.argument("name")
+@click.argument("path", type=click.Path(exists=True, file_okay=False))
+@click.pass_context
+def kb_add(ctx, name, path):
+    """Mount an OKF bundle directory as a named knowledge base."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    try:
+        base = KnowledgeRegistry().add(name, path)
+    except ValueError as exc:
+        console.print(f"[error]{exc}[/error]")
+        return
+    console.print(f"[success]✓[/success] Mounted '{name}' ({base.page_count()} pages)")
+
+
+@kb.command("list")
+@click.pass_context
+def kb_list(ctx):
+    """List mounted knowledge bases."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    bases = KnowledgeRegistry().list()
+    if not bases:
+        console.print("[dim]No knowledge bases mounted — `scribe-llm kb add <name> <dir>`[/dim]")
+        return
+    for base in bases:
+        console.print(
+            f"[bold cyan]{base.name}[/bold cyan]  {base.page_count()} pages  "
+            f"[dim]{base.path}[/dim]"
+        )
+
+
+@kb.command("remove")
+@click.argument("name")
+@click.pass_context
+def kb_remove(ctx, name):
+    """Unmount a knowledge base (the files on disk are left untouched)."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    if KnowledgeRegistry().remove(name):
+        console.print(f"[success]✓[/success] Unmounted '{name}'")
+    else:
+        console.print(f"[dim]No such knowledge base: {name}[/dim]")
+
+
+@kb.command("info")
+@click.argument("name")
+@click.pass_context
+def kb_info(ctx, name):
+    """Show a knowledge base's table of contents."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    base = KnowledgeRegistry().get(name)
+    if not base:
+        console.print(f"[error]No such knowledge base: {name}[/error]")
+        return
+    console.print(f"[bold]{name}[/bold] — {base.page_count()} pages [dim]({base.path})[/dim]")
+    for filename, title in base.titles():
+        console.print(f"  [cyan]{filename}[/cyan]  {title}")
+
+
+@kb.command("search")
+@click.argument("name")
+@click.argument("query")
+@click.option("--limit", "-n", default=5, help="Number of pages to return")
+@click.pass_context
+def kb_search(ctx, name, query, limit):
+    """Find the most relevant pages in a knowledge base."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    base = KnowledgeRegistry().get(name)
+    if not base:
+        console.print(f"[error]No such knowledge base: {name}[/error]")
+        return
+    results = base.search(query, limit=limit)
+    if not results:
+        console.print("[dim]No matching pages[/dim]")
+        return
+    for page, score in results:
+        title = base.titles() and dict(base.titles()).get(page.name, page.stem)
+        console.print(f"[bold cyan]{page.name}[/bold cyan] [dim]({score:.2f})[/dim]  {title}")
+
+
+@kb.command("ask")
+@click.argument("name")
+@click.argument("question")
+@click.option("--limit", "-n", default=6, help="Number of passages to ground on")
+@click.option(
+    "--best-of",
+    "best_of",
+    default=1,
+    type=int,
+    help="Sample N answers and return the most reliable (claim coverage + consensus)",
+)
+@click.pass_context
+def kb_ask(ctx, name, question, limit, best_of):
+    """
+    Grounded Q&A over a knowledge base: every claim cites a passage [n],
+    contradictions are tagged, and an answer outside the base is refused.
+
+    With --best-of N, draws N candidates and keeps the most reliable one
+    (test-time CLR), breaking near-ties toward the shorter answer.
+    """
+    from scribe.knowledge import KnowledgeRegistry
+    from scribe.llm_adapter import LLMAdapter
+    from scribe.prompts import get_grounded_prompt
+    from scribe.reliability import best_of_n
+
+    console = ctx.obj["console"]
+    config = ScribeConfig()
+    base = KnowledgeRegistry().get(name)
+    if not base:
+        console.print(f"[error]No such knowledge base: {name}[/error]")
+        return
+    chunks = base.chunks_for(question, limit=limit)
+    if not chunks:
+        console.print("[dim]No relevant passages found in this base[/dim]")
+        return
+
+    for n, c in enumerate(chunks, 1):
+        section = f" · {c.section}" if c.section else ""
+        console.print(f"[dim][{n}] {c.source_file}{section}[/dim]")
+
+    adapter = LLMAdapter.from_config(config)
+    messages = [
+        {"role": "system", "content": get_grounded_prompt(chunks)},
+        {"role": "user", "content": question},
+    ]
+    console.print()
+    if best_of > 1:
+        # Sample candidates a touch hotter for diversity, then select.
+        answer = best_of_n(
+            lambda: adapter.complete(messages, temperature=0.7),
+            n=best_of,
+        )
+        console.print(answer)
+    else:
+        for chunk in adapter.streaming_complete(messages, temperature=0.3):
+            console.print(chunk, end="")
+        console.print()
+
+
+@main.group()
+def queue():
+    """AFK task queue: delegate narrow tasks, run them, review the results."""
+    pass
+
+
+@queue.command("add")
+@click.argument("task")
+@click.pass_context
+def queue_add(ctx, task):
+    """Queue a well-defined task for later (AFK) execution."""
+    from scribe.queue import TaskQueue
+
+    console = ctx.obj["console"]
+    t = TaskQueue().add(task)
+    console.print(f"[success]✓[/success] Queued [{t.id}]: {t.prompt}")
+
+
+@queue.command("list")
+@click.pass_context
+def queue_list(ctx):
+    """Show queued tasks and their status."""
+    from scribe.queue import TaskQueue
+
+    console = ctx.obj["console"]
+    tasks = TaskQueue().list()
+    if not tasks:
+        console.print("[dim]Queue empty — `scribe-llm queue add \"<task>\"`[/dim]")
+        return
+    color = {"pending": "yellow", "running": "cyan", "done": "green", "failed": "red"}
+    for t in tasks:
+        c = color.get(t.status, "white")
+        console.print(f"[{c}]{t.status:>7}[/{c}]  [bold]{t.id}[/bold]  {t.prompt}")
+
+
+@queue.command("run")
+@click.option("--all", "run_all", is_flag=True, help="Run every pending task, not just the next")
+@click.pass_context
+def queue_run(ctx, run_all):
+    """Run the next pending task (or all of them) through the headless agent."""
+    from scribe.mail import execute_instruction
+    from scribe.queue import TaskQueue
+
+    console = ctx.obj["console"]
+    config = ScribeConfig()
+    q = TaskQueue()
+
+    def executor(prompt: str) -> str:
+        return execute_instruction(config, prompt)
+
+    ran = q.run_all(executor) if run_all else [t for t in [q.run_next(executor)] if t]
+    if not ran:
+        console.print("[dim]No pending tasks[/dim]")
+        return
+    for t in ran:
+        mark = "[success]✓[/success]" if t.status == "done" else "[error]✗[/error]"
+        console.print(f"{mark} [{t.id}] {t.prompt}")
+        console.print(f"  [dim]{(t.result or t.error)[:400]}[/dim]")
+
+
+@queue.command("clear")
+@click.option("--done", "done_only", is_flag=True, help="Clear only finished tasks")
+@click.pass_context
+def queue_clear(ctx, done_only):
+    """Remove tasks from the queue (all, or only the finished ones)."""
+    from scribe.queue import DONE, TaskQueue
+
+    console = ctx.obj["console"]
+    removed = TaskQueue().clear(status=DONE if done_only else None)
+    console.print(f"[success]✓[/success] Cleared {removed} task(s)")
+
+
+@main.group()
 def session():
     """Session management."""
     pass
