@@ -216,16 +216,21 @@ def trace(ctx, session_id, as_json):
 
 
 @main.command(context_settings={"ignore_unknown_options": True})
-@click.option("--textual", "-t", is_flag=True, default=False,
-              help="Use the full-screen Textual UI (experimental)")
+@click.option("--classic", "-c", is_flag=True, default=False,
+              help="Use the classic scrolling REPL instead of the full-screen TUI")
+@click.option("--textual", "-t", is_flag=True, default=False, hidden=True,
+              help="(deprecated; the full-screen TUI is now the default)")
 @click.option("--resume", "-r", default=None, metavar="TAG",
               help="Resume a past session by its tag (e.g. --resume a1b2c)")
 @click.argument("subargs", nargs=-1)
 @click.pass_context
-def chat(ctx, textual, resume, subargs):
+def chat(ctx, classic, textual, resume, subargs):
     """Start the interactive TUI chat session.
 
-    Resume a session:  scribe-llm chat resume [TAG]
+    Launches the modern full-screen TUI by default; pass --classic for the
+    classic scrolling REPL (which also supports --resume).
+
+    Resume a session:  scribe-llm chat --classic resume [TAG]
     (no TAG resumes the most recent session).
     """
     config = ctx.obj["config"]
@@ -234,17 +239,14 @@ def chat(ctx, textual, resume, subargs):
     if subargs and subargs[0].lower() == "resume":
         resume = subargs[1] if len(subargs) > 1 else "last"
 
-    if textual:
-        if resume:
-            ctx.obj["console"].print(
-                "[warning]⚠[/warning] --resume is not supported in the Textual UI yet; "
-                "using it without resume."
-            )
-        from scribe.tui_app import run_app
-        run_app(config)
-    else:
+    # The full-screen TUI can't resume yet, so a resume request implies classic.
+    use_classic = classic or bool(resume)
+    if use_classic:
         from scribe.tui import run_tui
         run_tui(config, resume_tag=resume)
+    else:
+        from scribe.tui_app import run_app
+        run_app(config)
 
 
 @main.command()
