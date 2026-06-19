@@ -657,15 +657,26 @@ def kb_search(ctx, name, query, limit):
 @click.argument("name")
 @click.argument("question")
 @click.option("--limit", "-n", default=6, help="Number of passages to ground on")
+@click.option(
+    "--best-of",
+    "best_of",
+    default=1,
+    type=int,
+    help="Sample N answers and return the most reliable (claim coverage + consensus)",
+)
 @click.pass_context
-def kb_ask(ctx, name, question, limit):
+def kb_ask(ctx, name, question, limit, best_of):
     """
     Grounded Q&A over a knowledge base: every claim cites a passage [n],
     contradictions are tagged, and an answer outside the base is refused.
+
+    With --best-of N, draws N candidates and keeps the most reliable one
+    (test-time CLR), breaking near-ties toward the shorter answer.
     """
     from scribe.knowledge import KnowledgeRegistry
     from scribe.llm_adapter import LLMAdapter
     from scribe.prompts import get_grounded_prompt
+    from scribe.reliability import best_of_n
 
     console = ctx.obj["console"]
     config = ScribeConfig()
@@ -688,9 +699,17 @@ def kb_ask(ctx, name, question, limit):
         {"role": "user", "content": question},
     ]
     console.print()
-    for chunk in adapter.streaming_complete(messages, temperature=0.3):
-        console.print(chunk, end="")
-    console.print()
+    if best_of > 1:
+        # Sample candidates a touch hotter for diversity, then select.
+        answer = best_of_n(
+            lambda: adapter.complete(messages, temperature=0.7),
+            n=best_of,
+        )
+        console.print(answer)
+    else:
+        for chunk in adapter.streaming_complete(messages, temperature=0.3):
+            console.print(chunk, end="")
+        console.print()
 
 
 @main.group()
