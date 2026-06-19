@@ -559,6 +559,141 @@ def rag_stats(ctx):
 
 
 @main.group()
+def kb():
+    """Curated OKF knowledge bases: mount, browse, search and ground over them."""
+    pass
+
+
+@kb.command("add")
+@click.argument("name")
+@click.argument("path", type=click.Path(exists=True, file_okay=False))
+@click.pass_context
+def kb_add(ctx, name, path):
+    """Mount an OKF bundle directory as a named knowledge base."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    try:
+        base = KnowledgeRegistry().add(name, path)
+    except ValueError as exc:
+        console.print(f"[error]{exc}[/error]")
+        return
+    console.print(f"[success]✓[/success] Mounted '{name}' ({base.page_count()} pages)")
+
+
+@kb.command("list")
+@click.pass_context
+def kb_list(ctx):
+    """List mounted knowledge bases."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    bases = KnowledgeRegistry().list()
+    if not bases:
+        console.print("[dim]No knowledge bases mounted — `scribe-llm kb add <name> <dir>`[/dim]")
+        return
+    for base in bases:
+        console.print(
+            f"[bold cyan]{base.name}[/bold cyan]  {base.page_count()} pages  "
+            f"[dim]{base.path}[/dim]"
+        )
+
+
+@kb.command("remove")
+@click.argument("name")
+@click.pass_context
+def kb_remove(ctx, name):
+    """Unmount a knowledge base (the files on disk are left untouched)."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    if KnowledgeRegistry().remove(name):
+        console.print(f"[success]✓[/success] Unmounted '{name}'")
+    else:
+        console.print(f"[dim]No such knowledge base: {name}[/dim]")
+
+
+@kb.command("info")
+@click.argument("name")
+@click.pass_context
+def kb_info(ctx, name):
+    """Show a knowledge base's table of contents."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    base = KnowledgeRegistry().get(name)
+    if not base:
+        console.print(f"[error]No such knowledge base: {name}[/error]")
+        return
+    console.print(f"[bold]{name}[/bold] — {base.page_count()} pages [dim]({base.path})[/dim]")
+    for filename, title in base.titles():
+        console.print(f"  [cyan]{filename}[/cyan]  {title}")
+
+
+@kb.command("search")
+@click.argument("name")
+@click.argument("query")
+@click.option("--limit", "-n", default=5, help="Number of pages to return")
+@click.pass_context
+def kb_search(ctx, name, query, limit):
+    """Find the most relevant pages in a knowledge base."""
+    from scribe.knowledge import KnowledgeRegistry
+
+    console = ctx.obj["console"]
+    base = KnowledgeRegistry().get(name)
+    if not base:
+        console.print(f"[error]No such knowledge base: {name}[/error]")
+        return
+    results = base.search(query, limit=limit)
+    if not results:
+        console.print("[dim]No matching pages[/dim]")
+        return
+    for page, score in results:
+        title = base.titles() and dict(base.titles()).get(page.name, page.stem)
+        console.print(f"[bold cyan]{page.name}[/bold cyan] [dim]({score:.2f})[/dim]  {title}")
+
+
+@kb.command("ask")
+@click.argument("name")
+@click.argument("question")
+@click.option("--limit", "-n", default=6, help="Number of passages to ground on")
+@click.pass_context
+def kb_ask(ctx, name, question, limit):
+    """
+    Grounded Q&A over a knowledge base: every claim cites a passage [n],
+    contradictions are tagged, and an answer outside the base is refused.
+    """
+    from scribe.knowledge import KnowledgeRegistry
+    from scribe.llm_adapter import LLMAdapter
+    from scribe.prompts import get_grounded_prompt
+
+    console = ctx.obj["console"]
+    config = ScribeConfig()
+    base = KnowledgeRegistry().get(name)
+    if not base:
+        console.print(f"[error]No such knowledge base: {name}[/error]")
+        return
+    chunks = base.chunks_for(question, limit=limit)
+    if not chunks:
+        console.print("[dim]No relevant passages found in this base[/dim]")
+        return
+
+    for n, c in enumerate(chunks, 1):
+        section = f" · {c.section}" if c.section else ""
+        console.print(f"[dim][{n}] {c.source_file}{section}[/dim]")
+
+    adapter = LLMAdapter.from_config(config)
+    messages = [
+        {"role": "system", "content": get_grounded_prompt(chunks)},
+        {"role": "user", "content": question},
+    ]
+    console.print()
+    for chunk in adapter.streaming_complete(messages, temperature=0.3):
+        console.print(chunk, end="")
+    console.print()
+
+
+@main.group()
 def session():
     """Session management."""
     pass
