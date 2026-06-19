@@ -61,6 +61,13 @@ class ScribeConfig:
         },
         "scribe.web": {
             "pin": "2020",
+            # Integrated terminal hardening:
+            # require_sandbox — refuse to open the terminal when bubblewrap is
+            #   unavailable, instead of falling back to an unsandboxed shell.
+            # restricted_shell — use a restricted shell (rbash) on the
+            #   no-bwrap fallback to shrink the blast radius.
+            "require_sandbox": False,
+            "restricted_shell": True,
         },
         "scribe.email": {
             "enabled": False,
