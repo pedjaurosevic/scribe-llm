@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Cascade of trust for memory** (`scribe/memory/context.py`). A single
+  precedence order over the three memory sources — WorldModel (absolute) >
+  RAG sources `[n]` (facts/syntax) > SME working memory (ranked by recency +
+  significance + relevance) — assembled with an explicit conflict-resolution
+  note, so small local models stop hallucinating from mixed/stale context. The
+  ranking core is pure and offline-testable.
+
+### Security
+- **Email bridge: secret accepted in the message body**, not just the Subject.
+  The Subject travels in cleartext metadata across relays; the body can be
+  encrypted, so the body is now the recommended location for the shared secret
+  (Subject kept as a compatibility fallback). The token is stripped from both
+  before the command is executed.
+
 ## [1.3.0] - 2026-06-19
 
 ### Added

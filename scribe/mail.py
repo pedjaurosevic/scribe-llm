@@ -42,11 +42,12 @@ class IncomingCommand:
     message_id: str
 
     def instruction(self, secret: str) -> str:
-        """The natural-language instruction: subject (token stripped) + body."""
-        subj = self.subject
+        """The natural-language instruction: subject + body, token stripped from
+        both (the secret is a credential, never part of the command)."""
         token = f"[scribe:{secret}]"
-        subj = subj.replace(token, "").strip()
-        parts = [p for p in (subj, self.body.strip()) if p]
+        subj = self.subject.replace(token, "").strip()
+        body = self.body.replace(token, "").strip()
+        parts = [p for p in (subj, body) if p]
         return "\n".join(parts).strip()
 
 
@@ -136,9 +137,11 @@ class EmailBridge:
         """
         Return new approved commands from the inbox.
 
-        Only unseen messages from the approved sender whose subject contains the
-        shared secret token are returned. Fetching marks them seen, so each
-        command is handed back exactly once.
+        Only unseen messages from the approved sender that carry the shared
+        secret token are returned. The token is accepted in the message **body**
+        (recommended — the body can be encrypted, the Subject travels in
+        cleartext metadata across relays) and, for compatibility, in the
+        Subject. Fetching marks them seen, so each command is handed back once.
         """
         if not self.secret:
             # No secret configured → never accept commands. Fail closed.
@@ -163,17 +166,19 @@ class EmailBridge:
 
                 sender = parseaddr(msg.get("From", ""))[1].strip().lower()
                 subject = _decode(msg.get("Subject", ""))
+                body = _plain_body(msg)
 
                 if sender != self.approved_sender:
                     continue
-                if token not in subject:
+                # Body is the secure location; Subject stays a compat fallback.
+                if token not in body and token not in subject:
                     continue
 
                 commands.append(
                     IncomingCommand(
                         sender=sender,
                         subject=subject,
-                        body=_plain_body(msg),
+                        body=body,
                         message_id=msg.get("Message-ID", "").strip(),
                     )
                 )
