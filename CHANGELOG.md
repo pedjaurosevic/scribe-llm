@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Multi-model grounding leaderboard.** `scribe-llm bench --models` runs the
+  deterministic SPI grounding suite across every model listed in a new
+  `["scribe.bench"]` config section (local llama.cpp servers and/or
+  OpenAI-compatible endpoints) and writes a reproducible, ranked leaderboard to
+  `docs/leaderboard.md` and `docs/leaderboard.json` (with the suite checksum).
+  Turns the "answers cite sources or say they can't" claim into a number you can
+  compare across backends. The ranking core (`scribe/evolve/leaderboard.py`) is a
+  pure, injectable function, tested offline with no server.
+
 ## [1.2.0] - 2026-06-19
 
 Major security hardening of the Web SPA interface, sandboxed PTY terminal execution, dynamic PIN setup, and Python 3.12 compatibility fixes.

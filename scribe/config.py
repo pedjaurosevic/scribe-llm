@@ -79,6 +79,12 @@ class ScribeConfig:
             "request_timeout_seconds": 600,
             "max_thinking_words": 30,
         },
+        # Models compared by `scribe-llm bench --models`. Each entry is an
+        # inline table: { name, base_url, model, api_key_env }. api_key_env
+        # names an env var holding the key (so secrets stay out of config).
+        "scribe.bench": {
+            "models": [],
+        },
     }
 
     def __init__(self, config_path: str | Path | None = None):
@@ -345,6 +351,12 @@ class ScribeConfig:
     def max_thinking_words(self) -> int:
         """Upper bound (in words) for the <think> block. Keeps reasoning minimal."""
         return self.get("scribe.limits", "max_thinking_words", default=30)
+
+    @property
+    def bench_models(self) -> list[dict]:
+        """Models compared by the multi-model grounding leaderboard."""
+        models = self.get("scribe.bench", "models", default=[])
+        return models if isinstance(models, list) else []
 
     @property
     def email_enabled(self) -> bool:
