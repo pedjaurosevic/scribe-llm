@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Test-time reliability / CLR** (`scribe/reliability.py`). For verifiable,
+  grounded tasks, draw N candidate answers and keep the most trustworthy one —
+  scored by claim coverage (fraction of sentences that carry a `[n]` citation
+  or are an explicit refusal) and consensus (agreement with the other
+  candidates) — then **long-to-short**: break near-ties toward the shorter
+  answer. Exposed as `scribe-llm kb ask --best-of N`. Selection core is pure
+  and offline-testable. (VibeThinker's inference-time idea; SFT/RL is out of
+  scope — Scribe runs models, it does not train them.)
 - **Curated OKF knowledge bases** (`scribe/knowledge.py`, `scribe-llm kb`).
   Mount external Open Knowledge Format bundles by name and let the agent
   **search** them, **navigate** their link graph, and **ground** answers
