@@ -20,15 +20,17 @@ from rich.cells import cell_len
 from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
-from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Input, Markdown, Static
+from textual.command import Hit, Hits, Provider
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Button, Input, Label, ListItem, ListView, Markdown, Static
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
 from scribe.memory.sme import get_sme_service
 from scribe.prompts import get_code_system_prompt, get_system_prompt
 from scribe.session import SessionManager
-from scribe.ui.console import DEFAULT_THEME, PALETTES, list_themes
+from scribe.ui.console import DEFAULT_THEME, PALETTES, gradient_text, list_themes
 
 
 def build_status_line(
@@ -140,21 +142,175 @@ class PasteInput(Input):
         self.pastes.clear()
 
 
+class ScribeCommands(Provider):
+    """Command-palette entries (Ctrl+P): backend, sessions, themes, code, clear."""
+
+    def _commands(self):
+        app = self.app
+        items = [
+            ("Model backend…", app.action_models),
+            ("Resume session…", app.action_sessions),
+            ("Toggle code mode", lambda: app._cmd_code(off=app.code_mode)),
+            ("Clear chat", lambda: app.call_later(app._do_clear)),
+            ("Quit Scribe", app.action_quit),
+        ]
+        for name in list_themes():
+            items.append((f"Theme → {name}", (lambda n=name: app.apply_named_theme(n))))
+        return items
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for name, callback in self._commands():
+            score = matcher.match(name)
+            if score > 0:
+                yield Hit(score, matcher.highlight(name), callback)
+
+
+class ModelsScreen(ModalScreen):
+    """Crush-style modal to switch the model backend (Ctrl+L).
+
+    Local llama.cpp or any OpenAI-compatible API. The API key field is masked
+    (password input); leaving it blank uses the local default or the
+    SCRIBE_API_KEY environment variable, so the key need never be typed in.
+    Returns a dict to the app on save, or None on cancel.
+    """
+
+    CSS = """
+    ModelsScreen { align: center middle; }
+    #dialog {
+        width: 72; height: auto; padding: 1 2;
+        border: round $accent; background: $panel;
+    }
+    #dialog Label { margin: 1 0 0 0; color: $text-muted; }
+    #dialog Input { margin: 0; }
+    #buttons { height: auto; margin-top: 1; align-horizontal: right; }
+    #buttons Button { margin-left: 1; }
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, base_url: str, model: str, theme_name: str):
+        super().__init__()
+        self._base_url = base_url
+        self._model = model
+        self._theme_name = theme_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(gradient_text("✶ Model Backend", self._theme_name))
+            yield Label("Base URL")
+            yield Input(value=self._base_url, id="base", placeholder="http://127.0.0.1:18083/v1")
+            yield Label("Model id (blank = local 'default')")
+            yield Input(value="" if self._model == "default" else self._model,
+                        id="model", placeholder="e.g. deepseek-chat")
+            yield Label("API key (hidden; blank = local / SCRIBE_API_KEY)")
+            yield Input(password=True, id="key", placeholder="sk-…")
+            with Horizontal(id="buttons"):
+                yield Button("Local", id="local")
+                yield Button("Cancel", id="cancel")
+                yield Button("Save API", id="save", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#base", Input).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+            return
+        base = self.query_one("#base", Input).value.strip()
+        if event.button.id == "local":
+            self.dismiss({
+                "kind": "local",
+                "base_url": base or "http://127.0.0.1:18083/v1",
+                "model": "default", "api_key": "not-needed", "tool_grammar": "auto",
+            })
+            return
+        # Save API
+        model = self.query_one("#model", Input).value.strip()
+        key = self.query_one("#key", Input).value.strip() or "not-needed"
+        if not base or not model:
+            self.query_one("#dialog", Vertical).styles.border = ("round", "red")
+            return
+        self.dismiss({
+            "kind": "api", "base_url": base, "model": model,
+            "api_key": key, "tool_grammar": "off",
+        })
+
+
+class SessionsScreen(ModalScreen):
+    """Crush-style modal to resume a past session (Ctrl+S).
+
+    Lists recent sessions newest-first; selecting one returns its id to the app,
+    which reloads its transcript. Returns the chosen session id, or None.
+    """
+
+    CSS = """
+    SessionsScreen { align: center middle; }
+    #dialog {
+        width: 80; height: auto; max-height: 80%; padding: 1 2;
+        border: round $accent; background: $panel;
+    }
+    #dialog ListView { height: auto; max-height: 20; margin-top: 1; background: $panel; }
+    #dialog ListItem { padding: 0 1; }
+    #hint { color: $text-muted; margin-top: 1; }
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, sessions: list[tuple[str, str]], theme_name: str):
+        super().__init__()
+        self._sessions = sessions
+        self._theme_name = theme_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(gradient_text("✶ Resume session", self._theme_name))
+            if self._sessions:
+                lv = ListView(
+                    *[ListItem(Label(label), id=f"s_{sid}") for sid, label in self._sessions]
+                )
+                yield lv
+                yield Static("Enter to resume · Esc to cancel", id="hint")
+            else:
+                yield Static("No saved sessions yet.", id="hint")
+
+    def on_mount(self) -> None:
+        if self._sessions:
+            self.query_one(ListView).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        sid = (event.item.id or "")[2:]  # strip the "s_" prefix
+        self.dismiss(sid or None)
+
+
 class ScribeApp(App):
     """Full-screen Textual chat for Scribe."""
+
+    COMMANDS = App.COMMANDS | {ScribeCommands}
 
     CSS = """
     Screen { layout: vertical; }
     #topbar { height: 1; padding: 0 1; }
     #chat { height: 1fr; padding: 1 2; }
     #chat .msg-user { margin: 0 0 1 0; }
+    #chat .msg-scribe-head { margin: 0; padding: 0; }
     #chat .msg-scribe { margin: 0 0 1 0; padding: 0; background: transparent; }
     #chat .thinking { margin: 0 0 1 0; color: $text-muted; }
     Input#prompt { height: 3; margin: 0 1; }
     #status { height: 1; }
     """
 
-    BINDINGS = [("ctrl+c", "quit", "Quit")]
+    BINDINGS = [
+        ("ctrl+c", "quit", "Quit"),
+        ("ctrl+l", "models", "Models"),
+        ("ctrl+s", "sessions", "Sessions"),
+    ]
 
     def __init__(self, config: ScribeConfig | None = None):
         super().__init__()
@@ -220,8 +376,16 @@ class ScribeApp(App):
 
     def _set_topbar(self) -> None:
         model = self.adapter.get_model_name()
-        mode = "  ·  ⌘ CODE" if self.code_mode else ""
-        self.query_one("#topbar", Static).update(f" ✶ Scribe   ·   {model}{mode}")
+        p = self._palette()
+        bar = Text(no_wrap=True, overflow="ellipsis", end="")
+        bar.append(" ")
+        # Gradient brand wordmark (Crush-style primary→secondary).
+        bar.append_text(gradient_text("✶ SCRIBE", self.theme_name))
+        bar.append("  ·  ", style=p["bg"])
+        bar.append(model, style=f"bold {p['bg']}")
+        if self.code_mode:
+            bar.append("  ·  ⌘ CODE", style=f"bold {p['bg']}")
+        self.query_one("#topbar", Static).update(bar)
 
     def _refresh_status(self) -> None:
         try:
@@ -267,6 +431,10 @@ class ScribeApp(App):
         self.messages.append({"role": "user", "content": full})  # model gets all
 
         chat = self.query_one("#chat", VerticalScroll)
+        p = self._palette()
+        await chat.mount(
+            Static(Text("✦ Scribe", style=f"bold {p['accent']}"), classes="msg-scribe-head")
+        )
         self._cur_thinking = Static("💭 razmišlja…", classes="thinking")
         await chat.mount(self._cur_thinking)
         self._cur_md = Markdown("", classes="msg-scribe")
@@ -279,7 +447,7 @@ class ScribeApp(App):
     async def _add_user(self, text: str) -> None:
         p = self._palette()
         body = Text()
-        body.append("› ", style=f"bold {p['user']}")
+        body.append("▌ You\n", style=f"bold {p['user']}")
         body.append(text)
         await self.query_one("#chat", VerticalScroll).mount(
             Static(body, classes="msg-user")
@@ -349,9 +517,7 @@ class ScribeApp(App):
         if cmd in ("/quit", "/exit", "/q"):
             self.exit()
         elif cmd == "/clear":
-            await self.query_one("#chat", VerticalScroll).remove_children()
-            self.messages = self.messages[:1]
-            self._refresh_status()
+            await self._do_clear()
         elif cmd == "/theme":
             await self._cmd_theme(arg)
         elif cmd in ("/code", "/chat"):
@@ -359,10 +525,27 @@ class ScribeApp(App):
         elif cmd == "/help":
             await self._note(
                 "Commands: /theme NAME · /code · /chat · /clear · /quit\n"
+                "Keys: Ctrl+L model backend · Ctrl+P command palette\n"
                 f"Themes: {', '.join(list_themes())}"
             )
         else:
             await self._note(f"Unknown command: {cmd}")
+
+    async def _do_clear(self) -> None:
+        await self.query_one("#chat", VerticalScroll).remove_children()
+        self.messages = self.messages[:1]
+        self._refresh_status()
+
+    def apply_named_theme(self, name: str) -> None:
+        """Switch theme by name (used by the command palette)."""
+        if name not in list_themes():
+            return
+        self.theme_name = name
+        self._apply_theme()
+        try:
+            self.config.save_value("scribe.ui", "theme", name)
+        except Exception:
+            pass
 
     async def _cmd_theme(self, name: str) -> None:
         if not name:
@@ -400,6 +583,74 @@ class ScribeApp(App):
                     ),
                 })
         self._set_topbar()
+        self._refresh_status()
+
+    # --------------------------------------------------------------- models
+    def action_models(self) -> None:
+        """Open the model-backend modal (Ctrl+L)."""
+        if self._busy:
+            return
+
+        def _applied(result: dict | None) -> None:
+            if not result:
+                return
+            try:
+                self.config.save_value("scribe", "base_url", result["base_url"])
+                self.config.save_value("scribe", "model", result["model"])
+                self.config.save_value("scribe", "api_key", result["api_key"])
+                self.config.save_value("scribe", "tool_grammar", result["tool_grammar"])
+            except Exception as e:
+                self.call_later(self._note, f"⚠ Could not save backend: {e}")
+                return
+            self.adapter = LLMAdapter.from_config(self.config)
+            self._set_topbar()
+            self._refresh_status()
+            self.call_later(self._note, f"✦ Backend → {result['base_url']}")
+
+        self.push_screen(
+            ModelsScreen(self.config.base_url, self.config.model, self.theme_name),
+            _applied,
+        )
+
+    # ------------------------------------------------------------- sessions
+    def action_sessions(self) -> None:
+        """Open the resume-session modal (Ctrl+S)."""
+        if self._busy:
+            return
+        rows: list[tuple[str, str]] = []
+        for sid in self.session.list_sessions()[:30]:
+            cp = self.session.load_session(sid)
+            if cp is None:
+                continue
+            n = len([m for m in cp.messages if m.get("role") in ("user", "assistant")])
+            rows.append((sid, f"{sid}   ·   {cp.topic or '—'}   ·   {n} turns"))
+        self.push_screen(SessionsScreen(rows, self.theme_name), self._resume_session)
+
+    def _resume_session(self, sid: str | None) -> None:
+        if not sid:
+            return
+        cp = self.session.load_session(sid)
+        if cp is None:
+            return
+        restored = [m for m in cp.messages if m.get("role") in ("user", "assistant")]
+        self.messages = self.messages[:1] + restored
+        self.call_later(self._repaint_chat, sid)
+
+    async def _repaint_chat(self, sid: str) -> None:
+        chat = self.query_one("#chat", VerticalScroll)
+        await chat.remove_children()
+        p = self._palette()
+        for m in self.messages[1:]:
+            if m.get("role") == "user":
+                await self._add_user(m.get("content", ""))
+            elif m.get("role") == "assistant":
+                await chat.mount(
+                    Static(Text("✦ Scribe", style=f"bold {p['accent']}"),
+                           classes="msg-scribe-head")
+                )
+                await chat.mount(Markdown(m.get("content", ""), classes="msg-scribe"))
+        await self._note(f"↩ Resumed session {sid}")
+        chat.scroll_end()
         self._refresh_status()
 
     async def _note(self, text: str) -> None:
