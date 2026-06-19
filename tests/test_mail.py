@@ -25,6 +25,19 @@ def test_instruction_subject_only():
     assert cmd.instruction("k") == "list the workspace"
 
 
+def test_instruction_strips_token_from_body():
+    # Secure path: the secret lives in the body, not the Subject metadata.
+    cmd = IncomingCommand(
+        sender="me@x.com",
+        subject="report",
+        body="[scribe:k] summarize the inbox",
+        message_id="<3@x>",
+    )
+    out = cmd.instruction("k")
+    assert "[scribe:k]" not in out
+    assert out == "report\nsummarize the inbox"
+
+
 def test_bridge_requires_credentials():
     with pytest.raises(ValueError):
         EmailBridge(address="", password="")
