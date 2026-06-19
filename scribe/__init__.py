@@ -18,9 +18,9 @@ try:
         # `scribe-llm --version` always matches pyproject.toml / PyPI.
         __version__ = version("scribe-llm")
     except PackageNotFoundError:
-        __version__ = "1.0.0"
+        __version__ = "1.1.0"
 except ImportError:  # pragma: no cover
-    __version__ = "1.0.0"
+    __version__ = "1.1.0"
 
 __author__ = "Peterofovik"
 
