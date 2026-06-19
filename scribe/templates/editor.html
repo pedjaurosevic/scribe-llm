@@ -2329,9 +2329,17 @@
             connectTerminal();
         }
 
-        function connectTerminal() {
+        async function connectTerminal() {
+            // Mint a one-time token over the authed HTTP channel, then spend it
+            // to open the socket. A stale URL cannot reopen a shell.
+            let token = '';
+            try {
+                const r = await fetch('/api/terminal-token');
+                if (r.ok) token = (await r.json()).token || '';
+            } catch (e) {}
+            if (!token) { term && term.write('\r\n\x1b[31m[terminal token denied]\x1b[0m\r\n'); return; }
             const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            termWs = new WebSocket(`${proto}//${location.host}/ws/terminal`);
+            termWs = new WebSocket(`${proto}//${location.host}/ws/terminal?token=${encodeURIComponent(token)}`);
             termWs.binaryType = 'arraybuffer';
             termWs.onopen = () => { fitTerminal(); };
             termWs.onmessage = (e) => {

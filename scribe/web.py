@@ -15,6 +15,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import shutil
 import signal
 import struct
@@ -1095,6 +1096,71 @@ async def chat(request: Request):
 
 # --- Integrated terminal (PTY over WebSocket, VSCode-style) ---------------
 
+# One-time tokens for the terminal WebSocket. A client mints a token over the
+# authed HTTP channel and spends it to open the socket; it is single-use and
+# short-lived, so a stale or replayed URL cannot reopen a shell.
+_TERMINAL_TOKEN_TTL = 30.0
+_terminal_tokens: dict[str, float] = {}
+
+
+def _prune_terminal_tokens() -> None:
+    now = time.time()
+    for tok in [t for t, exp in _terminal_tokens.items() if exp < now]:
+        _terminal_tokens.pop(tok, None)
+
+
+def _mint_terminal_token() -> str:
+    _prune_terminal_tokens()
+    token = secrets.token_urlsafe(32)
+    _terminal_tokens[token] = time.time() + _TERMINAL_TOKEN_TTL
+    return token
+
+
+def _consume_terminal_token(token: str | None) -> bool:
+    """Validate and burn a one-time token. False if missing, unknown or expired."""
+    if not token:
+        return False
+    _prune_terminal_tokens()
+    expiry = _terminal_tokens.pop(token, None)
+    return expiry is not None and expiry >= time.time()
+
+
+def build_terminal_argv(shell: str, workspace, *, bwrap: bool, restricted: bool) -> list[str]:
+    """
+    Build the PTY command. With ``bwrap`` the shell runs inside a read-only-root
+    bubblewrap container (the real barrier). Without it, ``restricted`` wraps a
+    bash shell in restricted mode (rbash) to shrink the blast radius.
+    """
+    if bwrap:
+        argv = [
+            "bwrap",
+            "--ro-bind", "/", "/",
+            "--dev", "/dev",
+            "--proc", "/proc",
+            "--tmpfs", "/tmp",
+            "--bind", str(workspace), str(workspace),
+            "--die-with-parent",
+            "--chdir", str(workspace),
+            shell,
+        ]
+        if "bash" in shell:
+            argv.append("-l")
+        return argv
+    argv = [shell]
+    if restricted and "bash" in shell:
+        argv.append("--restricted")
+    if "bash" in shell:
+        argv.append("-l")
+    return argv
+
+
+@app.get("/api/terminal-token")
+async def api_terminal_token(request: Request):
+    """Mint a one-time token for opening the terminal WebSocket (authed)."""
+    if not _is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return {"token": _mint_terminal_token()}
+
 
 def _set_winsize(fd: int, rows: int, cols: int) -> None:
     """Tell the PTY its window size so curses/editors render correctly."""
@@ -1124,6 +1190,11 @@ async def websocket_terminal(websocket: WebSocket):
         )
         await websocket.close(code=1008)
         return
+    # Spend the one-time token minted over the authed HTTP channel.
+    if not _consume_terminal_token(websocket.query_params.get("token")):
+        security_log.warning("ws/terminal rejected missing/invalid one-time token")
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     security_log.info("terminal opened origin=%s", websocket.headers.get("origin", ""))
 
@@ -1138,26 +1209,24 @@ async def websocket_terminal(websocket: WebSocket):
 
     from scribe.tools.sandbox import bwrap_available
 
+    sandboxed = bwrap_available()
+    if not sandboxed and config.get("scribe.web", "require_sandbox", default=False):
+        # Fail closed: refuse an unsandboxed shell rather than degrade silently.
+        await websocket.send_bytes(
+            b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
+            b"available, and scribe.web.require_sandbox is set.\x1b[0m\r\n"
+        )
+        await websocket.close()
+        return
+
     master_fd, slave_fd = pty.openpty()
     shell = os.environ.get("SHELL", "/bin/bash")
-
-    if bwrap_available():
-        # Run terminal inside bubblewrap container for file system isolation
-        cmd = [
-            "bwrap",
-            "--ro-bind", "/", "/",
-            "--dev", "/dev",
-            "--proc", "/proc",
-            "--tmpfs", "/tmp",
-            "--bind", str(WORKSPACE_DIR), str(WORKSPACE_DIR),
-            "--die-with-parent",
-            "--chdir", str(WORKSPACE_DIR),
-            shell,
-        ]
-        if "bash" in shell:
-            cmd.append("-l")
-    else:
-        cmd = [shell, "-l"]
+    cmd = build_terminal_argv(
+        shell,
+        WORKSPACE_DIR,
+        bwrap=sandboxed,
+        restricted=bool(config.get("scribe.web", "restricted_shell", default=True)),
+    )
 
     proc = subprocess.Popen(
         cmd,
