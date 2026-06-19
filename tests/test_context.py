@@ -94,6 +94,18 @@ def test_empty_inputs_yield_empty_string():
     assert assemble_context() == ""
 
 
+def test_system_prompt_carries_cascade_with_worldmodel():
+    # Live wiring: the precedence rule reaches the model whenever the agent has
+    # a WorldModel, and can be turned off.
+    from scribe.prompts import get_system_prompt
+    from scribe.worldmodel import WorldModel
+
+    wm = WorldModel()
+    assert CASCADE_RESOLUTION in get_system_prompt(worldmodel=wm)
+    assert CASCADE_RESOLUTION not in get_system_prompt(worldmodel=wm, memory_cascade=False)
+    assert CASCADE_RESOLUTION not in get_system_prompt()  # no worldmodel -> no note
+
+
 def test_score_entry_combines_all_three_signals():
     weak = FakeEntry("cats", _iso(90), {"significance": 0.0})
     strong = FakeEntry("memory cap rlimit", _iso(0), {"significance": 1.0})

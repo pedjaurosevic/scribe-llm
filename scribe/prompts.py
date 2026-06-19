@@ -245,6 +245,7 @@ def get_system_prompt(
     max_thinking_words: int = 30,
     mode: str = "native",
     worldmodel=None,
+    memory_cascade: bool = True,
 ) -> str:
     """
     Pick the system prompt for the current reasoning state.
@@ -276,7 +277,14 @@ def get_system_prompt(
     if workspace:
         prompt = prompt + ENV_NOTE.format(workspace=workspace)
     if worldmodel is not None:
-        prompt = worldmodel.render() + "\n\n" + prompt
+        head = worldmodel.render()
+        if memory_cascade:
+            # Standing trust order so the model knows how to resolve a conflict
+            # between its absolute facts, retrieved sources and working memory.
+            from scribe.memory.context import CASCADE_RESOLUTION
+
+            head = head + "\n\n" + CASCADE_RESOLUTION
+        prompt = head + "\n\n" + prompt
     return _with_constitution(prompt)
 
 
