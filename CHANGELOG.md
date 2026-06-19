@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **AFK task queue** (`scribe/queue.py`, `scribe-llm queue`). Delegate
+  narrowly-scoped tasks and run them one at a time or in a batch instead of
+  babysitting an open-ended agent loop; each task records its result so you
+  return as a reviewer. `queue add/list/run/clear`. Run logic takes an injected
+  executor — testable offline.
+- **Manually-invoked procedural skills** `/grill` (adversarial interviewer that
+  interrogates an idea before any code/prose) and `/teach` (stateful tutor that
+  keeps the mission and lessons in local files, not the context window). Both
+  are `user-invocable` and `disable-model-invocation` — you trigger them; the
+  model never auto-selects them.
 - **Test-time reliability / CLR** (`scribe/reliability.py`). For verifiable,
   grounded tasks, draw N candidate answers and keep the most trustworthy one —
   scored by claim coverage (fraction of sentences that carry a `[n]` citation
