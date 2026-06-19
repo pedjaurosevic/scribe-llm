@@ -139,3 +139,64 @@ class TestManifest:
         ok, detail = verify_manifest(eval_dir / "tasks.jsonl", manifest)
         assert not ok
         assert "grounded" in detail
+
+
+class TestLeaderboard:
+    """Multi-model ranking is a pure function — tested with fake answerers."""
+
+    TASKS = [
+        {"id": "a", "sources": ["s1"], "answerable": True},
+        {"id": "b", "sources": ["s1", "s2"], "answerable": False},
+    ]
+
+    def test_ranks_by_spi_descending(self):
+        from scribe.evolve.leaderboard import run_multi_model_bench
+
+        specs = [{"name": "weak"}, {"name": "strong"}]
+
+        def factory(spec):
+            if spec["name"] == "strong":
+                return lambda t: ("Fact [1]." if t.get("answerable", True)
+                                  else "Sources do not cover this.")
+            # weak model never cites and never refuses
+            return lambda t: "A confident answer."
+
+        report = run_multi_model_bench(specs, factory, self.TASKS)
+        assert [r["name"] for r in report["rows"]] == ["strong", "weak"]
+        assert report["rows"][0]["rank"] == 1
+        assert report["rows"][0]["spi"] == 1.0
+        assert report["rows"][1]["spi"] == 0.0
+        assert report["n_tasks"] == 2
+
+    def test_tie_broken_by_fewer_invalid_citations(self):
+        from scribe.evolve.leaderboard import run_multi_model_bench
+
+        specs = [{"name": "sloppy"}, {"name": "clean"}]
+
+        def factory(spec):
+            if spec["name"] == "clean":
+                return lambda t: ("Fact [1]." if t.get("answerable", True)
+                                  else "Sources do not cover this.")
+            # same SPI, but cites a non-existent source on the answerable task
+            return lambda t: ("Fact [9]. Fact [1]." if t.get("answerable", True)
+                              else "Sources do not cover this.")
+
+        report = run_multi_model_bench(specs, factory, self.TASKS)
+        assert report["rows"][0]["name"] == "clean"
+        assert report["rows"][0]["invalid_citations"] == 0
+        assert report["rows"][1]["invalid_citations"] >= 1
+
+    def test_render_md_has_table_and_checksum(self):
+        from scribe.evolve.leaderboard import (
+            render_leaderboard_md,
+            run_multi_model_bench,
+        )
+
+        report = run_multi_model_bench(
+            [{"name": "m1"}], lambda s: (lambda t: "Fact [1]."), self.TASKS
+        )
+        md = render_leaderboard_md(report, suite_checksum="abc123def456ghi")
+        assert "# Scribe Grounding Leaderboard" in md
+        assert "| Rank | Model | SPI | Invalid citations |" in md
+        assert "m1" in md
+        assert "abc123def456" in md  # checksum truncated to 12 chars
