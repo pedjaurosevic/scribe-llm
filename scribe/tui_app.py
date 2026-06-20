@@ -853,9 +853,8 @@ class ScribeApp(App):
                 await chat.mount(result_display)
                 chat.scroll_end()
 
-                self.session.trace(
-                    "tool_result", name=tc["name"], status="ok" if "error" not in result.lower() else "error"
-                )
+                status = "ok" if "error" not in result.lower() else "error"
+                self.session.trace("tool_result", name=tc["name"], status=status)
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
@@ -864,9 +863,8 @@ class ScribeApp(App):
                 })
 
             p = self._palette()
-            await chat.mount(
-                Static(Text("✦ Scribe (cont.)", style=f"bold {p['accent']}"), classes="msg-scribe-head")
-            )
+            head_txt = Text("✦ Scribe (cont.)", style=f"bold {p['accent']}")
+            await chat.mount(Static(head_txt, classes="msg-scribe-head"))
             self._cur_thinking = Static("💭 razmišlja…", classes="thinking")
             await chat.mount(self._cur_thinking)
             self._cur_md = Markdown("", classes="msg-scribe")

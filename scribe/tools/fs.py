@@ -29,8 +29,10 @@ def _safe_path(workspace: Path, rel: str, allow_outside: bool = False) -> Path:
     `allow_outside` is True the path is resolved without the boundary check,
     so absolute paths and `..` traversal reach the rest of the filesystem.
     """
+    # Normalize path separators to handle Windows/POSIX path mismatch
+    normalized_rel = rel.replace("\\", "/")
     workspace = workspace.resolve()
-    target = (workspace / rel).resolve()
+    target = (workspace / normalized_rel).resolve()
     if not allow_outside and target != workspace and workspace not in target.parents:
         raise WorkspaceError(f"Path '{rel}' is outside the workspace")
     return target

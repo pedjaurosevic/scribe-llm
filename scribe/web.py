@@ -258,6 +258,7 @@ async def login_submit(request: Request, pin: str = Form("")):
             _expected_token(),
             httponly=True,
             samesite="strict",
+            secure=request.url.scheme == "https",
             max_age=60 * 60 * 24,  # 24 hours (was 7 days)
         )
         return resp
@@ -926,6 +927,30 @@ async def websocket_chat(websocket: WebSocket):
                     "content": "Generating..."
                 })
 
+                if mode == "provenance":
+                    from scribe.memory import ClaimStore, run_provenance_loop_ws
+                    claim_store = ClaimStore()
+                    try:
+                        final_answer = await run_provenance_loop_ws(
+                            websocket,
+                            user_content,
+                            claim_store,
+                            adapter,
+                            max_steps=5
+                        )
+                    finally:
+                        claim_store.close()
+
+                    messages.append({"role": "assistant", "content": final_answer})
+                    session_manager.add_message("user", user_content)
+                    session_manager.add_message("assistant", final_answer)
+
+                    await websocket.send_json({
+                        "type": "done",
+                        "content": final_answer,
+                    })
+                    continue
+
                 tools = fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS if config.tools_enabled else None
                 final_answer = ""
 
@@ -1199,25 +1224,104 @@ async def websocket_terminal(websocket: WebSocket):
     security_log.info("terminal opened origin=%s", websocket.headers.get("origin", ""))
 
     if not _PTY_AVAILABLE:
-        # Native Windows: no PTY. Tell the client instead of crashing.
+        if config.get("scribe.web", "require_sandbox", default=False):
+            await websocket.send_bytes(
+                b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
+                b"available in this environment (non-POSIX / no PTY support).\x1b[0m\r\n"
+            )
+            await websocket.close()
+            return
+
+        # Log warning and notify user in terminal UI
+        security_log.warning("Terminal degrading to unsandboxed shell: PTY / bubblewrap not available.")
         await websocket.send_bytes(
-            b"\r\n\x1b[33mIntegrated terminal is not supported on this platform "
-            b"(requires POSIX PTY: Linux, macOS or WSL).\x1b[0m\r\n"
+            b"\r\n\x1b[33m[Warning] PTY / Bubblewrap not available. Terminal running unsandboxed.\x1b[0m\r\n"
         )
-        await websocket.close()
-        return
+
+        # Fallback to standard process on platforms without PTY (e.g. native Windows)
+        shell = os.environ.get("SHELL") or ("cmd.exe" if os.name == "nt" else "/bin/sh")
+        cmd = [shell]
+        if "bash" in shell:
+            if config.get("scribe.web", "restricted_shell", default=True):
+                cmd.append("--restricted")
+            cmd.append("-l")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=str(WORKSPACE_DIR),
+                env={**os.environ, "TERM": "xterm-256color"}
+            )
+        except Exception as e:
+            await websocket.send_bytes(
+                f"\r\n\x1b[31mFailed to start fallback shell {shell}: {e}\x1b[0m\r\n".encode()
+            )
+            await websocket.close()
+            return
+
+        async def _pump_output():
+            try:
+                while True:
+                    data = await proc.stdout.read(65536)
+                    if not data:
+                        break
+                    await websocket.send_bytes(data)
+            except Exception:
+                pass
+            finally:
+                try:
+                    await websocket.close()
+                except Exception:
+                    pass
+
+        out_task = asyncio.create_task(_pump_output())
+
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                event = json.loads(raw)
+                if event.get("type") == "input":
+                    inp_data = event.get("data", "").encode()
+                    proc.stdin.write(inp_data)
+                    await proc.stdin.drain()
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+        finally:
+            out_task.cancel()
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await proc.wait()
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            return
 
     from scribe.tools.sandbox import bwrap_available
 
     sandboxed = bwrap_available()
-    if not sandboxed and config.get("scribe.web", "require_sandbox", default=False):
-        # Fail closed: refuse an unsandboxed shell rather than degrade silently.
-        await websocket.send_bytes(
-            b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
-            b"available, and scribe.web.require_sandbox is set.\x1b[0m\r\n"
-        )
-        await websocket.close()
-        return
+    if not sandboxed:
+        if config.get("scribe.web", "require_sandbox", default=False):
+            # Fail closed: refuse an unsandboxed shell rather than degrade silently.
+            await websocket.send_bytes(
+                b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
+                b"available, and scribe.web.require_sandbox is set.\x1b[0m\r\n"
+            )
+            await websocket.close()
+            return
+        else:
+            # Log warning and notify user in the terminal UI
+            security_log.warning("Terminal degrading to unsandboxed shell: bubblewrap (bwrap) is not available.")
+            await websocket.send_bytes(
+                b"\r\n\x1b[33m[Warning] bubblewrap (bwrap) is not available. Terminal running unsandboxed.\x1b[0m\r\n"
+            )
 
     master_fd, slave_fd = pty.openpty()
     shell = os.environ.get("SHELL", "/bin/bash")

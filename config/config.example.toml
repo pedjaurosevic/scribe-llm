@@ -134,3 +134,18 @@ max_thinking_words = 30
 #   { name = "qwen-2.5-7b", base_url = "http://127.0.0.1:18084/v1", model = "default" },
 #   { name = "llama-3.1-8b (openrouter)", base_url = "https://openrouter.ai/api/v1", model = "meta-llama/llama-3.1-8b-instruct", api_key_env = "OPENROUTER_API_KEY" },
 # ]
+
+[scribe.web]
+# Web UI password/PIN. On first start Scribe prompts for a 4-digit PIN, or
+# generates a secure random one if running non-interactively.
+# pin = "2020"
+
+# Integrated terminal sandbox enforcement:
+# require_sandbox: if true, Scribe will fail-closed and refuse to open
+#   the web terminal if Bubblewrap is missing.
+require_sandbox = false
+
+# restricted_shell: if require_sandbox is false, Scribe will degrade to
+#   running in a restricted shell (rbash) when bubblewrap is missing.
+restricted_shell = true
+

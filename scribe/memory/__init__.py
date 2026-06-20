@@ -15,6 +15,12 @@ from scribe.memory.sme import (
     get_sme_service,
     recall_previous_session,
 )
+from scribe.memory.provenance import (
+    ClaimStore,
+    process_agent_response,
+    run_provenance_loop,
+    run_provenance_loop_ws,
+)
 
 __all__ = [
     "SMEService",
@@ -26,4 +32,8 @@ __all__ = [
     "DocumentChunk",
     "get_rag_service",
     "DEFAULT_RAG_PATH",
+    "ClaimStore",
+    "process_agent_response",
+    "run_provenance_loop",
+    "run_provenance_loop_ws",
 ]
