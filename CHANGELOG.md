@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-20
+
+A Crush-parity makeover: the modern full-screen TUI is now what `scribe-llm
+chat` launches.
+
+### Changed
+- **`scribe-llm chat` launches the full-screen TUI by default.** The classic
+  scrolling REPL moves behind `--classic` (which still owns `--resume`); the old
+  `--textual` flag is now a hidden no-op.
+
+### Added
+- **Launch dashboard** (Crush splash): cwd, a gradient `✶ SCRIBE` wordmark, a
+  `◇ model · reasoning` chip, and **Tools / Skills / Memory** columns with
+  `●`/`○` status dots.
+- **Persistent footer hint bar** (`/ komande · ^L modeli · ^S sesije · ^J novi
+  red · ^C izlaz`) and a `◇ model · think:on/off` chip in the topbar.
+- **`/` opens the command palette** from an empty prompt (Crush-style), and a
+  new `hatch_bar()` helper renders the `╱╱╱` gradient texture.
+- **Multi-line composer**: Enter sends, **Ctrl+J inserts a newline**, and
+  long/multi-line pastes collapse into a `[paste #N]` chip re-expanded on
+  submit.
+
 ## [1.6.0] - 2026-06-19
 
 Closes the three items deferred from 1.5.0: the cascade-of-trust now reaches
