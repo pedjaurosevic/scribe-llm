@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-06-20
+
 ### Changed
 - **Two-step exit in the full-screen TUI.** `Ctrl+D` arms the exit (a confirm
   prompt appears in the hint bar); `Ctrl+C` then quits. `Ctrl+C` on its own no
