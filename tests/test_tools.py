@@ -118,6 +118,19 @@ class TestWebTools:
         assert "Hello World" in res
         assert "ignore this" not in res
 
+    def test_web_fetch_void_elements(self, mock_urlopen):
+        from unittest.mock import MagicMock
+        mock_response = MagicMock()
+        mock_response.read.return_value = (
+            b"<html><head><meta charset='utf-8'><link rel='stylesheet'><title>Test</title></head>"
+            b"<body><p>Visible content after void elements</p></body></html>"
+        )
+        mock_response.headers = {}
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        res = web.dispatch("web_fetch", {"url": "http://example.com"})
+        assert "Visible content after void elements" in res
+
 
 def test_parse_text_tool_calls():
     from scribe.llm_adapter import parse_text_tool_calls
@@ -149,6 +162,20 @@ def test_parse_text_tool_calls():
     assert len(res) == 1
     assert res[0]["name"] == "list_dir"
     assert "path" in res[0]["arguments"]
+
+    # Test llama.cpp <|tool_call> format
+    gemma_call = '<|tool_call>call:web_search{query: "test query",count:5}<tool_call|>'
+    res = parse_text_tool_calls(gemma_call)
+    assert len(res) == 1
+    assert res[0]["name"] == "web_search"
+    assert "test query" in res[0]["arguments"]
+
+    # Test bare call: format
+    bare_call = 'call:web_search{query: "hello", count: 2}'
+    res = parse_text_tool_calls(bare_call)
+    assert len(res) == 1
+    assert res[0]["name"] == "web_search"
+    assert "hello" in res[0]["arguments"]
 
 
 

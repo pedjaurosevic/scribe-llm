@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scribe-llm"
-version = "1.7.1"
+version = "1.7.2"
 description = "Universal TUI agent for autonomous research and writing, powered by llama.cpp"
 readme = "README.md"
 license = "MIT"

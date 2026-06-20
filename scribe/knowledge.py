@@ -155,7 +155,7 @@ class KnowledgeBase:
             text = page.read_text(encoding="utf-8")
         except OSError:
             return []
-        return re.findall(r"\[([^\]]+)\]\(([^)]+)\)", text)
+        return re.findall(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)", text)
 
 
 class KnowledgeRegistry:
