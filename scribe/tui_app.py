@@ -22,15 +22,51 @@ from textual import events, work
 from textual.app import App, ComposeResult
 from textual.command import Hit, Hits, Provider
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView, Markdown, Static
+from textual.widgets import (
+    Button,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Markdown,
+    Static,
+    TextArea,
+)
 
 from scribe.config import ScribeConfig
 from scribe.llm_adapter import LLMAdapter
 from scribe.memory.sme import get_sme_service
 from scribe.prompts import get_code_system_prompt, get_system_prompt
 from scribe.session import SessionManager
-from scribe.ui.console import DEFAULT_THEME, PALETTES, gradient_text, list_themes
+from scribe.ui.console import (
+    DEFAULT_THEME,
+    PALETTES,
+    gradient_text,
+    hatch_bar,
+    list_themes,
+)
+
+
+def dashboard_columns(
+    config, skills: list[str], rag_ready: bool, sme_count: int
+) -> list[tuple[str, list[tuple[bool, str]]]]:
+    """
+    Build the splash-dashboard columns (Crush's LSPs/MCPs/Skills). Pure so it is
+    testable without a UI: returns (heading, [(enabled, label), ...]) per column.
+    """
+    tools = [
+        (bool(config.get("scribe", "tools_enabled", default=True)), "file tools"),
+        (True, "web_search · web_fetch"),
+        (True, "bash (/code, sandboxed)"),
+    ]
+    skill_rows = [(True, s) for s in skills] or [(False, "none")]
+    memory = [
+        (rag_ready, "RAG library"),
+        (sme_count > 0, f"SME memory ({sme_count})"),
+    ]
+    return [("Tools", tools), ("Skills", skill_rows), ("Memory", memory)]
 
 
 def build_status_line(
@@ -140,6 +176,60 @@ class PasteInput(Input):
 
     def clear_pastes(self) -> None:
         self.pastes.clear()
+
+
+class Composer(TextArea):
+    """
+    Multi-line prompt composer (Crush-style). Enter sends, Ctrl+J inserts a
+    newline, and long/multi-line pastes collapse into a `[paste #N]` chip that
+    is re-expanded on submit (so the model still gets everything).
+    """
+
+    PASTE_THRESHOLD = 200
+
+    class Submitted(Message):
+        """Posted when the user presses Enter to send."""
+
+        def __init__(self, value: str) -> None:
+            self.value = value
+            super().__init__()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pastes: list[str] = []
+        self.show_line_numbers = False
+
+    def on_paste(self, event: events.Paste) -> None:
+        text = event.text
+        if len(text) < self.PASTE_THRESHOLD and "\n" not in text.strip():
+            return  # short single-line paste inserts normally
+        self.pastes.append(text)
+        self.insert(f"[paste #{len(self.pastes)}: {len(text)} chars]")
+        event.stop()
+        event.prevent_default()
+
+    def expand(self, value: str) -> str:
+        def repl(m: re.Match) -> str:
+            idx = int(m.group(1)) - 1
+            return self.pastes[idx] if 0 <= idx < len(self.pastes) else m.group(0)
+        return _PASTE_RE.sub(repl, value)
+
+    def clear_pastes(self) -> None:
+        self.pastes.clear()
+
+    async def _on_key(self, event: events.Key) -> None:
+        # Enter sends; Ctrl+J is the explicit "newline" so multi-line still works.
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            self.post_message(self.Submitted(self.text))
+            return
+        if event.key == "ctrl+j":
+            event.prevent_default()
+            event.stop()
+            self.insert("\n")
+            return
+        await super()._on_key(event)
 
 
 class ScribeCommands(Provider):
@@ -302,8 +392,10 @@ class ScribeApp(App):
     #chat .msg-scribe-head { margin: 0; padding: 0; }
     #chat .msg-scribe { margin: 0 0 1 0; padding: 0; background: transparent; }
     #chat .thinking { margin: 0 0 1 0; color: $text-muted; }
-    Input#prompt { height: 3; margin: 0 1; }
+    #chat .splash { margin: 0 0 1 0; }
+    #prompt { height: auto; min-height: 3; max-height: 12; margin: 0 1; }
     #status { height: 1; }
+    #hints { height: 1; padding: 0 1; }
     """
 
     BINDINGS = [
@@ -348,15 +440,94 @@ class ScribeApp(App):
         with Vertical():
             yield Static(id="topbar")
             yield VerticalScroll(id="chat")
-            yield PasteInput(placeholder="Pitaj nešto…  (/help, /theme, /code, /quit)", id="prompt")
+            yield Composer(id="prompt")
             yield Static(id="status")
+            yield Static(id="hints")
 
     def on_mount(self) -> None:
         self.session.start_session(topic="textual_chat")
         self._apply_theme()
         self._set_topbar()
         self._refresh_status()
-        self.query_one("#prompt", Input).focus()
+        self._set_hints()
+        self._show_splash()
+        self.query_one("#prompt", Composer).focus()
+
+    def _set_hints(self) -> None:
+        """Persistent Crush-style keybind hint bar."""
+        p = self._palette()
+        hints = Text(no_wrap=True, overflow="ellipsis", end="")
+        for i, (key, what) in enumerate(
+            [("/", "komande"), ("^L", "modeli"), ("^S", "sesije"),
+             ("^J", "novi red"), ("^C", "izlaz")]
+        ):
+            if i:
+                hints.append("  ·  ", style="dim")
+            hints.append(key, style=f"bold {p['accent']}")
+            hints.append(f" {what}", style=p["fg"])
+        try:
+            self.query_one("#hints", Static).update(hints)
+        except Exception:
+            pass
+
+    def _show_splash(self) -> None:
+        """Crush-style launch dashboard: cwd, model chip, capability columns."""
+        from rich.table import Table
+
+        p = self._palette()
+        body = Text()
+        body.append("  ")
+        body.append_text(gradient_text("✶ SCRIBE", self.theme_name))
+        body.append(f"   {self.workspace}\n", style="dim")
+        body.append_text(hatch_bar("", self.theme_name, width=46))
+        body.append("\n\n")
+        think = "off" if not self.config.reasoning else "on"
+        body.append("  ◇ ", style=p["secondary"])
+        body.append(self.adapter.get_model_name(), style=f"bold {p['accent']}")
+        body.append(f"  ·  reasoning: {think}\n", style="dim")
+
+        skills = []
+        try:
+            from scribe.skills_executor import SkillsRegistry
+            skills = [s.name for s in SkillsRegistry().list()][:8]
+        except Exception:
+            pass
+        rag_ready = bool(self.config.get("scribe", "tools_enabled", default=True))
+        try:
+            sme_count = self.sme.count()
+        except Exception:
+            sme_count = 0
+
+        cols = dashboard_columns(self.config, skills, rag_ready, sme_count)
+        table = Table.grid(padding=(0, 3))
+        for _ in cols:
+            table.add_column()
+        headers = [Text(h, style=f"bold {p['secondary']}") for h, _ in cols]
+        table.add_row(*headers)
+        depth = max(len(rows) for _, rows in cols)
+        for r in range(depth):
+            cells = []
+            for _, rows in cols:
+                if r < len(rows):
+                    on, label = rows[r]
+                    cell = Text()
+                    cell.append("● " if on else "○ ", style=p["success"] if on else "dim")
+                    cell.append(label, style=p["fg"] if on else "dim")
+                    cells.append(cell)
+                else:
+                    cells.append(Text(""))
+            table.add_row(*cells)
+
+        chat = self.query_one("#chat", VerticalScroll)
+        chat.mount(Static(body, classes="splash"))
+        chat.mount(Static(table, classes="splash"))
+
+    async def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Typing just `/` in an empty prompt opens the command palette (Crush)."""
+        composer = self.query_one("#prompt", Composer)
+        if composer.text == "/":
+            composer.text = ""
+            self.action_command_palette()
 
     # ------------------------------------------------------------------- theme
     def _palette(self) -> dict[str, str]:
@@ -369,7 +540,7 @@ class ScribeApp(App):
         top = self.query_one("#topbar", Static)
         top.styles.background = p["accent"]
         top.styles.color = p["bg"]
-        inp = self.query_one("#prompt", Input)
+        inp = self.query_one("#prompt", Composer)
         inp.styles.border = ("round", p["accent"])
         self._set_topbar()
         self._refresh_status()
@@ -381,8 +552,10 @@ class ScribeApp(App):
         bar.append(" ")
         # Gradient brand wordmark (Crush-style primary→secondary).
         bar.append_text(gradient_text("✶ SCRIBE", self.theme_name))
-        bar.append("  ·  ", style=p["bg"])
+        bar.append("  ·  ◇ ", style=p["bg"])
         bar.append(model, style=f"bold {p['bg']}")
+        think = "off" if not self.config.reasoning else "on"
+        bar.append(f"  ·  think:{think}", style=p["bg"])
         if self.code_mode:
             bar.append("  ·  ⌘ CODE", style=f"bold {p['bg']}")
         self.query_one("#topbar", Static).update(bar)
@@ -415,11 +588,11 @@ class ScribeApp(App):
         return chars // 4
 
     # ------------------------------------------------------------------- input
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        inp = self.query_one("#prompt", PasteInput)
+    async def on_composer_submitted(self, event: Composer.Submitted) -> None:
+        inp = self.query_one("#prompt", Composer)
         shown = event.value.strip()          # may contain [paste #N] chips
         full = inp.expand(shown)             # chips expanded to real text
-        inp.value = ""
+        inp.text = ""
         inp.clear_pastes()
         if not shown or self._busy:
             return

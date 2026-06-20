@@ -168,6 +168,33 @@ def gradient_text(text: str, theme: str = DEFAULT_THEME, *, bold: bool = True):
     return out
 
 
+def hatch_bar(label: str, theme: str = DEFAULT_THEME, width: int = 80):
+    """A Crush-style diagonal-hatch header: ``label`` then a gradient ``╱`` fill.
+
+    Mirrors Crush's ``╱╱╱`` texture on title/section bars. Returns a Rich Text
+    of exactly ``width`` cells (label + a space, padded with hatch glyphs that
+    fade across the brand gradient).
+    """
+    from rich.text import Text
+
+    start, end = gradient_ends(theme)
+    sr, sg, sb = _hex_to_rgb(start)
+    er, eg, eb = _hex_to_rgb(end)
+
+    out = Text()
+    prefix = f"{label} " if label else ""
+    out.append_text(gradient_text(prefix, theme)) if prefix else None
+    fill = max(0, width - len(prefix))
+    n = max(fill - 1, 1)
+    for i in range(fill):
+        t = i / n
+        r = round(sr + (er - sr) * t)
+        g = round(sg + (eg - sg) * t)
+        b = round(sb + (eb - sb) * t)
+        out.append("╱", style=f"#{r:02x}{g:02x}{b:02x}")
+    return out
+
+
 def get_console(theme: str = DEFAULT_THEME, **kwargs) -> Console:
     """
     Get a Rich Console with the named theme.
