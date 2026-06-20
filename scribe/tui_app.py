@@ -20,6 +20,7 @@ from rich.cells import cell_len
 from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.command import Hit, Hits, Provider
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
@@ -399,7 +400,10 @@ class ScribeApp(App):
     """
 
     BINDINGS = [
-        ("ctrl+c", "quit", "Quit"),
+        # Two-step exit: Ctrl+D arms it, Ctrl+C confirms. Priority so they fire
+        # even while the composer has focus.
+        Binding("ctrl+d", "arm_exit", "Exit", priority=True),
+        Binding("ctrl+c", "confirm_exit", "Quit", priority=True),
         ("ctrl+l", "models", "Models"),
         ("ctrl+s", "sessions", "Sessions"),
     ]
@@ -419,6 +423,7 @@ class ScribeApp(App):
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.code_mode = False
         self._last_tok_s = 0.0
+        self._exit_armed = False
 
         self.messages: list[dict] = [{
             "role": "system",
@@ -459,7 +464,7 @@ class ScribeApp(App):
         hints = Text(no_wrap=True, overflow="ellipsis", end="")
         for i, (key, what) in enumerate(
             [("/", "komande"), ("^L", "modeli"), ("^S", "sesije"),
-             ("^J", "novi red"), ("^C", "izlaz")]
+             ("^J", "novi red"), ("^D ^C", "izlaz")]
         ):
             if i:
                 hints.append("  ·  ", style="dim")
@@ -525,9 +530,46 @@ class ScribeApp(App):
     async def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Typing just `/` in an empty prompt opens the command palette (Crush)."""
         composer = self.query_one("#prompt", Composer)
+        if self._exit_armed and composer.text:
+            self._disarm_exit()  # started typing again — cancel the pending exit
         if composer.text == "/":
             composer.text = ""
             self.action_command_palette()
+
+    # ------------------------------------------------------------------- exit
+    def action_arm_exit(self) -> None:
+        """Ctrl+D: arm the exit; the actual quit happens on Ctrl+C."""
+        self._exit_armed = True
+        p = self._palette()
+        msg = Text()
+        msg.append(" ⏻ Izlazak spreman — pritisni ", style=f"bold {p['warning']}")
+        msg.append("Ctrl+C", style=f"bold {p['accent']}")
+        msg.append(" za izlaz  ·  bilo šta drugo otkazuje", style=f"bold {p['warning']}")
+        try:
+            self.query_one("#hints", Static).update(msg)
+        except Exception:
+            pass
+
+    def action_confirm_exit(self) -> None:
+        """Ctrl+C: quit only when the exit was armed with Ctrl+D first."""
+        if self._exit_armed:
+            self.exit()
+            return
+        p = self._palette()
+        hint = Text()
+        hint.append(" Pritisni ", style="dim")
+        hint.append("Ctrl+D", style=f"bold {p['accent']}")
+        hint.append(" pa ", style="dim")
+        hint.append("Ctrl+C", style=f"bold {p['accent']}")
+        hint.append(" za izlaz", style="dim")
+        try:
+            self.query_one("#hints", Static).update(hint)
+        except Exception:
+            pass
+
+    def _disarm_exit(self) -> None:
+        self._exit_armed = False
+        self._set_hints()
 
     # ------------------------------------------------------------------- theme
     def _palette(self) -> dict[str, str]:
@@ -589,6 +631,8 @@ class ScribeApp(App):
 
     # ------------------------------------------------------------------- input
     async def on_composer_submitted(self, event: Composer.Submitted) -> None:
+        if self._exit_armed:
+            self._disarm_exit()  # sending a message clearly means "don't exit"
         inp = self.query_one("#prompt", Composer)
         shown = event.value.strip()          # may contain [paste #N] chips
         full = inp.expand(shown)             # chips expanded to real text
