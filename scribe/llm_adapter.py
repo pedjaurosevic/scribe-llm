@@ -10,9 +10,9 @@ Supports:
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
-import ast
 import os
 import queue
 import re
@@ -115,7 +115,8 @@ def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
 
     # 1. Try <|tool_call>call:tool_name{...} or call:tool_name{...} format (llama.cpp)
     if "call:" in text_clean.lower() or "<|tool_call>" in text_clean.lower():
-        match = re.search(r"(?:<\|tool_call\|?>\s*)?call:([a-zA-Z0-9_-]+)(.*?)$", text_clean, re.DOTALL | re.IGNORECASE)
+        pat = r"(?:<\|tool_call\|?>\s*)?call:([a-zA-Z0-9_-]+)(.*?)$"
+        match = re.search(pat, text_clean, re.DOTALL | re.IGNORECASE)
         if match:
             name = match.group(1).strip()
             args_str = match.group(2).strip()
