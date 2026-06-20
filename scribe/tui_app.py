@@ -12,6 +12,7 @@ scrolling chat, an input box, and a single-line themed status footer.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from pathlib import Path
@@ -380,15 +381,54 @@ class SessionsScreen(ModalScreen):
         self.dismiss(sid or None)
 
 
+class ConfirmScreen(ModalScreen):
+    """Crush-style modal to confirm an action (like running a bash command)."""
+
+    CSS = """
+    ConfirmScreen { align: center middle; }
+    #dialog {
+        width: 60; height: auto; padding: 1 2;
+        border: round $accent; background: $panel;
+    }
+    #dialog Label { margin: 1 0; }
+    #buttons { height: auto; margin-top: 1; align-horizontal: right; }
+    #buttons Button { margin-left: 1; }
+    """
+
+    BINDINGS = [("escape", "cancel", "Cancel")]
+
+    def __init__(self, message: str, theme_name: str):
+        super().__init__()
+        self._message = message
+        self._theme_name = theme_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static(gradient_text("✶ Confirmation", self._theme_name))
+            yield Label(self._message)
+            with Horizontal(id="buttons"):
+                yield Button("Cancel", id="cancel")
+                yield Button("Confirm", id="confirm", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#confirm", Button).focus()
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "confirm")
+
+
 class ScribeApp(App):
     """Full-screen Textual chat for Scribe."""
 
     COMMANDS = App.COMMANDS | {ScribeCommands}
 
     CSS = """
-    Screen { layout: vertical; }
+    Screen { layout: vertical; overflow: hidden; }
     #topbar { height: 1; padding: 0 1; }
-    #chat { height: 1fr; padding: 1 2; }
+    #chat { height: 1fr; padding: 1 2; scrollbar-size: 0 0; }
     #chat .msg-user { margin: 0 0 1 0; }
     #chat .msg-scribe-head { margin: 0; padding: 0; }
     #chat .msg-scribe { margin: 0 0 1 0; padding: 0; background: transparent; }
@@ -396,7 +436,7 @@ class ScribeApp(App):
     #chat .splash { margin: 0 0 1 0; }
     #prompt { height: auto; min-height: 3; max-height: 12; margin: 0 1; }
     #status { height: 1; }
-    #hints { height: 1; padding: 0 1; }
+    #hints { height: auto; padding: 0 1; }
     """
 
     BINDINGS = [
@@ -422,6 +462,7 @@ class ScribeApp(App):
         self.workspace = Path(self.config.workspace_dir)
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.code_mode = False
+        self.allow_outside = False
         self._last_tok_s = 0.0
         self._exit_armed = False
 
@@ -446,8 +487,8 @@ class ScribeApp(App):
             yield Static(id="topbar")
             yield VerticalScroll(id="chat")
             yield Composer(id="prompt")
-            yield Static(id="status")
             yield Static(id="hints")
+            yield Static(id="status")
 
     def on_mount(self) -> None:
         self.session.start_session(topic="textual_chat")
@@ -459,19 +500,11 @@ class ScribeApp(App):
         self.query_one("#prompt", Composer).focus()
 
     def _set_hints(self) -> None:
-        """Persistent Crush-style keybind hint bar."""
-        p = self._palette()
-        hints = Text(no_wrap=True, overflow="ellipsis", end="")
-        for i, (key, what) in enumerate(
-            [("/", "komande"), ("^L", "modeli"), ("^S", "sesije"),
-             ("^J", "novi red"), ("^D ^C", "izlaz")]
-        ):
-            if i:
-                hints.append("  ·  ", style="dim")
-            hints.append(key, style=f"bold {p['accent']}")
-            hints.append(f" {what}", style=p["fg"])
+        """Persistent Crush-style keybind hint bar (cleared by default)."""
         try:
-            self.query_one("#hints", Static).update(hints)
+            h = self.query_one("#hints", Static)
+            h.update("")
+            h.styles.display = "none"
         except Exception:
             pass
 
@@ -482,7 +515,7 @@ class ScribeApp(App):
         p = self._palette()
         body = Text()
         body.append("  ")
-        body.append_text(gradient_text("✶ SCRIBE", self.theme_name))
+        body.append_text(gradient_text("✶ SCRIBE-LLM", self.theme_name))
         body.append(f"   {self.workspace}\n", style="dim")
         body.append_text(hatch_bar("", self.theme_name, width=46))
         body.append("\n\n")
@@ -490,6 +523,18 @@ class ScribeApp(App):
         body.append("  ◇ ", style=p["secondary"])
         body.append(self.adapter.get_model_name(), style=f"bold {p['accent']}")
         body.append(f"  ·  reasoning: {think}\n", style="dim")
+
+        # Keybind hints displayed at the top, below model name
+        body.append("  ⌨ ", style=p["secondary"])
+        for i, (key, what) in enumerate(
+            [("/", "komande"), ("^L", "modeli"), ("^S", "sesije"),
+             ("^J", "novi red"), ("^D ^C", "izlaz")]
+        ):
+            if i:
+                body.append("  ·  ", style="dim")
+            body.append(key, style=f"bold {p['accent']}")
+            body.append(f" {what}", style=p["fg"])
+        body.append("\n\n")
 
         skills = []
         try:
@@ -536,6 +581,11 @@ class ScribeApp(App):
             composer.text = ""
             self.action_command_palette()
 
+    def on_key(self, event: events.Key) -> None:
+        """Any key press (other than Ctrl+D or Ctrl+C) disarms the exit state."""
+        if self._exit_armed and event.key not in ("ctrl+d", "ctrl+c"):
+            self._disarm_exit()
+
     # ------------------------------------------------------------------- exit
     def action_arm_exit(self) -> None:
         """Ctrl+D: arm the exit; the actual quit happens on Ctrl+C."""
@@ -546,7 +596,9 @@ class ScribeApp(App):
         msg.append("Ctrl+C", style=f"bold {p['accent']}")
         msg.append(" za izlaz  ·  bilo šta drugo otkazuje", style=f"bold {p['warning']}")
         try:
-            self.query_one("#hints", Static).update(msg)
+            h = self.query_one("#hints", Static)
+            h.update(msg)
+            h.styles.display = "block"
         except Exception:
             pass
 
@@ -563,7 +615,9 @@ class ScribeApp(App):
         hint.append("Ctrl+C", style=f"bold {p['accent']}")
         hint.append(" za izlaz", style="dim")
         try:
-            self.query_one("#hints", Static).update(hint)
+            h = self.query_one("#hints", Static)
+            h.update(hint)
+            h.styles.display = "block"
         except Exception:
             pass
 
@@ -580,8 +634,8 @@ class ScribeApp(App):
         self.screen.styles.background = p["bg"]
         self.screen.styles.color = p["fg"]
         top = self.query_one("#topbar", Static)
-        top.styles.background = p["accent"]
-        top.styles.color = p["bg"]
+        top.styles.background = p["bg"]
+        top.styles.color = p["fg"]
         inp = self.query_one("#prompt", Composer)
         inp.styles.border = ("round", p["accent"])
         self._set_topbar()
@@ -593,13 +647,13 @@ class ScribeApp(App):
         bar = Text(no_wrap=True, overflow="ellipsis", end="")
         bar.append(" ")
         # Gradient brand wordmark (Crush-style primary→secondary).
-        bar.append_text(gradient_text("✶ SCRIBE", self.theme_name))
-        bar.append("  ·  ◇ ", style=p["bg"])
-        bar.append(model, style=f"bold {p['bg']}")
+        bar.append_text(gradient_text("✶ SCRIBE-LLM", self.theme_name))
+        bar.append("  ·  ◇ ", style=p["secondary"])
+        bar.append(model, style=f"bold {p['accent']}")
         think = "off" if not self.config.reasoning else "on"
-        bar.append(f"  ·  think:{think}", style=p["bg"])
+        bar.append(f"  ·  think:{think}", style="dim")
         if self.code_mode:
-            bar.append("  ·  ⌘ CODE", style=f"bold {p['bg']}")
+            bar.append("  ·  ⌘ CODE", style=f"bold {p['warning']}")
         self.query_one("#topbar", Static).update(bar)
 
     def _refresh_status(self) -> None:
@@ -670,29 +724,157 @@ class ScribeApp(App):
             Static(body, classes="msg-user")
         )
 
+    def confirm_action(self, message: str) -> asyncio.Future[bool]:
+        fut = asyncio.get_running_loop().create_future()
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            fut.set_result(bool(confirmed))
+
+        self.push_screen(ConfirmScreen(message, self.theme_name), _on_confirm)
+        return fut
+
+    def _active_tools(self) -> list[dict]:
+        """Tool schemas advertised to the model for the current mode."""
+        from scribe.tools import checkpoint, fs, shell, web
+
+        if self.code_mode:
+            return (
+                fs.TOOL_SCHEMAS
+                + shell.TOOL_SCHEMAS
+                + checkpoint.TOOL_SCHEMAS
+                + web.TOOL_SCHEMAS
+            )
+        return fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS
+
     # --------------------------------------------------------------- streaming
-    @work(thread=True, exclusive=True)
-    def _run_turn(self) -> None:
-        """Stream one reply in a thread so the UI stays responsive."""
+    @work(exclusive=True)
+    async def _run_turn(self) -> None:
+        """Stream reply and execute tool calls asynchronously."""
         thinking = ""
         answer = ""
         tokens = 0
         t0 = time.perf_counter()
-        try:
-            for kind, chunk in self.adapter.streaming_events(self.messages):
-                tokens += 1
-                if kind == "thinking":
-                    thinking += chunk
-                    self.call_from_thread(self._on_thinking, thinking)
+        max_iters = 6
+        chat = self.query_one("#chat", VerticalScroll)
+
+        for iteration in range(max_iters):
+            thinking_text = ""
+            answer_text = ""
+            tool_calls = None
+
+            try:
+                async for kind, payload in self.adapter.streaming_turn_async(
+                    self.messages, tools=self._active_tools()
+                ):
+                    tokens += 1
+                    if kind == "thinking":
+                        thinking_text += payload
+                        self._on_thinking(thinking_text)
+                    elif kind == "answer":
+                        answer_text += payload
+                        self._on_answer(answer_text)
+                    elif kind == "tool_calls":
+                        tool_calls = payload
+            except Exception as e:
+                self._on_answer(f"**Error:** {e}")
+                answer_text = answer_text or f"Error: {e}"
+                break
+
+            if not tool_calls:
+                if not answer_text.strip() and thinking_text.strip():
+                    answer_text = thinking_text
+                    self._on_answer(answer_text)
+                answer = answer_text
+                thinking = thinking_text
+                break
+
+            self.messages.append({
+                "role": "assistant",
+                "content": answer_text,
+                "tool_calls": [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                    }
+                    for tc in tool_calls
+                ],
+            })
+
+            if self._cur_thinking is not None:
+                self._cur_thinking.remove()
+                self._cur_thinking = None
+            self._cur_md = None
+
+            if getattr(self.adapter, "last_tool_repair", None):
+                self.session.trace("tool_repair", reason=self.adapter.last_tool_repair)
+
+            for tc in tool_calls:
+                self.session.trace(
+                    "tool_call", name=tc["name"], arguments=str(tc["arguments"])[:500]
+                )
+
+                p = self._palette()
+                tool_hdr = Static(
+                    Text(f"⚙ Calling {tc['name']}...", style=f"bold {p['warning']}"),
+                    classes="msg-scribe-head"
+                )
+                await chat.mount(tool_hdr)
+                chat.scroll_end()
+
+                result = ""
+                if tc["name"] == "run_bash":
+                    from scribe.tools import shell
+                    command = shell.parse_command(tc["arguments"])
+                    confirmed = await self.confirm_action(f"Run bash command?\n{command}")
+                    if confirmed:
+                        result = await asyncio.get_running_loop().run_in_executor(
+                            None, shell.dispatch, self.workspace, tc["name"], tc["arguments"]
+                        )
+                    else:
+                        result = "User declined to run this command."
+                elif tc["name"] in ("web_search", "web_fetch"):
+                    from scribe.tools import web
+                    result = await asyncio.get_running_loop().run_in_executor(
+                        None, web.dispatch, tc["name"], tc["arguments"]
+                    )
+                elif tc["name"] in ("workspace_checkpoint", "workspace_rollback"):
+                    from scribe.tools import checkpoint
+                    result = await asyncio.get_running_loop().run_in_executor(
+                        None, checkpoint.dispatch, self.workspace, tc["name"], tc["arguments"]
+                    )
                 else:
-                    answer += chunk
-                    self.call_from_thread(self._on_answer, answer)
-        except Exception as e:  # surface errors in the chat
-            self.call_from_thread(self._on_answer, f"**Error:** {e}")
-            answer = answer or f"Error: {e}"
+                    from scribe.tools import fs
+                    result = await asyncio.get_running_loop().run_in_executor(
+                        None, fs.dispatch, self.workspace, tc["name"], tc["arguments"]
+                    )
+
+                result_display = Markdown(f"```\n{result}\n```", classes="msg-scribe")
+                await chat.mount(result_display)
+                chat.scroll_end()
+
+                self.session.trace(
+                    "tool_result", name=tc["name"], status="ok" if "error" not in result.lower() else "error"
+                )
+                self.messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "name": tc["name"],
+                    "content": result,
+                })
+
+            p = self._palette()
+            await chat.mount(
+                Static(Text("✦ Scribe (cont.)", style=f"bold {p['accent']}"), classes="msg-scribe-head")
+            )
+            self._cur_thinking = Static("💭 razmišlja…", classes="thinking")
+            await chat.mount(self._cur_thinking)
+            self._cur_md = Markdown("", classes="msg-scribe")
+            await chat.mount(self._cur_md)
+            chat.scroll_end()
 
         dt = max(time.perf_counter() - t0, 1e-6)
-        self.call_from_thread(self._finish_turn, answer, thinking, tokens / dt)
+        self._finish_turn(answer, thinking, tokens / dt)
 
     def _on_thinking(self, thinking: str) -> None:
         if self._cur_thinking is not None:
