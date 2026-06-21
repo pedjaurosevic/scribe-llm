@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+
 import pytest
 
 from scribe.web import (
@@ -83,7 +84,7 @@ def test_terminal_fallback_no_pty(monkeypatch):
 
 
 def test_terminal_require_sandbox_failure(monkeypatch):
-    """Verify that when require_sandbox is set to True and bubblewrap is not available, the connection fails closed."""
+    """require_sandbox=True with bubblewrap unavailable must fail closed."""
     import scribe.web
 
     # Mock PTY and bwrap not available

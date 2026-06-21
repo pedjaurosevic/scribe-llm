@@ -16,7 +16,7 @@ async def test_provenance_ablation(tmp_path, monkeypatch):
     # Initialize ScribeConfig and LLMAdapter against the live model endpoint
     config = ScribeConfig()
     adapter = LLMAdapter.from_config(config)
-    
+
     if not adapter.is_healthy():
         pytest.skip("LLM server is not running or healthy at " + adapter.base_url)
 
@@ -27,7 +27,9 @@ async def test_provenance_ablation(tmp_path, monkeypatch):
     try:
         # Mock web content dict
         mock_web_pages = {
-            "http://scribeland-secret.local": "The secret password for ScribeLand is Antigravity42.",
+            "http://scribeland-secret.local": (
+                "The secret password for ScribeLand is Antigravity42."
+            ),
             "http://scribeland-apples.local": "Apples are usually red, green, or yellow."
         }
 
@@ -41,7 +43,7 @@ async def test_provenance_ablation(tmp_path, monkeypatch):
         # Case (a): Factual question WITH the relevant page fetched
         # ==========================================
         query = "Find the secret password for ScribeLand by fetching http://scribeland-secret.local"
-        
+
         # We start the loop, allowing the agent to fetch the secret URL.
         # The agent should call fetch/navigate to 'http://scribeland-secret.local'
         # and then return a final answer citing the correct span.
@@ -95,7 +97,10 @@ async def test_provenance_ablation(tmp_path, monkeypatch):
         # Assert empty-retrieval honesty: should not guess "Antigravity42" from priors,
         # and should refuse or state it is not in the sources.
         assert "Antigravity42" not in formatted_answer_b
-        assert "The sources do not contain this information" in formatted_answer_b or "[BLOCKED" in formatted_answer_b
+        assert (
+            "The sources do not contain this information" in formatted_answer_b
+            or "[BLOCKED" in formatted_answer_b
+        )
         assert len(new_claims_b) == 0
 
     finally:

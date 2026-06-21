@@ -164,7 +164,8 @@ class ClaimStore:
         cursor = self._conn.cursor()
         try:
             cursor.execute("""
-            INSERT OR REPLACE INTO claims (id, text, status, confidence, evidence_url, evidence_span, fetched_at)
+            INSERT OR REPLACE INTO claims
+                (id, text, status, confidence, evidence_url, evidence_span, fetched_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (claim_id, text, status, confidence, url, selector_or_char_range, fetched_at))
             rowid = cursor.lastrowid
@@ -276,7 +277,8 @@ def process_agent_response(
             verified_statements.append((text, valid_citations))
             for cid in valid_citations:
                 span_data = fetch_log[cid]
-                claim_id = f"c_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{hash(text) % 100000:05d}"
+                ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                claim_id = f"c_{ts}_{hash(text) % 100000:05d}"
                 verified_claims.append({
                     "id": claim_id,
                     "text": text,
@@ -352,15 +354,23 @@ async def run_provenance_loop(
     if past_claims:
         past_context = "Past known claims from ClaimStore:\n"
         for pc in past_claims:
-            past_context += f"- {pc['text']} (source: {pc['evidence']['url']}, fetched: {pc['evidence']['fetched_at']})\n"
+            past_context += (
+                f"- {pc['text']} (source: {pc['evidence']['url']}, "
+                f"fetched: {pc['evidence']['fetched_at']})\n"
+            )
 
     system_content = (
-        "You are Scribe, an investigative research agent. You are operating in a typed action loop.\n"
-        "Your task is to answer the user query based ONLY on the sources you fetch during this session. "
-        "Do NOT use any prior knowledge or assumptions. If the fetched sources do not contain the answer, "
+        "You are Scribe, an investigative research agent. "
+        "You are operating in a typed action loop.\n"
+        "Your task is to answer the user query based ONLY on the "
+        "sources you fetch during this session. "
+        "Do NOT use any prior knowledge or assumptions. "
+        "If the fetched sources do not contain the answer, "
         "you MUST state that the sources do not say so.\n\n"
-        "Every statement you make in your final answer must be linked to a valid span ID from the fetched context.\n"
-        "If you find conflicting info in the fetched pages, output them in the 'contradictions' section with their span IDs.\n\n"
+        "Every statement you make in your final answer must be "
+        "linked to a valid span ID from the fetched context.\n"
+        "If you find conflicting info in the fetched pages, output them "
+        "in the 'contradictions' section with their span IDs.\n\n"
         "To fetch a page, output an action of type navigate or fetch with the url.\n"
         "When page content is provided, it will have line prefix span IDs like [s1_1], [s1_2] etc. "
         "Use these exact span IDs for citations in your final answer.\n\n"
@@ -411,7 +421,10 @@ async def run_provenance_loop(
         if not url:
             messages.append({
                 "role": "system",
-                "content": "Action failed: Missing 'url' parameter. Try again or return final answer.",
+                "content": (
+                    "Action failed: Missing 'url' parameter. "
+                    "Try again or return final answer."
+                ),
             })
             continue
 
@@ -468,15 +481,23 @@ async def run_provenance_loop_ws(
     if past_claims:
         past_context = "Past known claims from ClaimStore:\n"
         for pc in past_claims:
-            past_context += f"- {pc['text']} (source: {pc['evidence']['url']}, fetched: {pc['evidence']['fetched_at']})\n"
+            past_context += (
+                f"- {pc['text']} (source: {pc['evidence']['url']}, "
+                f"fetched: {pc['evidence']['fetched_at']})\n"
+            )
 
     system_content = (
-        "You are Scribe, an investigative research agent. You are operating in a typed action loop.\n"
-        "Your task is to answer the user query based ONLY on the sources you fetch during this session. "
-        "Do NOT use any prior knowledge or assumptions. If the fetched sources do not contain the answer, "
+        "You are Scribe, an investigative research agent. "
+        "You are operating in a typed action loop.\n"
+        "Your task is to answer the user query based ONLY on the "
+        "sources you fetch during this session. "
+        "Do NOT use any prior knowledge or assumptions. "
+        "If the fetched sources do not contain the answer, "
         "you MUST state that the sources do not say so.\n\n"
-        "Every statement you make in your final answer must be linked to a valid span ID from the fetched context.\n"
-        "If you find conflicting info in the fetched pages, output them in the 'contradictions' section with their span IDs.\n\n"
+        "Every statement you make in your final answer must be "
+        "linked to a valid span ID from the fetched context.\n"
+        "If you find conflicting info in the fetched pages, output them "
+        "in the 'contradictions' section with their span IDs.\n\n"
         "To fetch a page, output an action of type navigate or fetch with the url.\n"
         "When page content is provided, it will have line prefix span IDs like [s1_1], [s1_2] etc. "
         "Use these exact span IDs for citations in your final answer.\n\n"
@@ -552,7 +573,10 @@ async def run_provenance_loop_ws(
         if not url:
             messages.append({
                 "role": "system",
-                "content": "Action failed: Missing 'url' parameter. Try again or return final answer.",
+                "content": (
+                    "Action failed: Missing 'url' parameter. "
+                    "Try again or return final answer."
+                ),
             })
             continue
 
