@@ -72,6 +72,11 @@ config = ScribeConfig()
 adapter = LLMAdapter.from_config(config)
 session_manager = SessionManager(config)
 sme_service = get_sme_service()
+# Persona/identity — always injected into the web chat system prompt too, so the
+# agent is Scribe (not a bare model) on every surface. Seed defaults if missing.
+from scribe.worldmodel import load_worldmodel  # noqa: E402
+
+worldmodel = load_worldmodel()
 skills_executor = SkillsExecutor()
 store = DocumentStore(config)
 
@@ -818,6 +823,7 @@ async def websocket_chat(websocket: WebSocket):
         workspace=str(WORKSPACE_DIR),
         max_thinking_words=config.max_thinking_words,
         mode=config.reasoning_mode,
+        worldmodel=worldmodel,
     )
     if session_summary and "No previous session found" not in session_summary:
         system_content += (
@@ -1112,7 +1118,21 @@ async def chat(request: Request):
     body = await request.json()
     message = body.get("message", "")
 
-    messages = [{"role": "user", "content": message}]
+    # Inject the Scribe persona here too, so this endpoint answers as Scribe
+    # (with its WorldModel identity), not as a bare model.
+    messages = [
+        {
+            "role": "system",
+            "content": get_system_prompt(
+                config.reasoning,
+                workspace=str(WORKSPACE_DIR),
+                max_thinking_words=config.max_thinking_words,
+                mode=config.reasoning_mode,
+                worldmodel=worldmodel,
+            ),
+        },
+        {"role": "user", "content": message},
+    ]
 
     response = adapter.complete(messages)
 

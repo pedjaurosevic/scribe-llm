@@ -55,7 +55,7 @@ class ScribeConfig:
             "brave_env_file": "",
         },
         "scribe.ui": {
-            "theme": "gruvbox-dark",
+            "theme": "ink",
             "show_progress": True,
             "streaming": True,
         },
@@ -317,7 +317,7 @@ class ScribeConfig:
     @property
     def theme(self) -> str:
         """Get the UI theme."""
-        return self.get("scribe.ui", "theme", default="gruvbox-dark")
+        return self.get("scribe.ui", "theme", default="ink")
 
     @property
     def web_pin(self) -> str:

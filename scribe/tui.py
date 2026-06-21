@@ -60,7 +60,7 @@ class ScribeTUI:
         self._resume_error: str | None = None
         self.theme_name = self.config.theme
         if self.theme_name not in list_themes():
-            self.theme_name = "gruvbox-dark"
+            self.theme_name = "ink"
         self.console = get_console(
             theme=self.theme_name,
             force_terminal=True,
@@ -1067,7 +1067,7 @@ class ScribeTUI:
             ("/reasoning", "Thinking on/off/auto (e.g. /reasoning auto)"),
             ("/code", "Enter Scribe Code (terminal expert, full bash access)"),
             ("/chat", "Leave code mode, back to normal chat"),
-            ("/theme", "List or switch color theme (e.g. /theme dracula)"),
+            ("/theme", "List or switch color theme (e.g. /theme charm)"),
             ("/permissions", "Show/allow file access outside the workspace"),
             ("/status", "Show system status"),
             ("/session", "Show current session"),

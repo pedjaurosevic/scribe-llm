@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-06-21
+
+### Changed
+- **TUI visual redesign (Crush-inspired, not a copy):** a large gradient `SCRIBE` ASCII logo (ANSI Shadow font) rendered with a diagonal brand gradient, plus an `L·L·M` tagline on the splash screen.
+- **Seven curated, mutually distinct themes** replace the earlier ports of popular schemes. Each is its own *mood*: `ink` (new default — scholarly, gold on deep ink), `charm` (Crush homage, pink→violet), `aurora` (icy cyan→indigo), `ember` (fiery orange→crimson), `moss` (botanical green→teal), `paper` (the one light theme — ink on warm off-white), `synth` (neon cyan→magenta). The default theme is now `ink`.
+
+### Removed
+- **Scrollbar gutter across the TUI:** scroll with the mouse wheel or keyboard; the visible scrollbar is gone (`scrollbar-size: 0 0` globally) for a cleaner look.
+
 ## [1.7.2] - 2026-06-20
 
 ### Fixed

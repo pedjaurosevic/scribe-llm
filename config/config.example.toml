@@ -77,8 +77,8 @@ db_path = "~/.scribe/sme"
 
 [scribe.ui]
 # TUI color theme. Switch live in chat with /theme NAME. Options:
-#   gruvbox-dark · dracula · tokyo-night · nord · catppuccin · solarized-dark
-theme = "gruvbox-dark"
+#   ink · charm · aurora · ember · moss · paper (light) · synth
+theme = "ink"
 show_progress = true
 streaming = true
 
