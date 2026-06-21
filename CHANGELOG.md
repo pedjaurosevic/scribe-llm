@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-06-21
+
+### Changed
+- **TUI visual redesign (Crush-inspired, not a copy):** a large gradient `SCRIBE` ASCII logo (ANSI Shadow font) rendered with a diagonal brand gradient, plus an `L·L·M` tagline on the splash screen.
+- **Seven curated, mutually distinct themes** replace the earlier ports of popular schemes. Each is its own *mood*: `ink` (new default — scholarly, gold on deep ink), `charm` (Crush homage, pink→violet), `aurora` (icy cyan→indigo), `ember` (fiery orange→crimson), `moss` (botanical green→teal), `paper` (the one light theme — ink on warm off-white), `synth` (neon cyan→magenta). The default theme is now `ink`.
+
+### Removed
+- **Scrollbar gutter across the TUI:** scroll with the mouse wheel or keyboard; the visible scrollbar is gone (`scrollbar-size: 0 0` globally) for a cleaner look.
+
+## [1.7.2] - 2026-06-20
+
+### Fixed
+- **Web Fetch void elements bug:** Fixed HTML parser where void elements like `meta` and `link` in the header permanently kept ignore state active and discarded all subsequent page body content.
+- **Reliability consensus string interning bug:** Replaced identity-based `is not` comparison with safe by-value element removal to prevent Python's string interning details from breaking self-consistency Jaccard scoring.
+- **Wiki distillation attribution order:** Reordered session attribution to search the page body markers first, avoiding mis-crediting manual/previous wiki pages to the current distilling session.
+- **Outgoing Markdown link graph:** Excluded markdown images (starting with `!`) from being incorrectly classified as outgoing page navigation links.
+- **TUI Armed Exit refinement:** Added key press event listener so any keystroke other than confirmations cancels the armed exit state in the full-screen TUI.
+
 ## [1.7.1] - 2026-06-20
 
 ### Changed
@@ -447,7 +465,16 @@ projects (Synap, Konok, ExoLab, CANYON) and Odysseus, folded into Scribe.
   address, using only the Python standard library.
 - Held-out fitness suite (`scribe-llm evolve eval`).
 
-[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.7.1...v1.7.2
+[1.7.1]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.7.0...v1.7.1
+[1.7.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.3.0...v1.5.0
+[1.3.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.0.0...v1.2.0
+[1.0.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.6.0...v0.7.0
 [0.2.1]: https://github.com/pedjaurosevic/scribe-llm/compare/v0.2.0...v0.2.1

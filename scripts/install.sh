@@ -21,6 +21,28 @@ if ! command -v pip &> /dev/null && ! command -v pip3 &> /dev/null; then
     exit 1
 fi
 
+# Check for virtual environment
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Warning: You are not running inside a virtual environment."
+    echo "It is highly recommended to install Scribe inside a virtual environment:"
+    echo "  python3 -m venv .venv"
+    echo "  source .venv/bin/activate"
+    echo ""
+fi
+
+# Check system dependencies
+echo "Checking system dependencies..."
+if ! command -v bwrap &> /dev/null; then
+    echo "Tip: 'bubblewrap' (bwrap) is missing. Secure terminal sandbox will be unavailable."
+    echo "  -> To enable it: sudo apt install bubblewrap"
+fi
+if ! command -v pandoc &> /dev/null; then
+    echo "Tip: 'pandoc' is missing. Document format conversions will be unavailable."
+    echo "  -> To enable it: sudo apt install pandoc"
+fi
+echo ""
+
+
 # Install the Python package (editable) from the repo root.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

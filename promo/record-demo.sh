@@ -106,7 +106,7 @@ BANNER
 
   scene "Try it yourself"
   say "git clone https://github.com/pedjaurosevic/scribe-llm"
-  say "Local-first · ~7k lines · 250+ tests · MIT"
+  say "Local-first · ~13k lines · 346 tests · MIT"
   sleep 2
 }
 
