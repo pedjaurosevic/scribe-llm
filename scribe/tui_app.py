@@ -42,7 +42,6 @@ from scribe.llm_adapter import LLMAdapter
 from scribe.memory.sme import get_sme_service
 from scribe.prompts import get_code_system_prompt, get_system_prompt
 from scribe.session import SessionManager
-from scribe.worldmodel import load_worldmodel
 from scribe.ui.console import (
     DEFAULT_THEME,
     PALETTES,
@@ -52,6 +51,7 @@ from scribe.ui.console import (
     list_themes,
 )
 from scribe.ui.logo import SCRIBE_TAGLINE, SCRIBE_WORDMARK, banner_lines
+from scribe.worldmodel import load_worldmodel
 
 
 def dashboard_columns(

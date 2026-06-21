@@ -1253,9 +1253,12 @@ async def websocket_terminal(websocket: WebSocket):
             return
 
         # Log warning and notify user in terminal UI
-        security_log.warning("Terminal degrading to unsandboxed shell: PTY / bubblewrap not available.")
+        security_log.warning(
+            "Terminal degrading to unsandboxed shell: PTY / bubblewrap not available."
+        )
         await websocket.send_bytes(
-            b"\r\n\x1b[33m[Warning] PTY / Bubblewrap not available. Terminal running unsandboxed.\x1b[0m\r\n"
+            b"\r\n\x1b[33m[Warning] PTY / Bubblewrap not available. "
+            b"Terminal running unsandboxed.\x1b[0m\r\n"
         )
 
         # Fallback to standard process on platforms without PTY (e.g. native Windows)
@@ -1338,9 +1341,12 @@ async def websocket_terminal(websocket: WebSocket):
             return
         else:
             # Log warning and notify user in the terminal UI
-            security_log.warning("Terminal degrading to unsandboxed shell: bubblewrap (bwrap) is not available.")
+            security_log.warning(
+                "Terminal degrading to unsandboxed shell: bubblewrap (bwrap) is not available."
+            )
             await websocket.send_bytes(
-                b"\r\n\x1b[33m[Warning] bubblewrap (bwrap) is not available. Terminal running unsandboxed.\x1b[0m\r\n"
+                b"\r\n\x1b[33m[Warning] bubblewrap (bwrap) is not available. "
+                b"Terminal running unsandboxed.\x1b[0m\r\n"
             )
 
     master_fd, slave_fd = pty.openpty()
