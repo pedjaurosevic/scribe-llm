@@ -56,7 +56,9 @@ def claim_coverage(answer: str) -> float:
 
 def consensus_score(answer: str, others: list[str]) -> float:
     """Mean token-Jaccard agreement of ``answer`` with the other candidates."""
-    peers = [o for o in others if o is not answer]
+    peers = list(others)
+    if answer in peers:
+        peers.remove(answer)
     if not peers:
         return 0.0
     a = _tokens(answer)

@@ -11,55 +11,64 @@ from __future__ import annotations
 from rich.console import Console
 from rich.theme import Theme
 
-# Each palette: bg/fg plus the semantic accents. `accent` is the primary brand
-# color (borders, Scribe header, pills); `secondary` is a complementary hue.
+# Seven curated themes for 2.0.1 — each a distinct *mood*, not a port of an
+# existing scheme. Every palette defines the same keys so a theme is complete by
+# construction. `accent` is the primary brand color (logo, borders, pills);
+# `secondary` is the complementary hue that closes the brand gradient.
+#
+#   ink     scholarly manuscript — gold on deep charcoal-navy   (default brand)
+#   charm   Crush homage — hot pink → electric violet, near-black
+#   aurora  icy north — cyan → indigo on deep navy
+#   ember   forge — ember orange → crimson on warm black
+#   moss    botanical — lime-sage → teal on deep forest
+#   paper   daylight manuscript — ink on warm off-white (the one light theme)
+#   synth   neon synthwave — electric cyan → magenta on jet black
 PALETTES: dict[str, dict[str, str]] = {
-    "gruvbox-dark": {
-        "bg": "#282828", "fg": "#ebdbb2", "accent": "#83a598", "secondary": "#fabd2f",
-        "success": "#b8bb26", "warning": "#fabd2f", "error": "#fb4934",
-        "user": "#d3869b", "assistant": "#8ec07c",
+    "ink": {
+        "bg": "#11131a", "fg": "#e8e0cf", "accent": "#d4a44c", "secondary": "#c97f3a",
+        "success": "#9bbf6a", "warning": "#e0b04a", "error": "#d6604d",
+        "user": "#c9a0dc", "assistant": "#7fb0a6",
     },
-    "dracula": {
-        "bg": "#282a36", "fg": "#f8f8f2", "accent": "#bd93f9", "secondary": "#ff79c6",
-        "success": "#50fa7b", "warning": "#f1fa8c", "error": "#ff5555",
-        "user": "#ff79c6", "assistant": "#8be9fd",
-    },
-    "tokyo-night": {
-        "bg": "#1a1b26", "fg": "#c0caf5", "accent": "#7aa2f7", "secondary": "#bb9af7",
-        "success": "#9ece6a", "warning": "#e0af68", "error": "#f7768e",
-        "user": "#bb9af7", "assistant": "#7dcfff",
-    },
-    "nord": {
-        "bg": "#2e3440", "fg": "#d8dee9", "accent": "#88c0d0", "secondary": "#81a1c1",
-        "success": "#a3be8c", "warning": "#ebcb8b", "error": "#bf616a",
-        "user": "#b48ead", "assistant": "#8fbcbb",
-    },
-    "catppuccin": {
-        "bg": "#1e1e2e", "fg": "#cdd6f4", "accent": "#cba6f7", "secondary": "#f5c2e7",
-        "success": "#a6e3a1", "warning": "#f9e2af", "error": "#f38ba8",
-        "user": "#f5c2e7", "assistant": "#94e2d5",
-    },
-    "solarized-dark": {
-        "bg": "#002b36", "fg": "#93a1a1", "accent": "#268bd2", "secondary": "#2aa198",
-        "success": "#859900", "warning": "#b58900", "error": "#dc322f",
-        "user": "#d33682", "assistant": "#2aa198",
-    },
-    # Charm-inspired palette (à la Charmbracelet's Crush): hot pink primary,
-    # electric purple secondary, mint success, on a near-black background.
     "charm": {
-        "bg": "#171717", "fg": "#dbdbdb", "accent": "#ff5faf", "secondary": "#8b5dff",
-        "success": "#00d7af", "warning": "#ffd787", "error": "#ff5f87",
-        "user": "#8b5dff", "assistant": "#ff5faf",
+        "bg": "#15131c", "fg": "#e6e0ec", "accent": "#ff5faf", "secondary": "#9d7bff",
+        "success": "#1fe0b0", "warning": "#ffcf6b", "error": "#ff5f87",
+        "user": "#9d7bff", "assistant": "#ff8fcf",
+    },
+    "aurora": {
+        "bg": "#0d1b2a", "fg": "#cdd9e5", "accent": "#56cfe1", "secondary": "#7b8cde",
+        "success": "#80ed99", "warning": "#ffd166", "error": "#ff6b6b",
+        "user": "#9b8cff", "assistant": "#64dfdf",
+    },
+    "ember": {
+        "bg": "#1a1310", "fg": "#ece2d0", "accent": "#ff7a3c", "secondary": "#e84855",
+        "success": "#c5d86d", "warning": "#ffb13c", "error": "#f25c54",
+        "user": "#ffa552", "assistant": "#e8a87c",
+    },
+    "moss": {
+        "bg": "#121a14", "fg": "#dbe4d0", "accent": "#9bcf52", "secondary": "#3fae8f",
+        "success": "#b5e655", "warning": "#e8c75a", "error": "#e0685a",
+        "user": "#a3d977", "assistant": "#5fc9a3",
+    },
+    "paper": {
+        "bg": "#f4efe6", "fg": "#2b2b2b", "accent": "#9c3d2e", "secondary": "#1f6f6b",
+        "success": "#4a7c34", "warning": "#b07d1a", "error": "#a83232",
+        "user": "#7a3e9c", "assistant": "#1f6f6b",
+    },
+    "synth": {
+        "bg": "#0b0a14", "fg": "#e0d6ff", "accent": "#22d3ee", "secondary": "#f72585",
+        "success": "#3ef2a0", "warning": "#ffd000", "error": "#ff3864",
+        "user": "#ff5fd2", "assistant": "#22d3ee",
     },
 }
 
-# Two ends of the brand gradient (Crush uses primary→secondary for the logo,
-# cursor and accents). Falls back to accent↔secondary for non-charm themes.
+# Brand gradient ends (logo, cursor, hatch). Default is accent→secondary; only
+# override when a theme reads better with a hand-picked pair (the light theme
+# wants warm-on-warm rather than crimson→teal clashing).
 GRADIENT_ENDS: dict[str, tuple[str, str]] = {
-    "charm": ("#ff5faf", "#8b5dff"),
+    "paper": ("#9c3d2e", "#c9772f"),
 }
 
-DEFAULT_THEME = "gruvbox-dark"
+DEFAULT_THEME = "ink"
 
 
 def _lighten(hex_color: str, amount: float = 0.12) -> str:
@@ -192,6 +201,38 @@ def hatch_bar(label: str, theme: str = DEFAULT_THEME, width: int = 80):
         g = round(sg + (eg - sg) * t)
         b = round(sb + (eb - sb) * t)
         out.append("╱", style=f"#{r:02x}{g:02x}{b:02x}")
+    return out
+
+
+def gradient_block(lines: list[str], theme: str = DEFAULT_THEME):
+    """Color a multi-line ASCII block with a *diagonal* brand gradient.
+
+    Each glyph's color is picked by its (x + y) position across the whole block,
+    so the primary→secondary gradient flows top-left → bottom-right like Crush's
+    logo. Returns one Rich Text with embedded newlines; spaces stay uncolored.
+    """
+    from rich.text import Text
+
+    start, end = gradient_ends(theme)
+    sr, sg, sb = _hex_to_rgb(start)
+    er, eg, eb = _hex_to_rgb(end)
+    height = max(len(lines), 1)
+    width = max((len(ln) for ln in lines), default=1)
+    span = max(width + height - 2, 1)
+
+    out = Text()
+    for y, line in enumerate(lines):
+        for x, ch in enumerate(line):
+            if ch == " ":
+                out.append(" ")
+                continue
+            t = (x + y) / span
+            r = round(sr + (er - sr) * t)
+            g = round(sg + (eg - sg) * t)
+            b = round(sb + (eb - sb) * t)
+            out.append(ch, style=f"bold #{r:02x}{g:02x}{b:02x}")
+        if y < height - 1:
+            out.append("\n")
     return out
 
 

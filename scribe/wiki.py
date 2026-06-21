@@ -225,14 +225,14 @@ def ensure_frontmatter(page: Path, source: str = "") -> bool:
     if prose:
         meta["description"] = prose
     meta["timestamp"] = datetime.date.today().isoformat()
-    src = source or ""
     session_id = ""
-    if not src:
-        m = re.search(r"sesija\s+([^\s,)\]]+)", body)
-        if m:
-            src = f"sesija {m.group(1)}"
-            session_id = m.group(1)
-    else:
+    src = ""
+    m = re.search(r"sesija\s+([^\s,)\]]+)", body)
+    if m:
+        src = f"sesija {m.group(1)}"
+        session_id = m.group(1)
+    elif source:
+        src = source
         m = re.search(r"sesija\s+([^\s,)\]]+)", src)
         session_id = m.group(1) if m else ""
     if src:

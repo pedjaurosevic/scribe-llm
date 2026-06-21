@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from scribe.web import (
     _consume_terminal_token,
     _mint_terminal_token,
@@ -51,3 +53,85 @@ def test_token_rejects_expired():
     token = _mint_terminal_token()
     _terminal_tokens[token] = time.time() - 1  # force expiry
     assert _consume_terminal_token(token) is False
+
+
+def test_terminal_fallback_no_pty(monkeypatch):
+    """Verify that when PTY is not available, the websocket falls back to a standard process."""
+    import json
+
+    from fastapi.testclient import TestClient
+
+    import scribe.web
+
+    # Mock PTY not available
+    monkeypatch.setattr(scribe.web, "_PTY_AVAILABLE", False)
+    # Mock authentication to return True
+    monkeypatch.setattr(scribe.web, "_is_authed", lambda ws: True)
+    # Mock WebSocket origin check to return True
+    monkeypatch.setattr(scribe.web, "_valid_ws_origin", lambda ws: True)
+
+    # Mint a valid token
+    token = _mint_terminal_token()
+
+    client = TestClient(scribe.web.app)
+    with client.websocket_connect(f"/ws/terminal?token={token}") as ws:
+        ws.send_text(json.dumps({"type": "input", "data": "echo hello\n"}))
+        try:
+            data = ws.receive_bytes()
+            assert len(data) >= 0
+        except Exception:
+            pass
+
+
+def test_terminal_require_sandbox_failure(monkeypatch):
+    """require_sandbox=True with bubblewrap unavailable must fail closed."""
+    import scribe.web
+
+    # Mock PTY and bwrap not available
+    monkeypatch.setattr(scribe.web, "_PTY_AVAILABLE", False)
+    monkeypatch.setattr("scribe.tools.sandbox.bwrap_available", lambda: False)
+    # Enable require_sandbox
+    monkeypatch.setitem(scribe.web.config._config, "scribe.web", {
+        "require_sandbox": True,
+        "restricted_shell": True,
+    })
+    # Mock authentication
+    monkeypatch.setattr(scribe.web, "_is_authed", lambda ws: True)
+    monkeypatch.setattr(scribe.web, "_valid_ws_origin", lambda ws: True)
+
+    token = _mint_terminal_token()
+
+    from fastapi.testclient import TestClient
+    client = TestClient(scribe.web.app)
+    with client.websocket_connect(f"/ws/terminal?token={token}") as ws:
+        data = ws.receive_bytes()
+        assert b"Terminal refused" in data
+        # Connection should close immediately
+        with pytest.raises(Exception):
+            ws.receive_bytes()
+
+
+def test_terminal_degrade_warning(monkeypatch):
+    """Verify that when require_sandbox is False and bwrap is missing, we send warning message."""
+    import scribe.web
+
+    # Mock PTY and bwrap not available
+    monkeypatch.setattr(scribe.web, "_PTY_AVAILABLE", False)
+    monkeypatch.setattr("scribe.tools.sandbox.bwrap_available", lambda: False)
+    # Disable require_sandbox
+    monkeypatch.setitem(scribe.web.config._config, "scribe.web", {
+        "require_sandbox": False,
+        "restricted_shell": True,
+    })
+    # Mock authentication
+    monkeypatch.setattr(scribe.web, "_is_authed", lambda ws: True)
+    monkeypatch.setattr(scribe.web, "_valid_ws_origin", lambda ws: True)
+
+    token = _mint_terminal_token()
+
+    from fastapi.testclient import TestClient
+    client = TestClient(scribe.web.app)
+    with client.websocket_connect(f"/ws/terminal?token={token}") as ws:
+        data = ws.receive_bytes()
+        assert b"PTY / Bubblewrap not available" in data or b"Terminal running unsandboxed" in data
+

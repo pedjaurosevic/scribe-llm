@@ -220,7 +220,7 @@ class TextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
         self.text = []
-        self.ignore_tags = {"script", "style", "head", "nav", "footer", "meta", "link"}
+        self.ignore_tags = {"script", "style", "head", "nav", "footer"}
         self.ignore_depth = 0
 
     def handle_starttag(self, tag, attrs):

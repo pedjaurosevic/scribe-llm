@@ -72,6 +72,11 @@ config = ScribeConfig()
 adapter = LLMAdapter.from_config(config)
 session_manager = SessionManager(config)
 sme_service = get_sme_service()
+# Persona/identity — always injected into the web chat system prompt too, so the
+# agent is Scribe (not a bare model) on every surface. Seed defaults if missing.
+from scribe.worldmodel import load_worldmodel  # noqa: E402
+
+worldmodel = load_worldmodel()
 skills_executor = SkillsExecutor()
 store = DocumentStore(config)
 
@@ -258,6 +263,7 @@ async def login_submit(request: Request, pin: str = Form("")):
             _expected_token(),
             httponly=True,
             samesite="strict",
+            secure=request.url.scheme == "https",
             max_age=60 * 60 * 24,  # 24 hours (was 7 days)
         )
         return resp
@@ -817,6 +823,7 @@ async def websocket_chat(websocket: WebSocket):
         workspace=str(WORKSPACE_DIR),
         max_thinking_words=config.max_thinking_words,
         mode=config.reasoning_mode,
+        worldmodel=worldmodel,
     )
     if session_summary and "No previous session found" not in session_summary:
         system_content += (
@@ -925,6 +932,30 @@ async def websocket_chat(websocket: WebSocket):
                     "type": "status",
                     "content": "Generating..."
                 })
+
+                if mode == "provenance":
+                    from scribe.memory import ClaimStore, run_provenance_loop_ws
+                    claim_store = ClaimStore()
+                    try:
+                        final_answer = await run_provenance_loop_ws(
+                            websocket,
+                            user_content,
+                            claim_store,
+                            adapter,
+                            max_steps=5
+                        )
+                    finally:
+                        claim_store.close()
+
+                    messages.append({"role": "assistant", "content": final_answer})
+                    session_manager.add_message("user", user_content)
+                    session_manager.add_message("assistant", final_answer)
+
+                    await websocket.send_json({
+                        "type": "done",
+                        "content": final_answer,
+                    })
+                    continue
 
                 tools = fs.TOOL_SCHEMAS + web.TOOL_SCHEMAS if config.tools_enabled else None
                 final_answer = ""
@@ -1087,7 +1118,21 @@ async def chat(request: Request):
     body = await request.json()
     message = body.get("message", "")
 
-    messages = [{"role": "user", "content": message}]
+    # Inject the Scribe persona here too, so this endpoint answers as Scribe
+    # (with its WorldModel identity), not as a bare model.
+    messages = [
+        {
+            "role": "system",
+            "content": get_system_prompt(
+                config.reasoning,
+                workspace=str(WORKSPACE_DIR),
+                max_thinking_words=config.max_thinking_words,
+                mode=config.reasoning_mode,
+                worldmodel=worldmodel,
+            ),
+        },
+        {"role": "user", "content": message},
+    ]
 
     response = adapter.complete(messages)
 
@@ -1199,25 +1244,110 @@ async def websocket_terminal(websocket: WebSocket):
     security_log.info("terminal opened origin=%s", websocket.headers.get("origin", ""))
 
     if not _PTY_AVAILABLE:
-        # Native Windows: no PTY. Tell the client instead of crashing.
-        await websocket.send_bytes(
-            b"\r\n\x1b[33mIntegrated terminal is not supported on this platform "
-            b"(requires POSIX PTY: Linux, macOS or WSL).\x1b[0m\r\n"
+        if config.get("scribe.web", "require_sandbox", default=False):
+            await websocket.send_bytes(
+                b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
+                b"available in this environment (non-POSIX / no PTY support).\x1b[0m\r\n"
+            )
+            await websocket.close()
+            return
+
+        # Log warning and notify user in terminal UI
+        security_log.warning(
+            "Terminal degrading to unsandboxed shell: PTY / bubblewrap not available."
         )
-        await websocket.close()
-        return
+        await websocket.send_bytes(
+            b"\r\n\x1b[33m[Warning] PTY / Bubblewrap not available. "
+            b"Terminal running unsandboxed.\x1b[0m\r\n"
+        )
+
+        # Fallback to standard process on platforms without PTY (e.g. native Windows)
+        shell = os.environ.get("SHELL") or ("cmd.exe" if os.name == "nt" else "/bin/sh")
+        cmd = [shell]
+        if "bash" in shell:
+            if config.get("scribe.web", "restricted_shell", default=True):
+                cmd.append("--restricted")
+            cmd.append("-l")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=str(WORKSPACE_DIR),
+                env={**os.environ, "TERM": "xterm-256color"}
+            )
+        except Exception as e:
+            await websocket.send_bytes(
+                f"\r\n\x1b[31mFailed to start fallback shell {shell}: {e}\x1b[0m\r\n".encode()
+            )
+            await websocket.close()
+            return
+
+        async def _pump_output():
+            try:
+                while True:
+                    data = await proc.stdout.read(65536)
+                    if not data:
+                        break
+                    await websocket.send_bytes(data)
+            except Exception:
+                pass
+            finally:
+                try:
+                    await websocket.close()
+                except Exception:
+                    pass
+
+        out_task = asyncio.create_task(_pump_output())
+
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                event = json.loads(raw)
+                if event.get("type") == "input":
+                    inp_data = event.get("data", "").encode()
+                    proc.stdin.write(inp_data)
+                    await proc.stdin.drain()
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+        finally:
+            out_task.cancel()
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await proc.wait()
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            return
 
     from scribe.tools.sandbox import bwrap_available
 
     sandboxed = bwrap_available()
-    if not sandboxed and config.get("scribe.web", "require_sandbox", default=False):
-        # Fail closed: refuse an unsandboxed shell rather than degrade silently.
-        await websocket.send_bytes(
-            b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
-            b"available, and scribe.web.require_sandbox is set.\x1b[0m\r\n"
-        )
-        await websocket.close()
-        return
+    if not sandboxed:
+        if config.get("scribe.web", "require_sandbox", default=False):
+            # Fail closed: refuse an unsandboxed shell rather than degrade silently.
+            await websocket.send_bytes(
+                b"\r\n\x1b[31mTerminal refused: bubblewrap (bwrap) is required but not "
+                b"available, and scribe.web.require_sandbox is set.\x1b[0m\r\n"
+            )
+            await websocket.close()
+            return
+        else:
+            # Log warning and notify user in the terminal UI
+            security_log.warning(
+                "Terminal degrading to unsandboxed shell: bubblewrap (bwrap) is not available."
+            )
+            await websocket.send_bytes(
+                b"\r\n\x1b[33m[Warning] bubblewrap (bwrap) is not available. "
+                b"Terminal running unsandboxed.\x1b[0m\r\n"
+            )
 
     master_fd, slave_fd = pty.openpty()
     shell = os.environ.get("SHELL", "/bin/bash")

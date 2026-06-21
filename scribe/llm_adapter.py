@@ -10,6 +10,7 @@ Supports:
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 import os
@@ -112,7 +113,37 @@ def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
     """
     text_clean = text.strip()
 
-    # 1. Try JSON parsing
+    # 1. Try <|tool_call>call:tool_name{...} or call:tool_name{...} format (llama.cpp)
+    if "call:" in text_clean.lower() or "<|tool_call>" in text_clean.lower():
+        pat = r"(?:<\|tool_call\|?>\s*)?call:([a-zA-Z0-9_-]+)(.*?)$"
+        match = re.search(pat, text_clean, re.DOTALL | re.IGNORECASE)
+        if match:
+            name = match.group(1).strip()
+            args_str = match.group(2).strip()
+            s_idx = args_str.find("{")
+            e_idx = args_str.rfind("}")
+            if s_idx != -1 and e_idx != -1 and e_idx > s_idx:
+                args_str = args_str[s_idx:e_idx + 1]
+            try:
+                args = json.loads(args_str)
+                return [_fallback_call(name, args)]
+            except Exception:
+                pass
+            # Fix unquoted keys if present: {key: value} -> {"key": value}
+            fixed_args = re.sub(r'([{\s,])([a-zA-Z0-9_-]+)\s*:', r'\1"\2":', args_str)
+            try:
+                args = json.loads(fixed_args)
+                return [_fallback_call(name, args)]
+            except Exception:
+                pass
+            try:
+                args = ast.literal_eval(args_str)
+                if isinstance(args, dict):
+                    return [_fallback_call(name, args)]
+            except Exception:
+                pass
+
+    # 2. Try JSON parsing
     # Look for the first '{' and last '}'
     start_idx = text_clean.find("{")
     end_idx = text_clean.rfind("}")
@@ -131,7 +162,7 @@ def parse_text_tool_calls(text: str) -> list[dict[str, Any]]:
         except Exception:
             pass
 
-    # 2. Try ReAct format parsing (e.g. Action: list_dir / Action Input: ...)
+    # 3. Try ReAct format parsing (e.g. Action: list_dir / Action Input: ...)
     action_match = re.search(r"(?:Action|Call):\s*([a-zA-Z0-9_-]+)", text_clean, re.IGNORECASE)
     if action_match:
         name = action_match.group(1).strip()
@@ -206,6 +237,14 @@ class _AnswerGate:
             return None
         if head.startswith("{"):
             return True
+
+        potential_tags = ["<|tool_call", "call:"]
+        for tag in potential_tags:
+            if head.lower().startswith(tag):
+                return True
+            if tag.startswith(head.lower()):
+                return None
+
         if head.startswith("`"):
             # Possibly a fenced tool call (```json\n{...}). Look past the
             # fence's opening line to see what it actually contains.

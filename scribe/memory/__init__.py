@@ -2,6 +2,12 @@
 Memory layer - SME and RAG integrations.
 """
 
+from scribe.memory.provenance import (
+    ClaimStore,
+    process_agent_response,
+    run_provenance_loop,
+    run_provenance_loop_ws,
+)
 from scribe.memory.rag import (
     DEFAULT_RAG_PATH,
     DocumentChunk,
@@ -26,4 +32,8 @@ __all__ = [
     "DocumentChunk",
     "get_rag_service",
     "DEFAULT_RAG_PATH",
+    "ClaimStore",
+    "process_agent_response",
+    "run_provenance_loop",
+    "run_provenance_loop_ws",
 ]
