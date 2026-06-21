@@ -6,7 +6,7 @@ from scribe.tui_app import build_status_line
 from scribe.ui.console import PALETTES
 
 MODEL = "gemma-4-12B-it-Q4_K_M.gguf"
-PAL = PALETTES["gruvbox-dark"]
+PAL = PALETTES["ink"]
 
 
 def _line(width, code_mode):

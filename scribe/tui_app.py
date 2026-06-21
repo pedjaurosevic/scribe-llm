@@ -42,13 +42,16 @@ from scribe.llm_adapter import LLMAdapter
 from scribe.memory.sme import get_sme_service
 from scribe.prompts import get_code_system_prompt, get_system_prompt
 from scribe.session import SessionManager
+from scribe.worldmodel import load_worldmodel
 from scribe.ui.console import (
     DEFAULT_THEME,
     PALETTES,
+    gradient_block,
     gradient_text,
     hatch_bar,
     list_themes,
 )
+from scribe.ui.logo import SCRIBE_TAGLINE, SCRIBE_WORDMARK, banner_lines
 
 
 def dashboard_columns(
@@ -426,7 +429,12 @@ class ScribeApp(App):
     COMMANDS = App.COMMANDS | {ScribeCommands}
 
     CSS = """
-    Screen { layout: vertical; overflow: hidden; }
+    /* No scrollbar chrome anywhere — scroll with the mouse wheel or keyboard.
+       scrollbar-size 0 0 keeps scrolling fully functional but hides the gutter. */
+    Screen { layout: vertical; overflow: hidden; scrollbar-size: 0 0; }
+    VerticalScroll { scrollbar-size: 0 0; }
+    ListView { scrollbar-size: 0 0; }
+    Markdown { scrollbar-size: 0 0; }
     #topbar { height: 1; padding: 0 1; }
     #chat { height: 1fr; padding: 1 2; scrollbar-size: 0 0; }
     #chat .msg-user { margin: 0 0 1 0; }
@@ -458,6 +466,10 @@ class ScribeApp(App):
         self.adapter = LLMAdapter.from_config(self.config)
         self.session = SessionManager(self.config)
         self.sme = get_sme_service()
+        # Persona/identity is ALWAYS injected so the agent never "forgets who it
+        # is" (the Kon E2B lesson). load_worldmodel returns seed defaults if the
+        # file is missing — never an empty persona.
+        self.worldmodel = load_worldmodel()
 
         self.workspace = Path(self.config.workspace_dir)
         self.workspace.mkdir(parents=True, exist_ok=True)
@@ -465,6 +477,9 @@ class ScribeApp(App):
         self.allow_outside = False
         self._last_tok_s = 0.0
         self._exit_armed = False
+        # True while only the landing splash is shown (no conversation yet); lets
+        # a theme switch re-render the splash so the WHOLE screen recolors.
+        self._on_splash = False
 
         self.messages: list[dict] = [{
             "role": "system",
@@ -473,6 +488,7 @@ class ScribeApp(App):
                 workspace=str(self.workspace),
                 max_thinking_words=self.config.max_thinking_words,
                 mode=self.config.reasoning_mode,
+                worldmodel=self.worldmodel,
             ),
         }]
 
@@ -514,27 +530,18 @@ class ScribeApp(App):
 
         p = self._palette()
         body = Text()
-        body.append("  ")
-        body.append_text(gradient_text("✶ SCRIBE-LLM", self.theme_name))
-        body.append(f"   {self.workspace}\n", style="dim")
+        body.append("\n")
+        # Big gradient SCRIBE banner (indented two cells) + LLM tagline.
+        body.append_text(gradient_block(["  " + ln for ln in banner_lines()], self.theme_name))
+        body.append("\n  ")
+        body.append_text(gradient_text(SCRIBE_TAGLINE, self.theme_name, bold=False))
+        body.append(f"\n  {self.workspace}\n", style="dim")
         body.append_text(hatch_bar("", self.theme_name, width=46))
         body.append("\n\n")
         think = "off" if not self.config.reasoning else "on"
         body.append("  ◇ ", style=p["secondary"])
         body.append(self.adapter.get_model_name(), style=f"bold {p['accent']}")
         body.append(f"  ·  reasoning: {think}\n", style="dim")
-
-        # Keybind hints displayed at the top, below model name
-        body.append("  ⌨ ", style=p["secondary"])
-        for i, (key, what) in enumerate(
-            [("/", "komande"), ("^L", "modeli"), ("^S", "sesije"),
-             ("^J", "novi red"), ("^D ^C", "izlaz")]
-        ):
-            if i:
-                body.append("  ·  ", style="dim")
-            body.append(key, style=f"bold {p['accent']}")
-            body.append(f" {what}", style=p["fg"])
-        body.append("\n\n")
 
         skills = []
         try:
@@ -568,9 +575,37 @@ class ScribeApp(App):
                     cells.append(Text(""))
             table.add_row(*cells)
 
+        # Keybind hints, shown BELOW the capability columns, one per line.
+        # English labels (the working languages here are English and Chinese).
+        hints = Text()
+        hints.append("  ⌨ keys", style=f"bold {p['secondary']}")
+        rows = [
+            ("/",       "open the command palette"),
+            ("/help",   "explain every command"),
+            ("^L",      "model backend"),
+            ("^S",      "sessions"),
+            ("^J",      "new line in the message"),
+            ("^D ^C",   "exit (arm, then confirm)"),
+        ]
+        keyw = max(len(k) for k, _ in rows)
+        for key, what in rows:
+            hints.append("\n    ")
+            hints.append(key.ljust(keyw), style=f"bold {p['accent']}")
+            hints.append(f"   {what}", style=p["fg"])
+
         chat = self.query_one("#chat", VerticalScroll)
         chat.mount(Static(body, classes="splash"))
         chat.mount(Static(table, classes="splash"))
+        chat.mount(Static(hints, classes="splash"))
+        self._on_splash = True
+
+    async def _reshow_splash(self) -> None:
+        """Re-render the landing splash so a theme switch recolors everything."""
+        if not self._on_splash:
+            return
+        chat = self.query_one("#chat", VerticalScroll)
+        await chat.remove_children()
+        self._show_splash()
 
     async def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Typing just `/` in an empty prompt opens the command palette (Crush)."""
@@ -647,7 +682,7 @@ class ScribeApp(App):
         bar = Text(no_wrap=True, overflow="ellipsis", end="")
         bar.append(" ")
         # Gradient brand wordmark (Crush-style primary→secondary).
-        bar.append_text(gradient_text("✶ SCRIBE-LLM", self.theme_name))
+        bar.append_text(gradient_text(SCRIBE_WORDMARK, self.theme_name))
         bar.append("  ·  ◇ ", style=p["secondary"])
         bar.append(model, style=f"bold {p['accent']}")
         think = "off" if not self.config.reasoning else "on"
@@ -716,6 +751,7 @@ class ScribeApp(App):
         self._run_turn()
 
     async def _add_user(self, text: str) -> None:
+        self._on_splash = False  # a real turn began; stop treating chat as splash
         p = self._palette()
         body = Text()
         body.append("▌ You\n", style=f"bold {p['user']}")
@@ -921,8 +957,17 @@ class ScribeApp(App):
             self._cmd_code(off=(cmd == "/chat" or arg.lower() in ("off", "exit")))
         elif cmd == "/help":
             await self._note(
-                "Commands: /theme NAME · /code · /chat · /clear · /quit\n"
-                "Keys: Ctrl+L model backend · Ctrl+P command palette\n"
+                "Commands\n"
+                "  /help          show this help\n"
+                "  /theme [NAME]  list themes, or switch to NAME\n"
+                "  /code          enter Code mode (terminal expert, sandboxed bash)\n"
+                "  /chat          leave Code mode, back to normal chat\n"
+                "  /clear         clear the conversation\n"
+                "  /quit          exit Scribe\n"
+                "Keys\n"
+                "  Ctrl+L  model backend     Ctrl+S  sessions\n"
+                "  Ctrl+P  command palette    Ctrl+J  new line\n"
+                "  Ctrl+D then Ctrl+C  exit\n"
                 f"Themes: {', '.join(list_themes())}"
             )
         else:
@@ -939,6 +984,8 @@ class ScribeApp(App):
             return
         self.theme_name = name
         self._apply_theme()
+        # Recolor the whole landing if it is still showing (palette path).
+        self.run_worker(self._reshow_splash(), exclusive=False)
         try:
             self.config.save_value("scribe.ui", "theme", name)
         except Exception:
@@ -959,7 +1006,10 @@ class ScribeApp(App):
             self.config.save_value("scribe.ui", "theme", name)
         except Exception:
             pass
-        await self._note(f"Theme → {name}")
+        if self._on_splash:
+            await self._reshow_splash()  # recolor the whole landing
+        else:
+            await self._note(f"Theme → {name}")
 
     def _cmd_code(self, off: bool) -> None:
         if off:
