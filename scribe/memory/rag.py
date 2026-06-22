@@ -191,6 +191,34 @@ class RAGService:
 
         return chunks
 
+    @staticmethod
+    def _document_title(file_path: Path) -> str:
+        """Human-readable fallback title from the filename."""
+        return file_path.stem.replace("_", " ").replace("-", " ").strip()
+
+    @staticmethod
+    def _first_heading(text: str) -> str:
+        """Return the first Markdown-style heading in a chunk, if present."""
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                title = stripped.lstrip("#").strip()
+                if title:
+                    return title
+        return ""
+
+    def _section_for_chunk(self, file_path: Path, chunk: str) -> str:
+        """Best available section label for retrieval and citation context."""
+        return self._first_heading(chunk) or self._document_title(file_path)
+
+    @staticmethod
+    def _with_chunk_context(content: str, source_name: str, section: str) -> str:
+        """Prefix chunk text with lightweight context used by retrieval and grounding."""
+        context = [f"Document: {source_name}"]
+        if section:
+            context.append(f"Section: {section}")
+        return "\n".join(context) + "\n\n" + content
+
     def ingest_file(self, file_path: str | Path) -> int:
         """
         Ingest a document file.
@@ -210,20 +238,22 @@ class RAGService:
 
         rows = []
         for i, chunk in enumerate(chunks):
-            chunk_id = f"{file_path.name}_{i}_{hash(chunk) % 100000:05d}"
+            section = self._section_for_chunk(file_path, chunk)
+            indexed_content = self._with_chunk_context(chunk, file_path.name, section)
+            chunk_id = f"{file_path.name}_{i}_{hash(indexed_content) % 100000:05d}"
 
             try:
-                vector = self._embed([chunk])[0]
+                vector = self._embed([indexed_content])[0]
             except Exception:
                 vector = [0.0] * EMBEDDING_DIM
 
             row = {
                 "id": chunk_id,
-                "content": chunk,
+                "content": indexed_content,
                 "source_file": str(file_path),
                 "chunk_index": i,
                 "page": 0,
-                "section": "",
+                "section": section,
                 "created_at": datetime.now().isoformat(),
                 "metadata": json.dumps({"original_name": file_path.name}),
                 "vector": vector,

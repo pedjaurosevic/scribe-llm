@@ -116,6 +116,7 @@ class TestGrounding:
         assert "[1], [2]" in GROUNDING_RULES
         assert "do not cover" in GROUNDING_RULES
         assert "[CONTRADICTION" in GROUNDING_RULES
+        assert "different wording" in GROUNDING_RULES
 
     def test_full_prompt_contains_rules_and_sources(self):
         prompt = get_grounded_prompt([FakeChunk("gamma")])
@@ -151,6 +152,19 @@ class TestHybridSearchIntegration:
         added = rag.ingest_file(doc)
         assert added >= 1
         assert rag.fts.count() == added
+
+    def test_ingest_adds_document_context(self, rag, tmp_path):
+        doc = tmp_path / "workspace-checkpoint-rollback.txt"
+        doc.write_text(
+            "Restore re-materializes the snapshot tree: files that did not "
+            "exist in the snapshot are deleted."
+        )
+        rag.ingest_file(doc)
+        results = rag.hybrid_search("checkpoint rollback new files", limit=1)
+        assert results
+        assert results[0].section == "workspace checkpoint rollback"
+        assert "Document: workspace-checkpoint-rollback.txt" in results[0].content
+        assert "Section: workspace checkpoint rollback" in results[0].content
 
     def test_hybrid_finds_exact_identifier(self, rag, tmp_path):
         doc = tmp_path / "notes.md"

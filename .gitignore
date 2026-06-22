@@ -20,6 +20,7 @@ env/
 .ruff_cache/
 .coverage
 htmlcov/
+bench/results/
 
 # Scribe local state & data (per-user, never commit)
 .scribe/
