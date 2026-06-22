@@ -21,7 +21,8 @@ Three properties that hold by construction, not by prompt-tuning:
    disagree, and refuses to answer outside the sources. ([scribe/prompts.py](scribe/prompts.py))
 3. **Grounding is measured, not asserted.** `scribe-llm bench` reports a
    deterministic Source-Presence Index (SPI) over a checksum-locked held-out
-   suite — on Gemma 4 12B it scores **SPI 1.00**. ([scribe/evolve/spi.py](scribe/evolve/spi.py))
+   suite — on Gemma 4 12B it scores **SPI 1.00**. ([scribe/evolve/spi.py](scribe/evolve/spi.py)).
+   See [Gauntlet Soak Test Results](bench/README.md) for performance under load.
 
 > **Honest scope:** GBNF and constrained decoding aren't new — llama.cpp added
 > grammars in 2023, and the same idea ships elsewhere as "structured outputs".
