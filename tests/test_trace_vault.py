@@ -101,12 +101,33 @@ class TestStatusContract:
         monkeypatch.setattr(
             "scribe.llm_adapter.LLMAdapter.is_healthy", lambda self: False
         )
-        monkeypatch.setattr(
-            "scribe.memory.rag.get_rag_service",
-            lambda config: (_ for _ in ()).throw(RuntimeError("boom")),
-        )
+        cfg.set("scribe.rag", "index_dir", str(tmp_path / "missing-rag"))
         status = collect_status(cfg)
         assert status["rag"]["available"] is False
+
+    def test_status_counts_rag_without_loading_service(self, tmp_path, monkeypatch):
+        cfg = ScribeConfig()
+        cfg.set("scribe.rag", "index_dir", str(tmp_path / "rag"))
+        monkeypatch.setattr(
+            "scribe.llm_adapter.LLMAdapter.is_healthy", lambda self: False
+        )
+
+        from scribe.memory.hybrid import FTSIndex
+
+        idx = FTSIndex(tmp_path / "rag" / "fts.db")
+        idx.add([
+            {"id": "a1", "source_file": "a.md", "content": "alpha"},
+            {"id": "a2", "source_file": "a.md", "content": "beta"},
+            {"id": "b1", "source_file": "b.md", "content": "gamma"},
+        ])
+        idx.close()
+
+        status = collect_status(cfg)
+        assert status["rag"]["available"] is True
+        assert status["rag"]["chunks"] == 3
+        assert status["rag"]["fts_chunks"] == 3
+        assert status["rag"]["sources"] == 2
+        assert status["rag"]["mode"] == "fast"
 
 
 class TestVault:
