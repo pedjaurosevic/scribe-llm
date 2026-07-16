@@ -14,6 +14,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The tool-call repair path no longer requires llama.cpp.
 
 ### Changed
+- **Hardened held-out eval suites.** The grounded SPI suite grows 8 → 24
+  tasks (multi-hop synthesis, cross-language grounding, enumerations with
+  distractors, famous-fact and near-miss refusal traps); the fitness suite
+  grows 20 → 32 (multi-step logic, distractor arithmetic, letter counting,
+  calendar math). Saturated baselines drop from 1.000 to SPI 0.851 /
+  fitness 0.969 on gemma-4-12B, so the instruments can register improvement
+  and regression again. The checksum manifest was regenerated; leaderboard
+  scores are not comparable with the old 8-task suite.
 - **Windows fallback web terminal.** Without a PTY the integrated terminal
   now runs a request-response shell (line-buffered commands, Ctrl+C
   interrupt, `cls`/`clear`) instead of piping into an unsandboxed
