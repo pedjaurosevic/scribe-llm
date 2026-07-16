@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Structured-outputs fallback for forced tool calls.** On servers without
+  GBNF grammar support (Ollama, LM Studio, cloud APIs), `forced_tool_call`
+  now constrains the output with `response_format` `json_schema` (tool names
+  as an enum), degrading to `json_object` and finally a plain completion.
+  The tool-call repair path no longer requires llama.cpp.
+
+### Changed
+- **Windows fallback web terminal.** Without a PTY the integrated terminal
+  now runs a request-response shell (line-buffered commands, Ctrl+C
+  interrupt, `cls`/`clear`) instead of piping into an unsandboxed
+  interactive shell.
+
 ## [2.0.1] - 2026-06-21
 
 ### Changed
