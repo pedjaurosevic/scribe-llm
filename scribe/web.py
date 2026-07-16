@@ -1252,79 +1252,107 @@ async def websocket_terminal(websocket: WebSocket):
             await websocket.close()
             return
 
-        # Log warning and notify user in terminal UI
+        # Notify user of the Request-Response fallback shell
         security_log.warning(
-            "Terminal degrading to unsandboxed shell: PTY / bubblewrap not available."
+            "Terminal degrading to Windows request-response fallback shell: PTY not available."
         )
         await websocket.send_bytes(
-            b"\r\n\x1b[33m[Warning] PTY / Bubblewrap not available. "
-            b"Terminal running unsandboxed.\x1b[0m\r\n"
+            b"\r\n\x1b[33m[Scribe Windows Fallback Shell - "
+            b"PTY / Bubblewrap not available]\x1b[0m\r\n"
+            b"\x1b[36mEnter a command (e.g. 'dir', 'git status', 'python') "
+            b"and press Enter.\x1b[0m\r\n\r\n"
         )
 
-        # Fallback to standard process on platforms without PTY (e.g. native Windows)
-        shell = os.environ.get("SHELL") or ("cmd.exe" if os.name == "nt" else "/bin/sh")
-        cmd = [shell]
-        if "bash" in shell:
-            if config.get("scribe.web", "restricted_shell", default=True):
-                cmd.append("--restricted")
-            cmd.append("-l")
+        prompt = f"\r\n{WORKSPACE_DIR}> "
+        await websocket.send_bytes(prompt.encode("utf-8"))
 
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                cwd=str(WORKSPACE_DIR),
-                env={**os.environ, "TERM": "xterm-256color"}
-            )
-        except Exception as e:
-            await websocket.send_bytes(
-                f"\r\n\x1b[31mFailed to start fallback shell {shell}: {e}\x1b[0m\r\n".encode()
-            )
-            await websocket.close()
-            return
-
-        async def _pump_output():
-            try:
-                while True:
-                    data = await proc.stdout.read(65536)
-                    if not data:
-                        break
-                    await websocket.send_bytes(data)
-            except Exception:
-                pass
-            finally:
-                try:
-                    await websocket.close()
-                except Exception:
-                    pass
-
-        out_task = asyncio.create_task(_pump_output())
+        command_buffer = ""
+        current_proc = None
 
         try:
             while True:
                 raw = await websocket.receive_text()
                 event = json.loads(raw)
-                if event.get("type") == "input":
-                    inp_data = event.get("data", "").encode()
-                    proc.stdin.write(inp_data)
-                    await proc.stdin.drain()
+                if event.get("type") != "input":
+                    continue
+
+                data = event.get("data", "")
+                if not data:
+                    continue
+
+                # Handle Enter / Carriage Return
+                if data in ("\r", "\n"):
+                    cmd_str = command_buffer.strip()
+                    await websocket.send_bytes(b"\r\n")
+
+                    if cmd_str:
+                        if cmd_str.lower() in ("clear", "cls"):
+                            await websocket.send_bytes(b"\x1b[2J\x1b[H")
+                        else:
+                            try:
+                                # Run command inside Windows shell cmd.exe or sh
+                                current_proc = await asyncio.create_subprocess_shell(
+                                    cmd_str,
+                                    cwd=str(WORKSPACE_DIR),
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.STDOUT,
+                                    env={**os.environ, "TERM": "xterm-256color"}
+                                )
+
+                                while True:
+                                    line = await current_proc.stdout.readline()
+                                    if not line:
+                                        break
+                                    # Normalize output lines for xterm.js (convert \n to \r\n)
+                                    decoded = line.decode("utf-8", errors="replace")
+                                    normalized = decoded.replace(
+                                        "\n", "\r\n"
+                                    ).replace("\r\r\n", "\r\n")
+                                    await websocket.send_bytes(normalized.encode("utf-8"))
+
+                                await current_proc.wait()
+                            except Exception as e:
+                                await websocket.send_bytes(
+                                    f"\r\n\x1b[31mError running command: {e}\x1b[0m\r\n".encode()
+                                )
+                            finally:
+                                current_proc = None
+
+                    command_buffer = ""
+                    await websocket.send_bytes(prompt.encode("utf-8"))
+
+                # Handle Backspace
+                elif data in ("\x7f", "\x08"):
+                    if command_buffer:
+                        command_buffer = command_buffer[:-1]
+                        await websocket.send_bytes(b"\x08 \x08")
+
+                # Handle Ctrl+C (Interrupt)
+                elif data == "\x03":
+                    if current_proc and current_proc.returncode is None:
+                        try:
+                            current_proc.terminate()
+                        except Exception:
+                            pass
+                    await websocket.send_bytes(b"^C\r\n")
+                    command_buffer = ""
+                    await websocket.send_bytes(prompt.encode("utf-8"))
+
+                # Ordinary printable character
+                elif len(data) == 1 and ord(data) >= 32:
+                    command_buffer += data
+                    await websocket.send_bytes(data.encode("utf-8"))
+
         except WebSocketDisconnect:
             pass
         except Exception:
             pass
         finally:
-            out_task.cancel()
-            if proc.returncode is None:
+            if current_proc and current_proc.returncode is None:
                 try:
-                    proc.terminate()
-                    await proc.wait()
+                    current_proc.terminate()
                 except Exception:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
+                    pass
             return
 
     from scribe.tools.sandbox import bwrap_available

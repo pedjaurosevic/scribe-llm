@@ -418,26 +418,70 @@ class LLMAdapter:
     ) -> list[dict[str, Any]]:
         """
         Ask for a tool call that *cannot* be malformed: the request carries a
-        GBNF grammar derived from the tool schemas, so the only strings the
-        model can produce are valid calls. Thinking is disabled for the
-        request (the grammar constrains the whole output).
+        GBNF grammar derived from the tool schemas, or a structured output schema,
+        so the only strings the model can produce are valid calls. Thinking is
+        disabled for the request.
 
-        Returns the parsed calls (one element). Raises if the server rejects
-        the grammar — callers should check grammar_supported() first.
+        Returns the parsed calls (one element).
         """
-        grammar = tool_call_grammar(tools)
-        text = self.complete(
-            messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            extra_body={
-                "grammar": grammar,
-                "chat_template_kwargs": {"enable_thinking": False},
-            },
-        )
+        if self.grammar_supported():
+            grammar = tool_call_grammar(tools)
+            text = self.complete(
+                messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                extra_body={
+                    "grammar": grammar,
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
+            )
+        else:
+            # structured outputs fallback using response_format
+            tool_names = [t.get("function", t).get("name") for t in tools]
+            schema = {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "enum": tool_names
+                    },
+                    "arguments": {
+                        "type": "object"
+                    }
+                },
+                "required": ["name", "arguments"]
+            }
+            try:
+                text = self.complete(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "tool_call",
+                            "schema": schema
+                        }
+                    }
+                )
+            except Exception:
+                try:
+                    text = self.complete(
+                        messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        response_format={"type": "json_object"}
+                    )
+                except Exception:
+                    text = self.complete(
+                        messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+
         calls = parse_text_tool_calls(text)
         if not calls:
-            raise ValueError(f"grammar-constrained output did not parse: {text[:200]!r}")
+            raise ValueError(f"forced tool call did not parse: {text[:200]!r}")
         return calls
 
     def _repair_tool_calls(
@@ -448,9 +492,9 @@ class LLMAdapter:
         leftover: str,
     ) -> list[dict[str, Any]] | None:
         """
-        The grammar-retry path: when a turn produced a broken tool call (bad
-        JSON arguments, unknown tool, or an unparseable text blob that was
-        clearly *trying* to be a call), re-ask once with the grammar attached.
+        The retry path: when a turn produced a broken tool call (bad JSON
+        arguments, unknown tool, or an unparseable text blob), re-ask once
+        with a grammar or structured outputs format attached.
 
         Returns repaired calls, or None when no repair is needed/possible.
         Sets `last_tool_repair` with a short reason when a repair ran.
@@ -469,7 +513,7 @@ class LLMAdapter:
         elif leftover and looks_like_tool_call(leftover, tools):
             problem = "text tool call did not parse"
 
-        if not problem or not self.grammar_supported():
+        if not problem:
             return None
         try:
             repaired = self.forced_tool_call(messages, tools)
