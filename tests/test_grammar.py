@@ -176,10 +176,16 @@ class TestAdapterGrammarWiring:
         calls = [{"name": "nope", "arguments": "{}"}]
         assert adapter._repair_tool_calls([], fs.TOOL_SCHEMAS, calls, "") is None
 
-    def test_broken_call_without_grammar_support_passes_through(self):
+    def test_broken_call_without_grammar_support_still_repairs(self, monkeypatch):
+        # Since the structured-outputs fallback, repair no longer requires
+        # GBNF support: forced_tool_call handles non-llama.cpp servers too.
         adapter = self._adapter()
+        fixed = [{"name": "write_file", "arguments": '{"path": "a", "content": "b"}'}]
+        monkeypatch.setattr(adapter, "forced_tool_call", lambda *a, **k: fixed)
         calls = [{"name": "write_file", "arguments": "{broken"}]
-        assert adapter._repair_tool_calls([], fs.TOOL_SCHEMAS, calls, "") is None
+        out = adapter._repair_tool_calls([], fs.TOOL_SCHEMAS, calls, "")
+        assert out == fixed
+        assert "not valid JSON" in adapter.last_tool_repair
 
     def test_broken_call_with_grammar_support_repairs(self, monkeypatch):
         adapter = self._adapter()
@@ -218,3 +224,65 @@ class TestAdapterGrammarWiring:
         adapter.thinking_mode = "off"
         kwargs = adapter._with_thinking({}, [{"role": "user", "content": "why?"}])
         assert kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
+
+
+class TestStructuredOutputFallback:
+    """forced_tool_call on servers without GBNF grammar support."""
+
+    def _adapter(self) -> LLMAdapter:
+        adapter = LLMAdapter(base_url="http://127.0.0.1:9", tool_grammar="auto")
+        adapter._grammar_supported = False  # never touch the network in tests
+        return adapter
+
+    def test_uses_json_schema_response_format(self, monkeypatch):
+        adapter = self._adapter()
+        seen: list[dict] = []
+
+        def fake_complete(messages, **kwargs):
+            seen.append(kwargs)
+            return '{"name": "list_dir", "arguments": {"path": "."}}'
+
+        monkeypatch.setattr(adapter, "complete", fake_complete)
+        calls = adapter.forced_tool_call([], fs.TOOL_SCHEMAS)
+        assert calls[0]["name"] == "list_dir"
+        rf = seen[0]["response_format"]
+        assert rf["type"] == "json_schema"
+        names = rf["json_schema"]["schema"]["properties"]["name"]["enum"]
+        assert set(names) == {t["function"]["name"] for t in fs.TOOL_SCHEMAS}
+
+    def test_degrades_json_schema_to_json_object_to_plain(self, monkeypatch):
+        adapter = self._adapter()
+        seen: list[dict] = []
+
+        def fake_complete(messages, **kwargs):
+            seen.append(kwargs)
+            if len(seen) < 3:
+                raise RuntimeError("response_format not supported")
+            return '{"name": "read_file", "arguments": {"path": "a.md"}}'
+
+        monkeypatch.setattr(adapter, "complete", fake_complete)
+        calls = adapter.forced_tool_call([], fs.TOOL_SCHEMAS)
+        assert calls[0]["name"] == "read_file"
+        assert seen[0]["response_format"]["type"] == "json_schema"
+        assert seen[1]["response_format"] == {"type": "json_object"}
+        assert "response_format" not in seen[2]
+
+    def test_grammar_path_untouched_when_supported(self, monkeypatch):
+        adapter = self._adapter()
+        adapter._grammar_supported = True
+        seen: list[dict] = []
+
+        def fake_complete(messages, **kwargs):
+            seen.append(kwargs)
+            return '{"name": "list_dir", "arguments": {"path": "."}}'
+
+        monkeypatch.setattr(adapter, "complete", fake_complete)
+        adapter.forced_tool_call([], fs.TOOL_SCHEMAS)
+        assert "grammar" in seen[0]["extra_body"]
+        assert "response_format" not in seen[0]
+
+    def test_unparseable_fallback_output_raises(self, monkeypatch):
+        adapter = self._adapter()
+        monkeypatch.setattr(adapter, "complete", lambda *a, **k: "no json here")
+        with pytest.raises(ValueError, match="did not parse"):
+            adapter.forced_tool_call([], fs.TOOL_SCHEMAS)
