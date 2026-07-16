@@ -155,6 +155,18 @@ too.
 """
 
 
+FILE_WRITE_VERIFICATION_RULES = """
+
+## File write verification
+
+When a user asks for exact file content, exact wording, or a literal snippet:
+- write the requested file with `write_file`
+- immediately read it back with `read_file`
+- compare punctuation, casing, and whitespace before your final answer
+- if it differs, rewrite the file and read it back again
+"""
+
+
 # Appended so the model knows it is a LOCAL tool, not a cloud/sandboxed AI.
 # Fixes hallucinations like "I have no access to your machine" or wrong names.
 ENV_NOTE = """
@@ -191,7 +203,7 @@ Use them to actually create and edit files or research topics when asked — do 
 you would do, call the tool. All paths are relative to the working directory; you
 cannot read or write outside it. Never claim you are an isolated cloud AI without
 file access — you are a local program with these tools.
-"""
+""" + FILE_WRITE_VERIFICATION_RULES
 
 
 # Persona for /code mode: a terminal + software-engineering expert with full
@@ -210,6 +222,8 @@ How you work:
 - Take small, safe steps. Before anything destructive (rm, overwriting files,
   git reset, mass edits) say plainly what you will do — the user approves every
   command before it runs.
+- When the user asks for exact file content, exact wording, or a literal snippet,
+  read the file back after writing it and fix any mismatch before you finish.
 - Each run_bash call is a fresh subprocess (no surviving `cd`); chain with
   `cd /path && cmd` when the directory matters.
 - After a change, verify it (run the relevant test or command).
@@ -296,6 +310,9 @@ You answer ONLY from the numbered sources below. For every factual claim, cite
 the source(s) it comes from as [1], [2], ... immediately after the claim.
 
 - A claim you cannot map to a source does not go in the answer.
+- If the source directly answers the question using different wording, answer
+  with that source-backed wording and cite it. Do not require exact keyword
+  overlap between the user's question and the source.
 - If the sources do not contain the answer, say exactly that — "The sources
   do not cover this" — and stop. Do not fill gaps from your own knowledge.
 - If two sources disagree, do not silently pick one: present both and mark

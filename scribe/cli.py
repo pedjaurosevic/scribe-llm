@@ -40,9 +40,6 @@ for _stream in (sys.stdin, sys.stdout, sys.stderr):
 
 from scribe import __version__
 from scribe.config import ScribeConfig
-from scribe.llm_adapter import LLMAdapter
-from scribe.memory import get_rag_service, get_sme_service, recall_previous_session
-from scribe.session import SessionManager
 from scribe.ui import get_default_console
 
 
@@ -117,6 +114,7 @@ def discover(ctx, tailscale, set_default):
 def compare(ctx, prompt, model_a, model_b):
     """Blind A/B two models on one prompt; vote, then reveal."""
     from scribe.compare import Contestant, answer_with, build_blind
+    from scribe.llm_adapter import LLMAdapter
 
     console = ctx.obj["console"]
     adapter = LLMAdapter.from_config(ctx.obj["config"])
@@ -287,6 +285,8 @@ def memory():
 @click.pass_context
 def memory_recall(ctx, query, limit):
     """Recall information from semantic memory."""
+    from scribe.memory import get_sme_service
+
     console = ctx.obj["console"]
     sme = get_sme_service()
 
@@ -311,6 +311,8 @@ def memory_recall(ctx, query, limit):
 @click.pass_context
 def memory_stats(ctx):
     """Show memory statistics."""
+    from scribe.memory import get_sme_service
+
     console = ctx.obj["console"]
     sme = get_sme_service()
 
@@ -346,6 +348,9 @@ def wiki():
 def wiki_distill(ctx, since, limit, dry_run, no_rag):
     """Distill saved sessions into WIKI pages (decisions, conclusions, facts)."""
     from scribe import wiki as wiki_mod
+    from scribe.llm_adapter import LLMAdapter
+    from scribe.memory import get_rag_service
+    from scribe.session import SessionManager
 
     console = ctx.obj["console"]
     config = ctx.obj["config"]
@@ -420,6 +425,8 @@ def rag():
 @click.pass_context
 def rag_search(ctx, query, limit, semantic_only):
     """Search documents (hybrid: vectors + FTS5, RRF-fused)."""
+    from scribe.memory import get_rag_service
+
     console = ctx.obj["console"]
     rag = get_rag_service()
 
@@ -454,6 +461,7 @@ def rag_ask(ctx, question, limit):
     tagged, and an answer outside the sources is refused.
     """
     from scribe.llm_adapter import LLMAdapter
+    from scribe.memory import get_rag_service
     from scribe.prompts import get_grounded_prompt
 
     console = ctx.obj["console"]
@@ -487,6 +495,8 @@ def rag_ask(ctx, question, limit):
 @click.pass_context
 def rag_reindex(ctx):
     """Rebuild the lexical (FTS5) index from the vector table."""
+    from scribe.memory import get_rag_service
+
     console = ctx.obj["console"]
     rag = get_rag_service()
 
@@ -502,6 +512,8 @@ def rag_reindex(ctx):
 @click.pass_context
 def rag_ingest(ctx, file_path):
     """Add a document to RAG index."""
+    from scribe.memory import get_rag_service
+
     console = ctx.obj["console"]
     rag = get_rag_service()
 
@@ -520,6 +532,8 @@ def rag_ingest(ctx, file_path):
 @click.pass_context
 def rag_sources(ctx):
     """List indexed document sources."""
+    from scribe.memory import get_rag_service
+
     console = ctx.obj["console"]
     rag = get_rag_service()
 
@@ -543,6 +557,8 @@ def rag_sources(ctx):
 @click.pass_context
 def rag_stats(ctx):
     """Show RAG statistics."""
+    from scribe.memory import get_rag_service
+
     console = ctx.obj["console"]
     rag = get_rag_service()
 
@@ -794,6 +810,8 @@ def session():
 @click.pass_context
 def session_last(ctx):
     """Show the last session summary."""
+    from scribe.memory import get_sme_service, recall_previous_session
+
     console = ctx.obj["console"]
     sme = get_sme_service()
 
@@ -805,6 +823,8 @@ def session_last(ctx):
 @click.pass_context
 def session_list(ctx):
     """List all sessions."""
+    from scribe.session import SessionManager
+
     console = ctx.obj["console"]
     session_mgr = SessionManager(ctx.obj["config"])
 
@@ -824,6 +844,8 @@ def session_list(ctx):
 @click.pass_context
 def session_search(ctx, query, limit):
     """Full-text search across all session transcripts."""
+    from scribe.session import SessionManager
+
     console = ctx.obj["console"]
     session_mgr = SessionManager(ctx.obj["config"])
 

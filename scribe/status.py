@@ -10,6 +10,7 @@ built against this contract keep working across Scribe versions.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -63,20 +64,65 @@ def _sessions_block(config) -> dict[str, Any]:
 
 
 def _rag_block(config) -> dict[str, Any]:
-    try:
-        from scribe.memory.rag import get_rag_service
+    """Fast RAG status without constructing RAGService.
 
-        rag = get_rag_service(config)
-        if rag is None:
-            return {"available": False}
+    RAGService owns the embedding model and semantic search stack. Status should
+    be a cheap liveness contract, so it reads existing FTS/LanceDB metadata
+    directly and never imports sentence-transformers.
+    """
+    db_path = Path(getattr(config, "rag_db_path", ""))
+    fts = _rag_fts_block(db_path / "fts.db")
+    if fts is not None:
         return {
             "available": True,
-            "chunks": rag.count(),
-            "fts_chunks": rag.fts.count(),
-            "sources": len(rag.list_sources()),
+            "chunks": fts["chunks"],
+            "fts_chunks": fts["chunks"],
+            "sources": fts["sources"],
+            "mode": "fast",
         }
+
+    lance = _rag_lance_block(db_path)
+    if lance is not None:
+        return {
+            "available": True,
+            "chunks": lance["chunks"],
+            "fts_chunks": None,
+            "sources": None,
+            "mode": "fast",
+        }
+
+    return {"available": db_path.exists(), "chunks": 0, "fts_chunks": 0, "sources": 0}
+
+
+def _rag_fts_block(db_file: Path) -> dict[str, int] | None:
+    """Read chunk/source counts from an existing FTS DB without creating it."""
+    if not db_file.is_file():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db_file}?mode=ro", uri=True)
+        try:
+            chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+            sources = conn.execute(
+                "SELECT COUNT(DISTINCT source_file) FROM chunks WHERE source_file != ''"
+            ).fetchone()[0]
+            return {"chunks": int(chunks), "sources": int(sources)}
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def _rag_lance_block(db_path: Path) -> dict[str, int] | None:
+    """Fallback to LanceDB row count; still avoids RAGService/embeddings."""
+    if not (db_path / "documents.lance").exists():
+        return None
+    try:
+        import lancedb
+
+        table = lancedb.connect(str(db_path)).open_table("documents")
+        return {"chunks": int(table.count_rows())}
     except Exception:
-        return {"available": False}
+        return None
 
 
 def _sme_block(config) -> dict[str, Any]:
