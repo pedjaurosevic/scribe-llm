@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-17
+
 ### Fixed
 - **Multi-model bench robustness.** An unset `max_tokens` was serialized as
   JSON `null`, which some llama.cpp builds reject with a 400; it is now
@@ -501,7 +503,8 @@ projects (Synap, Konok, ExoLab, CANYON) and Odysseus, folded into Scribe.
   address, using only the Python standard library.
 - Held-out fitness suite (`scribe-llm evolve eval`).
 
-[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.7.2...HEAD
+[Unreleased]: https://github.com/pedjaurosevic/scribe-llm/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v2.0.1...v3.0.0
 [1.7.2]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/pedjaurosevic/scribe-llm/compare/v1.6.0...v1.7.0
