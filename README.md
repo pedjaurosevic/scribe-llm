@@ -21,7 +21,8 @@ Three properties that hold by construction, not by prompt-tuning:
    disagree, and refuses to answer outside the sources. ([scribe/prompts.py](scribe/prompts.py))
 3. **Grounding is measured, not asserted.** `scribe-llm bench` reports a
    deterministic Source-Presence Index (SPI) over a checksum-locked held-out
-   suite — on Gemma 4 12B it scores **SPI 1.00**. ([scribe/evolve/spi.py](scribe/evolve/spi.py)).
+   suite, and `bench --models` ranks whole model fleets on it — see the
+   [grounding leaderboard](docs/leaderboard.md). ([scribe/evolve/spi.py](scribe/evolve/spi.py)).
    See [Gauntlet Soak Test Results](bench/README.md) for performance under load.
 
 > **Honest scope:** GBNF and constrained decoding aren't new — llama.cpp added
@@ -34,6 +35,26 @@ Three properties that hold by construction, not by prompt-tuning:
 > malformed one).
 
 📖 Full overview on the [project site](https://pedjaurosevic.github.io/scribe-llm/).
+
+## Grounding leaderboard
+
+SPI over the 24-task checksum-locked grounded suite — deterministic, no LLM
+judge. Every model runs under the same grounded prompt; the ranking is pure
+citation discipline. Reproduce with `scribe-llm bench --models` and a
+`[scribe.bench]` model list; full report in
+[docs/leaderboard.md](docs/leaderboard.md).
+
+| Rank | Model | SPI |
+| ---: | :--- | ---: |
+| 1 | gemma-4-12B (local, llama.cpp) | **0.865** |
+| 2 | llama-3.3-70b (Groq) | 0.826 |
+| 3 | gpt-oss-120b (Groq) | 0.823 |
+| 4 | qwen3-32b (Groq) | 0.807 |
+| 5 | gemma-4-E2B (local, llama.cpp) | 0.664 |
+| 6 | llama-3.1-8b (Groq) | 0.341 |
+
+Under the same harness, a local 12B out-cites 70B and 120B cloud models —
+the discipline comes from the harness + model pairing, not model size alone.
 
 ## Features
 
