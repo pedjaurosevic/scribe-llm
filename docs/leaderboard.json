@@ -1,0 +1,61 @@
+{
+  "suite_checksum": "b8dbabb216fcb645b49d168d3ea31df6adda3db060bf1c56bfdd1414ea048cec",
+  "ts": "2026-07-17T10:26:19",
+  "n_tasks": 24,
+  "rows": [
+    {
+      "name": "gemma-4-12b (local)",
+      "model": "default",
+      "base_url": "http://127.0.0.1:18083/v1",
+      "spi": 0.8646,
+      "invalid_citations": 0,
+      "n": 24,
+      "rank": 1
+    },
+    {
+      "name": "llama-3.3-70b (groq)",
+      "model": "llama-3.3-70b-versatile",
+      "base_url": "https://api.groq.com/openai/v1",
+      "spi": 0.8264,
+      "invalid_citations": 0,
+      "n": 24,
+      "rank": 2
+    },
+    {
+      "name": "gpt-oss-120b (groq)",
+      "model": "openai/gpt-oss-120b",
+      "base_url": "https://api.groq.com/openai/v1",
+      "spi": 0.8229,
+      "invalid_citations": 0,
+      "n": 24,
+      "rank": 3
+    },
+    {
+      "name": "qwen3-32b (groq)",
+      "model": "qwen/qwen3-32b",
+      "base_url": "https://api.groq.com/openai/v1",
+      "spi": 0.8071,
+      "invalid_citations": 0,
+      "n": 24,
+      "rank": 4
+    },
+    {
+      "name": "gemma-4-E2B (po-hub)",
+      "model": "default",
+      "base_url": "http://127.0.0.1:18094/v1",
+      "spi": 0.6637,
+      "invalid_citations": 0,
+      "n": 24,
+      "rank": 5
+    },
+    {
+      "name": "llama-3.1-8b (groq)",
+      "model": "llama-3.1-8b-instant",
+      "base_url": "https://api.groq.com/openai/v1",
+      "spi": 0.3406,
+      "invalid_citations": 0,
+      "n": 24,
+      "rank": 6
+    }
+  ]
+}
