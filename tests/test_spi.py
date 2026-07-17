@@ -200,3 +200,74 @@ class TestLeaderboard:
         assert "| Rank | Model | SPI | Invalid citations |" in md
         assert "m1" in md
         assert "abc123def456" in md  # checksum truncated to 12 chars
+
+    def test_broken_model_does_not_kill_the_run(self):
+        from scribe.evolve.leaderboard import (
+            render_leaderboard_md,
+            run_multi_model_bench,
+        )
+
+        specs = [{"name": "dead"}, {"name": "alive"}]
+
+        def factory(spec):
+            if spec["name"] == "dead":
+                def boom(task):
+                    raise ConnectionError("server unreachable")
+                return boom
+            return lambda t: ("Fact [1]." if t.get("answerable", True)
+                              else "Sources do not cover this.")
+
+        report = run_multi_model_bench(specs, factory, self.TASKS)
+        names = [r["name"] for r in report["rows"]]
+        assert names == ["alive", "dead"]  # failed rows sink to the bottom
+        dead = report["rows"][1]
+        assert dead["spi"] is None
+        assert "ConnectionError" in dead["error"]
+        md = render_leaderboard_md(report)
+        assert "dead ⚠" in md
+        assert "server unreachable" in md
+
+
+class TestMaxTokensOmission:
+    """An unset max_tokens must be omitted, not serialized as JSON null."""
+
+    def _adapter_with_fake_client(self):
+        from scribe.llm_adapter import LLMAdapter
+
+        captured = {}
+
+        class _Msg:
+            content = "ok"
+
+        class _Choice:
+            message = _Msg()
+
+        class _Resp:
+            choices = [_Choice()]
+
+        class _Completions:
+            def create(self, **kwargs):
+                captured.update(kwargs)
+                return _Resp()
+
+        class _Chat:
+            completions = _Completions()
+
+        class _Client:
+            chat = _Chat()
+
+        adapter = LLMAdapter(base_url="http://127.0.0.1:9")
+        adapter.client = _Client()
+        return adapter, captured
+
+    def test_none_max_tokens_is_omitted(self):
+        adapter, captured = self._adapter_with_fake_client()
+        adapter.complete([{"role": "user", "content": "hi"}])
+        import openai
+
+        assert captured["max_tokens"] is openai.NOT_GIVEN
+
+    def test_explicit_max_tokens_is_passed(self):
+        adapter, captured = self._adapter_with_fake_client()
+        adapter.complete([{"role": "user", "content": "hi"}], max_tokens=64)
+        assert captured["max_tokens"] == 64
