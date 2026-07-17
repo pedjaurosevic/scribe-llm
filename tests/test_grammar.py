@@ -208,6 +208,7 @@ class TestAdapterGrammarWiring:
 
     def test_thinking_mode_auto_uses_gate(self):
         adapter = self._adapter()
+        adapter._grammar_supported = True  # llama.cpp: template kwargs allowed
         adapter.thinking_mode = "auto"
         kwargs = adapter._with_thinking(
             {}, [{"role": "user", "content": "Why does this crash?"}]
@@ -216,8 +217,16 @@ class TestAdapterGrammarWiring:
         kwargs = adapter._with_thinking({}, [{"role": "user", "content": "hi"}])
         assert kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
 
+    def test_non_llamacpp_server_gets_no_template_kwargs(self):
+        # Groq/OpenRouter 400 on unknown properties; the flag is llama.cpp-only.
+        adapter = self._adapter()
+        adapter.thinking_mode = "on"
+        kwargs = adapter._with_thinking({}, [{"role": "user", "content": "why?"}])
+        assert "extra_body" not in kwargs
+
     def test_thinking_mode_on_off_static(self):
         adapter = self._adapter()
+        adapter._grammar_supported = True  # llama.cpp: template kwargs allowed
         adapter.thinking_mode = "on"
         kwargs = adapter._with_thinking({}, [{"role": "user", "content": "hi"}])
         assert kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"] is True

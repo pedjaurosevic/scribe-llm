@@ -20,7 +20,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 import httpx
-from openai import OpenAI
+from openai import NOT_GIVEN, OpenAI
 from openai._streaming import Stream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
@@ -30,6 +30,16 @@ from scribe.reasoning_gate import last_user_text, should_think
 
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
+
+
+def _given(value):
+    """
+    Omit a parameter instead of sending an explicit JSON null.
+
+    openai-python serializes an explicit None as `null`; some llama.cpp builds
+    reject e.g. `"max_tokens": null` with a 400 type error.
+    """
+    return NOT_GIVEN if value is None else value
 
 
 class _ThinkSplitter:
@@ -378,7 +388,14 @@ class LLMAdapter:
         mode). In "auto" mode the reasoning gate decides per request from the
         latest user message. An explicit value passed by the caller is
         respected.
+
+        `chat_template_kwargs` is a llama.cpp extension; other OpenAI-compatible
+        servers (Groq, OpenRouter, ...) reject unknown properties with a 400,
+        so the flag is only injected when the server fingerprints as llama.cpp
+        (the same /props probe that gates GBNF grammars).
         """
+        if not self.grammar_supported():
+            return kwargs
         if self.thinking_mode == "auto":
             think = should_think(last_user_text(messages or []))
         else:
@@ -548,7 +565,7 @@ class LLMAdapter:
             model=self._request_model(),
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=_given(max_tokens),
             stop=stop,
             **kwargs,
         )
@@ -585,7 +602,7 @@ class LLMAdapter:
             model=self._request_model(),
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=_given(max_tokens),
             **kwargs,
         )
         return response.choices[0].message
@@ -618,7 +635,7 @@ class LLMAdapter:
             model=self._request_model(),
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=_given(max_tokens),
             stop=stop,
             stream=True,
             **kwargs,
@@ -664,7 +681,7 @@ class LLMAdapter:
             model=self._request_model(),
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=_given(max_tokens),
             stop=stop,
             stream=True,
             **kwargs,
@@ -724,7 +741,7 @@ class LLMAdapter:
             model=self._request_model(),
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=_given(max_tokens),
             stream=True,
             **kwargs,
         )
