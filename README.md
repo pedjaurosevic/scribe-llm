@@ -35,6 +35,7 @@ Three properties that hold by construction, not by prompt-tuning:
 > malformed one).
 
 📖 Full overview on the [project site](https://pedjaurosevic.github.io/scribe-llm/).
+📄 Technical note: [Three Guarantees by Construction](docs/three-guarantees.md).
 
 ## Grounding leaderboard
 
