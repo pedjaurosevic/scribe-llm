@@ -16,6 +16,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   whole leaderboard run; it shows up as an unranked ⚠ row instead.
 
 ### Added
+- **First multi-model grounding leaderboard published.** Six models (two
+  local llama.cpp servers + four Groq cloud models) ranked by SPI over the
+  hardened 24-task suite; `docs/leaderboard.{md,json}` are committed and
+  linked from the site navigation and the README. Headline: a local
+  gemma-4-12B (0.865) out-cites llama-3.3-70b (0.826) and gpt-oss-120b
+  (0.823).
 - **Structured-outputs fallback for forced tool calls.** On servers without
   GBNF grammar support (Ollama, LM Studio, cloud APIs), `forced_tool_call`
   now constrains the output with `response_format` `json_schema` (tool names
