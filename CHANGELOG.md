@@ -14,6 +14,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [3.0.0] - 2026-07-17
 
+### Tests
+- **10 new tests** (320 → 330 test functions; 361 collected, 360 green +
+  1 platform skip): the structured-outputs fallback chain in
+  `test_grammar.py` (+5, incl. no `chat_template_kwargs` for non-llama.cpp
+  servers), leaderboard error isolation and `max_tokens` omission in
+  `test_spi.py` (+3), RAG/trace coverage from the gauntlet work in
+  `test_hybrid.py` and `test_trace_vault.py` (+2).
+
 ### Fixed
 - **Multi-model bench robustness.** An unset `max_tokens` was serialized as
   JSON `null`, which some llama.cpp builds reject with a 400; it is now
