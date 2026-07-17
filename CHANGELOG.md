@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Whitepaper: "Three Guarantees by Construction"**
+  (`docs/three-guarantees.md`) — how the tool-call grammar, the grounding
+  contract and the SPI instrument fit together, with the first leaderboard
+  numbers; linked from the README and the site footer.
+
 ### Fixed
 - **Multi-model bench robustness.** An unset `max_tokens` was serialized as
   JSON `null`, which some llama.cpp builds reject with a 400; it is now
