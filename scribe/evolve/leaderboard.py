@@ -42,19 +42,39 @@ def run_multi_model_bench(
     """
     rows = []
     for spec in model_specs:
+        base = {
+            "name": spec.get("name") or spec.get("model") or spec.get("base_url") or "?",
+            "model": spec.get("model", "default"),
+            "base_url": spec.get("base_url", ""),
+        }
         answerer = answerer_factory(spec)
-        result = evaluate_grounded(tasks, answerer)
+        try:
+            result = evaluate_grounded(tasks, answerer)
+        except Exception as exc:
+            # One unreachable/broken server must not kill the whole run;
+            # the failure stays visible as an unranked row.
+            rows.append(
+                {
+                    **base,
+                    "spi": None,
+                    "invalid_citations": None,
+                    "n": 0,
+                    "error": f"{type(exc).__name__}: {exc}"[:200],
+                }
+            )
+            continue
         rows.append(
             {
-                "name": spec.get("name") or spec.get("model") or spec.get("base_url") or "?",
-                "model": spec.get("model", "default"),
-                "base_url": spec.get("base_url", ""),
+                **base,
                 "spi": round(result["spi"], 4),
                 "invalid_citations": result["invalid_citations"],
                 "n": result["n"],
             }
         )
-    rows.sort(key=lambda r: (-r["spi"], r["invalid_citations"], r["name"]))
+    scored = [r for r in rows if r["spi"] is not None]
+    failed = [r for r in rows if r["spi"] is None]
+    scored.sort(key=lambda r: (-r["spi"], r["invalid_citations"], r["name"]))
+    rows = scored + failed
     for i, row in enumerate(rows, 1):
         row["rank"] = i
     return {
@@ -83,10 +103,16 @@ def render_leaderboard_md(report: dict, suite_checksum: str | None = None) -> st
         "| ---: | :--- | ---: | ---: |",
     ]
     for row in report["rows"]:
-        lines.append(
-            f"| {row['rank']} | {row['name']} | {row['spi']:.3f} | "
-            f"{row['invalid_citations']} |"
-        )
+        if row.get("spi") is None:
+            lines.append(
+                f"| {row['rank']} | {row['name']} ⚠ `{row.get('error', 'failed')}` "
+                "| — | — |"
+            )
+        else:
+            lines.append(
+                f"| {row['rank']} | {row['name']} | {row['spi']:.3f} | "
+                f"{row['invalid_citations']} |"
+            )
     lines.append("")
     return "\n".join(lines)
 
@@ -152,6 +178,12 @@ def run_leaderboard_cli(config, console, limit=None) -> dict | None:
     report = run_multi_model_bench(specs, factory, tasks)
 
     for row in report["rows"]:
+        if row.get("spi") is None:
+            console.print(
+                f"  [accent]{row['rank']}.[/accent] [bold]{row['name']:<24}[/bold] "
+                f"[error]✗ {row.get('error', 'failed')}[/error]"
+            )
+            continue
         console.print(
             f"  [accent]{row['rank']}.[/accent] [bold]{row['name']:<24}[/bold] "
             f"spi=[accent]{row['spi']:.3f}[/accent]"
