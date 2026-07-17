@@ -5,7 +5,7 @@ from scribe.evolve import evaluate as ev
 
 def test_tasks_load_and_count():
     tasks = ev.load_tasks()
-    assert len(tasks) == 20
+    assert len(tasks) == 32
     for t in tasks:
         assert {"id", "lang", "prompt", "max_words", "rubric"} <= set(t)
 
