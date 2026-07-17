@@ -288,6 +288,7 @@ class TestReasoningDefaults:
     def test_adapter_suppresses_thinking_by_default(self, tmp_path):
         cfg = ScribeConfig(config_path=tmp_path / "missing.toml")
         adapter = LLMAdapter.from_config(cfg)
+        adapter._grammar_supported = True  # llama.cpp fingerprint, no network probe
         assert adapter.enable_thinking is False
         kwargs = adapter._with_thinking({})
         assert kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
