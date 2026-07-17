@@ -18,3 +18,15 @@
 {"id": "reverse-en", "lang": "en", "prompt": "Spell the word 'banana' backwards.", "max_words": 10, "rubric": "ananab."}
 {"id": "weekday-sr", "lang": "sr", "prompt": "Navedi jedan dan u nedelji koji počinje na slovo P.", "max_words": 12, "rubric": "Ponedeljak ili Petak."}
 {"id": "opposite-en", "lang": "en", "prompt": "What is the opposite of the word 'hot'?", "max_words": 10, "rubric": "Cold."}
+{"id": "hard-modus-tollens-sr", "lang": "sr", "prompt": "Ako pada kiša, ulica je mokra. Ulica nije mokra. Šta možeš da zaključiš? Kratko obrazloži.", "max_words": 40, "rubric": "Ne pada kiša (modus tollens)."}
+{"id": "hard-trains-en", "lang": "en", "prompt": "Two trains 300 km apart travel toward each other at 70 km/h and 80 km/h. After how long do they meet? Explain briefly.", "max_words": 50, "rubric": "2 hours (closing speed 150 km/h)."}
+{"id": "hard-distractor-math-sr", "lang": "sr", "prompt": "Marko ima 3 kutije sa po 12 olovaka i još 5 kutija sa po 8 gumica. Koliko olovaka ima Marko?", "max_words": 25, "rubric": "36 olovaka; gumice su distraktor i ne ulaze u račun."}
+{"id": "hard-prime91-en", "lang": "en", "prompt": "Reply with exactly one word, 'yes' or 'no': is 91 a prime number?", "max_words": 3, "rubric": "no (91 = 7 × 13)."}
+{"id": "hard-misconception-en", "lang": "en", "prompt": "Does lightning never strike the same place twice? Answer and correct the misconception briefly.", "max_words": 40, "rubric": "It can and does strike the same place repeatedly (e.g. tall towers)."}
+{"id": "hard-sort-sr", "lang": "sr", "prompt": "Poređaj od najmanjeg ka najvećem: 0.3, 1/4, 30%, 0.29.", "max_words": 30, "rubric": "1/4 (0.25), zatim 0.29, zatim 0.3 i 30% koji su jednaki."}
+{"id": "hard-date-logic-en", "lang": "en", "prompt": "If the 1st of a month falls on a Friday, what day of the week is the 19th?", "max_words": 15, "rubric": "Tuesday."}
+{"id": "hard-negation-sr", "lang": "sr", "prompt": "Koji od ovih brojeva NIJE deljiv sa 3: 12, 21, 35, 45?", "max_words": 12, "rubric": "35."}
+{"id": "hard-counting-en", "lang": "en", "prompt": "How many times does the letter 'r' appear in the phrase 'strawberry harvester'?", "max_words": 12, "rubric": "5 (three in strawberry, two in harvester)."}
+{"id": "hard-speed-sr", "lang": "sr", "prompt": "Voz prelazi 240 km za 90 minuta. Kolika mu je prosečna brzina u km/h?", "max_words": 20, "rubric": "160 km/h."}
+{"id": "hard-bat-ball-en", "lang": "en", "prompt": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost?", "max_words": 25, "rubric": "5 cents ($0.05)."}
+{"id": "hard-ages-sr", "lang": "sr", "prompt": "Otac i sin zajedno imaju 36 godina. Otac je 30 godina stariji od sina. Koliko godina ima sin?", "max_words": 15, "rubric": "3 godine."}
