@@ -47,15 +47,19 @@ citation discipline. Reproduce with `scribe-llm bench --models` and a
 
 | Rank | Model | SPI |
 | ---: | :--- | ---: |
-| 1 | gemma-4-12B (local, llama.cpp) | **0.865** |
-| 2 | llama-3.3-70b (Groq) | 0.826 |
-| 3 | gpt-oss-120b (Groq) | 0.823 |
-| 4 | qwen3-32b (Groq) | 0.807 |
-| 5 | gemma-4-E2B (local, llama.cpp) | 0.664 |
-| 6 | llama-3.1-8b (Groq) | 0.341 |
+| 1 | qwen3-32b (Groq) | **0.885** |
+| 2 | gemma-4-12B (local, llama.cpp) | **0.865** |
+| 3 | gemma-4-E4B (local, llama.cpp) | **0.865** |
+| 4 | gpt-oss-120b (Groq) | 0.839 |
+| 5 | llama-3.3-70b (Groq) | 0.760 |
+| 6 | gemma-4-E2B (local, llama.cpp) | 0.673 |
+| 7 | llama-3.1-8b (Groq) | 0.451 |
 
-Under the same harness, a local 12B out-cites 70B and 120B cloud models —
-the discipline comes from the harness + model pairing, not model size alone.
+Local models in the 4–12B class match or beat 70B/120B cloud models — a
+~4B-effective gemma-4-E4B holds the same 0.865 as the 12B. Citation
+discipline comes from the harness + model pairing, not parameter count.
+Scores of individual models move a few points between runs (sampling
+variance): read tiers, not decimals.
 
 ## Features
 

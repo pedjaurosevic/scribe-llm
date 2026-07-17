@@ -78,24 +78,28 @@ famous but absent from the sources. A metric that can't fall can't measure.
 `scribe-llm bench --models` runs the suite over any fleet defined in
 `[scribe.bench]` config — local llama.cpp servers and cloud APIs side by
 side, every model under the identical grounded prompt. From the first public
-run (suite `b8dbabb216fc`, 2026-07-17, [full report](leaderboard.md)):
+run (7 models, suite `b8dbabb216fc`, 2026-07-17, [full report](leaderboard.md)):
 
 | Rank | Model | SPI |
 | ---: | :--- | ---: |
-| 1 | gemma-4-12B (local, llama.cpp) | **0.865** |
-| 2 | llama-3.3-70b (Groq) | 0.826 |
-| 3 | gpt-oss-120b (Groq) | 0.823 |
-| 4 | qwen3-32b (Groq) | 0.807 |
-| 5 | gemma-4-E2B (local, llama.cpp) | 0.664 |
-| 6 | llama-3.1-8b (Groq) | 0.341 |
+| 1 | qwen3-32b (Groq) | **0.885** |
+| 2 | gemma-4-12B (local, llama.cpp) | **0.865** |
+| 3 | gemma-4-E4B (local, llama.cpp) | **0.865** |
+| 4 | gpt-oss-120b (Groq) | 0.839 |
+| 5 | llama-3.3-70b (Groq) | 0.760 |
+| 6 | gemma-4-E2B (local, llama.cpp) | 0.673 |
+| 7 | llama-3.1-8b (Groq) | 0.451 |
 
-Two readings. First, **citation discipline does not scale with parameter
-count**: a local 12B outperforms 70B and 120B cloud models on the same
-tasks. Second, it doesn't come for free either — the 2B model keeps the
-refusal discipline but loses citations on multi-sentence answers, and an
-8B-class model largely ignores the contract. The harness sets the contract;
-whether a model can hold it is an empirical, measurable property — which is
-the point.
+Three readings. First, **citation discipline does not scale with parameter
+count**: a local 12B — and even a ~4B-effective E4B — outperforms 70B and
+120B cloud models on the same tasks. Second, it doesn't come for free —
+the 2B model keeps the refusal discipline but loses citations on
+multi-sentence answers, and an 8B-class model largely ignores the contract.
+Third, **single runs carry sampling variance**: across two runs the cloud
+models moved by up to ±0.08 (llama-3.3-70b measured 0.826 and 0.760), so
+tier differences are meaningful, decimal-place rankings are not. The
+harness sets the contract; whether a model can hold it is an empirical,
+measurable property — which is the point.
 
 ### Failure modes the hardened suite exposes
 
