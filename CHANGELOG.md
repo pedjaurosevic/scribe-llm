@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Multi-model bench robustness.** An unset `max_tokens` was serialized as
+  JSON `null`, which some llama.cpp builds reject with a 400; it is now
+  omitted from the request. `chat_template_kwargs` (a llama.cpp extension)
+  was sent to every server — Groq and other strict OpenAI-compatible APIs
+  reject unknown properties — and is now gated on the llama.cpp `/props`
+  fingerprint. One unreachable or incompatible model no longer kills the
+  whole leaderboard run; it shows up as an unranked ⚠ row instead.
+
 ### Added
 - **Structured-outputs fallback for forced tool calls.** On servers without
   GBNF grammar support (Ollama, LM Studio, cloud APIs), `forced_tool_call`
