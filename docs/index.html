@@ -198,6 +198,7 @@
     </a>
     <div class="nav-right">
       <nav class="nav-links" aria-label="Main navigation">
+        <a href="#v3">v3.0</a>
         <a href="#install">Install</a>
         <a href="#providers">Providers</a>
         <a href="#features">Features</a>
@@ -218,15 +219,17 @@
 <header class="hero">
   <div class="container hero-grid">
     <div>
-      <div class="eyebrow"><span class="dot"></span> Local-first, OpenAI-compatible agent</div>
+      <div class="eyebrow"><span class="dot"></span> Local-first, OpenAI-compatible agent · v3.0</div>
       <h1>Scribe helps you research, write, and work with code from a local workspace.</h1>
-      <p class="lead">Use Scribe with a local llama.cpp, Ollama, or LM Studio server, or point it at a cloud API on weaker hardware. It keeps sessions, files, RAG, and memory in plain local folders.</p>
+      <p class="lead">Use Scribe with a local llama.cpp, Ollama, or LM Studio server, or point it at a cloud API on weaker hardware. It keeps sessions, files, RAG, and memory in plain local folders — and in 3.0 its three guarantees are <em>measured</em>: a public leaderboard ranks models on citation discipline, and tool calls survive on every backend.</p>
       <div class="actions">
-        <a class="btn primary" href="https://github.com/pedjaurosevic/scribe-llm">View on GitHub</a>
+        <a class="btn primary" href="#v3">What's new in 3.0</a>
         <a class="btn" href="#install">Install</a>
-        <a class="btn" href="providers.md">Provider guide</a>
+        <a class="btn" href="three-guarantees.md">Whitepaper</a>
+        <a class="btn" href="https://github.com/pedjaurosevic/scribe-llm">GitHub</a>
       </div>
       <div class="meta">
+        <span>v3.0.0 on PyPI</span>
         <span>MIT License</span>
         <span>Python 3.10+</span>
         <span>CLI + TUI + Web UI</span>
@@ -249,6 +252,37 @@ workspace: ~/scribe-workspace
     </div>
   </div>
 </header>
+
+<section id="v3">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h2>Scribe 3.0 — guarantees you can measure</h2>
+        <p class="section-note">Three properties that hold by construction, not by prompt-tuning — and an instrument that puts a number on them. Full story in the <a href="three-guarantees.md">whitepaper</a>.</p>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:20px">
+      <div class="card"><h3>Tool calls on any backend</h3><p>On llama.cpp a GBNF grammar makes a malformed call grammatically impossible. New in 3.0: everywhere else the same forced-call path degrades to structured outputs (<code>json_schema</code> → <code>json_object</code> → text parse).</p></div>
+      <div class="card"><h3>Cite or refuse</h3><p>Grounded answers map every claim to a numbered source <code>[n]</code>, tag contradictions, and refuse outside the sources — even when the model "knows" the answer.</p></div>
+      <div class="card"><h3>A metric that can fall</h3><p>The held-out suite was hardened in 3.0 (8 → 24 tasks) after the old one saturated. Deterministic SPI, checksum-locked tasks, no LLM judge.</p></div>
+    </div>
+    <div class="section-head" style="margin-top:36px">
+      <div>
+        <h2>Grounding leaderboard</h2>
+        <p class="section-note">Seven models, one identical grounded prompt, 24 locked tasks. Local 4–12B models match or beat 70B/120B cloud models on citation discipline. <a href="leaderboard.md">Full report</a> · reproduce with <code>scribe-llm bench --models</code>.</p>
+      </div>
+    </div>
+    <div class="table" style="margin-top:20px">
+      <div class="row"><div class="cell key">1 · qwen3-32b (Groq)</div><div class="cell value">SPI 0.885</div></div>
+      <div class="row"><div class="cell key">2 · gemma-4-12B (local)</div><div class="cell value">SPI 0.865</div></div>
+      <div class="row"><div class="cell key">3 · gemma-4-E4B (local, ~4B)</div><div class="cell value">SPI 0.865</div></div>
+      <div class="row"><div class="cell key">4 · gpt-oss-120b (Groq)</div><div class="cell value">SPI 0.839</div></div>
+      <div class="row"><div class="cell key">5 · llama-3.3-70b (Groq)</div><div class="cell value">SPI 0.760</div></div>
+      <div class="row"><div class="cell key">6 · gemma-4-E2B (local)</div><div class="cell value">SPI 0.673</div></div>
+      <div class="row"><div class="cell key">7 · llama-3.1-8b (Groq)</div><div class="cell value">SPI 0.451</div></div>
+    </div>
+  </div>
+</section>
 
 <section id="install">
   <div class="container">
@@ -336,7 +370,7 @@ scribe-llm chat</code></pre>
 <section>
   <div class="container">
     <h2>Project status</h2>
-    <p class="section-note">Scribe is usable, but it is still an alpha project. The site should make the boundaries clear instead of overselling them.</p>
+    <p class="section-note">Scribe 3.0 ships as stable on PyPI, tested by a 360-case suite and an 18/18 live gauntlet. The site should still make the boundaries clear instead of overselling them.</p>
     <div class="table" style="margin-top:20px">
       <div class="row">
         <div class="cell key">Best supported backend</div>
@@ -348,7 +382,7 @@ scribe-llm chat</code></pre>
       </div>
       <div class="row">
         <div class="cell key">Hard tool-call guarantee</div>
-        <div class="cell value">Only on llama.cpp with GBNF grammar support. Other backends use best-effort parsing.</div>
+        <div class="cell value">Grammatically enforced on llama.cpp (GBNF). Since 3.0 other backends get a structured-outputs fallback (<code>json_schema</code> → <code>json_object</code> → text parse) instead of best-effort parsing alone.</div>
       </div>
       <div class="row">
         <div class="cell key">Workspace data</div>
